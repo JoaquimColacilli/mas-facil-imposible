@@ -191,7 +191,7 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
             
             <button
               onClick={() => setIsOpen(false)}
-              className="absolute top-5 right-5 p-1.5 rounded-full hover:bg-muted text-muted-foreground transition-colors z-10"
+              className="absolute top-5 right-5 p-1.5 rounded-full hover:bg-muted text-muted-foreground transition-colors z-20"
             >
               <X className="w-4 h-4" />
             </button>
