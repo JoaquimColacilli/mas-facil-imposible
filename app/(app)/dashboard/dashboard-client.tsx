@@ -2,14 +2,13 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import type { Transaction, Goal, Profile } from '@/lib/types'
+import type { Transaction, Goal, Profile, Debt } from '@/lib/types'
 import { formatCurrency, formatDate, TRANSACTION_TYPE_LABELS } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell,
 } from 'recharts'
 import {
   ArrowDownLeft,
@@ -25,12 +24,15 @@ import {
   Pencil,
   ArrowLeftRight,
   FileText,
+  Search,
+  X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { QuickAddTransaction } from '@/components/quick-add-transaction'
 import { EditTransactionModal } from '@/components/edit-transaction-modal'
 import { CategoryManagerButton } from '@/components/category-manager'
 import { PendingLoans } from '@/components/pending-loans'
+import { PendingDebts } from '@/components/pending-debts'
 import { TransactionTypeModal } from '@/components/transaction-type-modal'
 import type { Loan } from '@/lib/types'
 
@@ -41,6 +43,7 @@ interface DashboardClientProps {
   transactions: Transaction[]
   goals: Goal[]
   loans: Loan[]
+  debts: Debt[]
   userEmail: string
   currentMonth: string // "YYYY-MM"
 }
@@ -160,35 +163,6 @@ function ChartTooltip({ active, payload, label, currency }: {
   )
 }
 
-// Spending breakdown donut data (separated by currency to keep values comparable)
-function buildSpendingData(transactions: Transaction[]) {
-  const map: Record<string, { name: string; value: number; color: string; currency: 'ARS' | 'USD' }> = {}
-  for (const tx of transactions) {
-    if (tx.type !== 'expense') continue
-    const baseName = tx.category?.name ?? 'Otros'
-    const cur = tx.currency ?? 'ARS'
-    const key = `${baseName}__${cur}`
-    const color = tx.category?.color ?? '#94a3b8'
-    const displayName = cur === 'USD' ? `${baseName} (USD)` : baseName
-    if (!map[key]) map[key] = { name: displayName, value: 0, color, currency: cur }
-    map[key].value += tx.amount
-  }
-  return Object.values(map).sort((a, b) => b.value - a.value).slice(0, 6)
-}
-
-// Custom donut center label
-function DonutLabel({ cx, cy, pct }: { cx: number; cy: number; pct: number }) {
-  return (
-    <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle">
-      <tspan x={cx} dy="-0.3em" className="fill-foreground" style={{ fontSize: 18, fontWeight: 700, fontFamily: 'DM Mono, monospace' }}>
-        {pct}%
-      </tspan>
-      <tspan x={cx} dy="1.4em" style={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-        completado
-      </tspan>
-    </text>
-  )
-}
 
 function KpiAmounts({ ars, usd }: { ars: number; usd: number }) {
   const hasARS = ars !== 0
@@ -221,6 +195,7 @@ export function DashboardClient({
   transactions: initialTransactions,
   goals,
   loans,
+  debts,
   userEmail,
   currentMonth,
 }: DashboardClientProps) {
@@ -232,6 +207,14 @@ export function DashboardClient({
   const [mounted, setMounted] = useState(false)
   const [openTypeModal, setOpenTypeModal] = useState<ModalType | null>(null)
   const [txFilter, setTxFilter] = useState<'all' | 'income' | 'expense' | 'savings' | 'investment'>('all')
+  const [txPage, setTxPage] = useState(0)
+  const TX_PAGE_SIZE = 8
+  const [txSearch, setTxSearch] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [suggestionIdx, setSuggestionIdx] = useState(-1)
+  const searchRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const h = new Date().getHours()
@@ -250,6 +233,18 @@ export function DashboardClient({
 
   useEffect(() => { setMounted(true) }, [])
 
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false)
+        setSuggestionIdx(-1)
+        if (!txSearch) setSearchOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   const firstName = profile?.full_name?.split(' ')[0] ?? userEmail.split('@')[0]
   const currency  = profile?.default_currency ?? 'ARS'
 
@@ -263,12 +258,42 @@ export function DashboardClient({
   const balanceARS     = incomeARS - expensesARS - savingsARS - investmentsARS
   const balanceUSD     = incomeUSD - expensesUSD - savingsUSD - investmentsUSD
 
-  const filteredTxs = txFilter === 'all' ? transactions : transactions.filter((t) => t.type === txFilter)
-  const recent      = filteredTxs.slice(0, 8)
+  const filteredTxs  = txFilter === 'all' ? transactions : transactions.filter((t) => t.type === txFilter)
+
+  // Autocomplete suggestions: unique notes + category names from type-filtered transactions
+  const suggestions = useMemo(() => {
+    const q = txSearch.trim().toLowerCase()
+    if (!q) return []
+    const seen = new Set<string>()
+    const results: string[] = []
+    for (const tx of filteredTxs) {
+      const candidates = [tx.note, tx.category?.name].filter(Boolean) as string[]
+      for (const c of candidates) {
+        const key = c.toLowerCase()
+        if (key.includes(q) && !seen.has(key)) {
+          seen.add(key)
+          results.push(c)
+        }
+      }
+    }
+    return results.slice(0, 6)
+  }, [txSearch, filteredTxs])
+
+  // Apply search on top of type filter
+  const searchedTxs = useMemo(() => {
+    const q = txSearch.trim().toLowerCase()
+    if (!q) return filteredTxs
+    return filteredTxs.filter((t) =>
+      t.note?.toLowerCase().includes(q) ||
+      t.category?.name?.toLowerCase().includes(q),
+    )
+  }, [txSearch, filteredTxs])
+
+  const txTotalPages = Math.max(1, Math.ceil(searchedTxs.length / TX_PAGE_SIZE))
+  const recent       = searchedTxs.slice(txPage * TX_PAGE_SIZE, (txPage + 1) * TX_PAGE_SIZE)
 
   const { label: monthLabel, isCurrentMonth } = formatMonthLabel(currentMonth)
   const chartData      = useMemo(() => buildChartData(transactions, currentMonth), [transactions, currentMonth])
-  const spendingData   = useMemo(() => buildSpendingData(transactions), [transactions])
 
   const kpiCards = [
     { label: 'Balance total',  ars: balanceARS,     usd: balanceUSD,     icon: Wallet,        color: 'text-primary',         bg: 'bg-primary/10'         },
@@ -492,8 +517,8 @@ export function DashboardClient({
                 </Link>
               </div>
             </div>
-            {/* Filter pills */}
-            <div className="flex items-center gap-1.5 px-5 py-2.5 border-b border-border overflow-x-auto scrollbar-none">
+            {/* Filter pills + search */}
+            <div className="flex items-center gap-1.5 px-5 py-2.5 border-b border-border">
               {([
                 { key: 'all',        label: 'Todos'       },
                 { key: 'income',     label: 'Ingresos'    },
@@ -503,7 +528,7 @@ export function DashboardClient({
               ] as const).map(({ key, label }) => (
                 <button
                   key={key}
-                  onClick={() => setTxFilter(key)}
+                  onClick={() => { setTxFilter(key); setTxPage(0); setTxSearch(''); setSuggestionIdx(-1); setSearchOpen(false); setShowSuggestions(false) }}
                   className={cn(
                     'px-3 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all duration-150 shrink-0',
                     txFilter === key
@@ -514,26 +539,130 @@ export function DashboardClient({
                   {label}
                 </button>
               ))}
+              {/* Search */}
+              <div ref={searchRef} className="relative ml-auto shrink-0">
+                <div
+                  onClick={() => {
+                    if (!searchOpen) {
+                      setSearchOpen(true)
+                      setTimeout(() => inputRef.current?.focus(), 0)
+                    }
+                  }}
+                  className={cn(
+                    'flex items-center gap-1.5 h-7 rounded-full border transition-all duration-200 cursor-pointer',
+                    searchOpen || txSearch
+                      ? 'w-44 border-border bg-muted/60 px-2.5 cursor-default'
+                      : 'w-7 border-border bg-muted/30 px-1 justify-center hover:bg-muted/60',
+                  )}
+                >
+                  <Search className="w-3 h-3 text-muted-foreground shrink-0" />
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    value={txSearch}
+                    placeholder="Buscar..."
+                    onFocus={() => setShowSuggestions(true)}
+                    onChange={(e) => {
+                      setTxSearch(e.target.value)
+                      setTxPage(0)
+                      setSuggestionIdx(-1)
+                      setShowSuggestions(true)
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') {
+                        setTxSearch('')
+                        setShowSuggestions(false)
+                        setSuggestionIdx(-1)
+                        setSearchOpen(false)
+                        return
+                      }
+                      if (!showSuggestions || suggestions.length === 0) return
+                      if (e.key === 'ArrowDown') {
+                        e.preventDefault()
+                        setSuggestionIdx((i) => Math.min(i + 1, suggestions.length - 1))
+                      } else if (e.key === 'ArrowUp') {
+                        e.preventDefault()
+                        setSuggestionIdx((i) => Math.max(i - 1, -1))
+                      } else if (e.key === 'Enter' && suggestionIdx >= 0) {
+                        e.preventDefault()
+                        setTxSearch(suggestions[suggestionIdx])
+                        setShowSuggestions(false)
+                        setSuggestionIdx(-1)
+                        setTxPage(0)
+                      }
+                    }}
+                    className={cn(
+                      'bg-transparent text-[11px] text-foreground placeholder:text-muted-foreground focus:outline-none transition-all duration-200',
+                      searchOpen || txSearch ? 'w-full' : 'w-0 pointer-events-none opacity-0',
+                    )}
+                  />
+                  {txSearch && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setTxSearch(''); setShowSuggestions(false); setSuggestionIdx(-1); setTxPage(0) }}
+                      className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
+                    >
+                      <X className="w-2.5 h-2.5" />
+                    </button>
+                  )}
+                </div>
+                {/* Autocomplete dropdown */}
+                {showSuggestions && suggestions.length > 0 && (
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-popover border border-border rounded-xl shadow-lg overflow-hidden z-20">
+                    {suggestions.map((s, i) => (
+                      <button
+                        key={s}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setTxSearch(s)
+                          setShowSuggestions(false)
+                          setSuggestionIdx(-1)
+                          setTxPage(0)
+                        }}
+                        className={cn(
+                          'w-full text-left px-3 py-2 text-[12px] transition-colors duration-100 flex items-center gap-2',
+                          i === suggestionIdx
+                            ? 'bg-muted text-foreground'
+                            : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground',
+                        )}
+                      >
+                        <Search className="w-2.5 h-2.5 shrink-0 opacity-50" />
+                        <span className="truncate">{s}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             {recent.length === 0 ? (
               <div className="flex flex-col items-center gap-3 py-10 text-center">
                 <div className="w-10 h-10 rounded-2xl bg-muted flex items-center justify-center">
-                  <Zap className="w-4 h-4 text-muted-foreground" />
+                  {txSearch ? <Search className="w-4 h-4 text-muted-foreground" /> : <Zap className="w-4 h-4 text-muted-foreground" />}
                 </div>
                 <div>
-                  <p className="text-[13px] font-semibold text-foreground mb-1">Empezá a registrar</p>
-                  <p className="text-[12px] text-muted-foreground">Tu primer movimiento aparecerá aquí.</p>
+                  {txSearch ? (
+                    <>
+                      <p className="text-[13px] font-semibold text-foreground mb-1">Sin resultados</p>
+                      <p className="text-[12px] text-muted-foreground">No hay movimientos que coincidan con &ldquo;{txSearch}&rdquo;.</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[13px] font-semibold text-foreground mb-1">Empezá a registrar</p>
+                      <p className="text-[12px] text-muted-foreground">Tu primer movimiento aparecerá aquí.</p>
+                    </>
+                  )}
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => openQuickAdd()}
-                  className="h-8 rounded-xl text-[13px] gap-1.5 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all duration-150"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Agregar movimiento
-                </Button>
+                {!txSearch && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openQuickAdd()}
+                    className="h-8 rounded-xl text-[13px] gap-1.5 hover:bg-primary hover:text-primary-foreground hover:border-primary transition-all duration-150"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Agregar movimiento
+                  </Button>
+                )}
               </div>
             ) : (
               <div className="divide-y divide-border">
@@ -581,6 +710,28 @@ export function DashboardClient({
                     </div>
                   )
                 })}
+              </div>
+            )}
+            {/* Pagination */}
+            {txTotalPages > 1 && (
+              <div className="flex items-center justify-between px-5 py-2.5 border-t border-border">
+                <button
+                  onClick={() => setTxPage((p) => p - 1)}
+                  disabled={txPage === 0}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-25 disabled:pointer-events-none"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                </button>
+                <span className="text-[11px] text-muted-foreground font-medium">
+                  {txPage + 1} / {txTotalPages}
+                </span>
+                <button
+                  onClick={() => setTxPage((p) => p + 1)}
+                  disabled={txPage >= txTotalPages - 1}
+                  className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-25 disabled:pointer-events-none"
+                >
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
               </div>
             )}
           </div>
@@ -657,66 +808,10 @@ export function DashboardClient({
             </div>
           </div>
 
-          {/* Spending breakdown donut — FIRST */}
-          <div className="bg-card border border-border rounded-2xl overflow-hidden animate-fade-in-up" style={{ animationDelay: '120ms', animationFillMode: 'both' }}>
-            <div className="px-4 py-3 border-b border-border">
-              <h2 className="text-[11px] font-bold text-muted-foreground tracking-[0.1em] uppercase">Distribución de gastos</h2>
-            </div>
-            {spendingData.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-6 text-center px-4">
-                <Zap className="w-7 h-7 text-muted-foreground/40" />
-                <p className="text-[12px] text-muted-foreground">Sin gastos este mes</p>
-              </div>
-            ) : (
-              <div className="p-4">
-                <div className="flex items-center justify-center mb-3">
-                  {mounted && <PieChart width={120} height={120}>
-                    <Pie
-                      data={spendingData}
-                      cx={55}
-                      cy={55}
-                      innerRadius={36}
-                      outerRadius={52}
-                      dataKey="value"
-                      strokeWidth={2}
-                      stroke="var(--card)"
-                    >
-                      {spendingData.map((entry, i) => (
-                        <Cell key={i} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      formatter={(v: number, _: string, props: { payload?: { currency?: 'ARS' | 'USD' } }) =>
-                        [formatCurrency(v, props.payload?.currency ?? (currency as 'ARS' | 'USD')), '']
-                      }
-                      contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 12, fontSize: 12, color: 'var(--popover-foreground)' }}
-                      itemStyle={{ color: 'var(--popover-foreground)' }}
-                      labelStyle={{ color: 'var(--muted-foreground)' }}
-                    />
-                  </PieChart>}
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  {(() => {
-                    const totalARS = spendingData.filter(i => i.currency !== 'USD').reduce((s, i) => s + i.value, 0)
-                    const totalUSD = spendingData.filter(i => i.currency === 'USD').reduce((s, i) => s + i.value, 0)
-                    return spendingData.map((item) => {
-                      const base = item.currency === 'USD' ? totalUSD : totalARS
-                      const pct = base > 0 ? Math.round((item.value / base) * 100) : 0
-                      return (
-                        <div key={item.name} className="flex items-center gap-2 group/item">
-                          <span className="w-2 h-2 rounded-full shrink-0 transition-transform duration-150 group-hover/item:scale-125" style={{ backgroundColor: item.color }} />
-                          <span className="text-[11px] text-muted-foreground flex-1 truncate">{item.name}</span>
-                          <span className="text-[11px] font-semibold font-mono tabular-nums text-foreground">{pct}%</span>
-                        </div>
-                      )
-                    })
-                  })()}
-                </div>
-              </div>
-            )}
-          </div>
+          {/* Deudas pendientes */}
+          <PendingDebts initialDebts={debts} currency={currency as 'ARS' | 'USD'} />
 
-          {/* Cobros pendientes — replaces Meta de ahorros */}
+          {/* Cobros pendientes */}
           <PendingLoans initialLoans={loans} currency={currency as 'ARS' | 'USD'} />
 
         </div>

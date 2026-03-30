@@ -1,8 +1,8 @@
-// v8 — month navigation + loans
+// v9 — month navigation + loans + debts
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { DashboardClient } from './dashboard-client'
-import type { Transaction, Goal, Profile, Loan } from '@/lib/types'
+import type { Transaction, Goal, Profile, Loan, Debt } from '@/lib/types'
 
 export default async function DashboardPage({
   searchParams,
@@ -31,7 +31,7 @@ export default async function DashboardPage({
   const endOfMonth      = new Date(year, month + 1, 0).toISOString().split('T')[0]
   const currentMonthParam = `${year}-${String(month + 1).padStart(2, '0')}`
 
-  const [profileRes, txRes, goalsRes, loansRes] = await Promise.all([
+  const [profileRes, txRes, goalsRes, loansRes, debtsRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', user.id).single(),
     supabase
       .from('transactions')
@@ -52,6 +52,11 @@ export default async function DashboardPage({
       .select('*')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false }),
+    supabase
+      .from('debts')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false }),
   ])
 
   return (
@@ -60,6 +65,7 @@ export default async function DashboardPage({
       transactions={(txRes.data ?? []) as Transaction[]}
       goals={(goalsRes.data ?? []) as Goal[]}
       loans={(loansRes.data ?? []) as Loan[]}
+      debts={(debtsRes.data ?? []) as Debt[]}
       userEmail={user.email ?? ''}
       currentMonth={currentMonthParam}
     />

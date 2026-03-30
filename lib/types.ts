@@ -75,6 +75,20 @@ export interface Loan {
   updated_at: string
 }
 
+export interface Debt {
+  id: string
+  user_id: string
+  person_name: string // who you owe money to
+  amount: number
+  currency: Currency
+  note: string | null
+  date: string
+  paid: boolean
+  paid_at: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface Portfolio {
   id: string
   user_id: string
