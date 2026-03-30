@@ -170,7 +170,7 @@ export function MobileBottomNav() {
       className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background/96 backdrop-blur-md border-t border-border"
       aria-label="Navegación principal"
     >
-      <div className="flex items-center justify-around px-1 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))]">
+      <div className="flex items-center overflow-x-auto scrollbar-none px-1 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] gap-1">
         {[...navItems, { href: '/settings', label: 'Ajustes', icon: Settings }].map(({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(href + '/')
           return (
@@ -178,7 +178,7 @@ export function MobileBottomNav() {
               key={href}
               href={href}
               className={cn(
-                'flex flex-col items-center gap-1 px-2.5 py-1 rounded-xl min-w-0 transition-colors duration-150',
+                'flex flex-col items-center gap-1 px-3 py-1 rounded-xl shrink-0 flex-1 min-w-[56px] transition-colors duration-150',
                 active ? 'text-primary' : 'text-muted-foreground/60 hover:text-muted-foreground',
               )}
               aria-current={active ? 'page' : undefined}

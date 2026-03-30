@@ -315,10 +315,10 @@ export function QuickAddTransaction({ onClose, onSuccess }: QuickAddTransactionP
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-foreground/30 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full sm:max-w-md bg-card rounded-t-2xl sm:rounded-2xl border border-border shadow-xl p-6 z-10 animate-in fade-in-0 slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-150">
-        <div className="flex items-center justify-between mb-5">
+      <div className="relative w-full sm:max-w-md bg-card rounded-t-2xl sm:rounded-2xl border border-border shadow-xl z-10 animate-in fade-in-0 slide-in-from-bottom-4 sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-150 flex flex-col max-h-[90dvh] sm:max-h-[90vh]">
+        <div className="flex items-center justify-between p-6 pb-4 shrink-0">
           <h2 className="text-base font-semibold text-card-foreground">Nuevo movimiento</h2>
           <button
             onClick={onClose}
@@ -329,7 +329,7 @@ export function QuickAddTransaction({ onClose, onSuccess }: QuickAddTransactionP
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4 overflow-y-auto px-6 pb-6">
           {/* Type tabs */}
           <div>
             <Label className="text-[11px] font-semibold text-muted-foreground mb-2 block tracking-wide uppercase">Tipo</Label>
