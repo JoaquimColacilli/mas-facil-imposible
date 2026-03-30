@@ -190,6 +190,32 @@ function DonutLabel({ cx, cy, pct }: { cx: number; cy: number; pct: number }) {
   )
 }
 
+function KpiAmounts({ ars, usd }: { ars: number; usd: number }) {
+  const hasARS = ars !== 0
+  const hasUSD = usd !== 0
+  if (!hasARS && !hasUSD) {
+    return (
+      <p className="font-mono tabular-nums font-bold text-[17px] leading-none tracking-tight text-foreground">
+        {formatCurrency(0, 'ARS')}
+      </p>
+    )
+  }
+  return (
+    <div className="flex flex-col gap-0.5">
+      {hasARS && (
+        <p className="font-mono tabular-nums font-bold text-[17px] leading-none tracking-tight text-foreground">
+          {formatCurrency(ars, 'ARS')}
+        </p>
+      )}
+      {hasUSD && (
+        <p className={cn('font-mono tabular-nums font-bold leading-none tracking-tight text-foreground', hasARS ? 'text-[13px] text-muted-foreground' : 'text-[17px]')}>
+          {formatCurrency(usd, 'USD')}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export function DashboardClient({
   profile,
   transactions: initialTransactions,
@@ -227,11 +253,16 @@ export function DashboardClient({
   const firstName = profile?.full_name?.split(' ')[0] ?? userEmail.split('@')[0]
   const currency  = profile?.default_currency ?? 'ARS'
 
-  const income      = transactions.filter((t) => t.type === 'income').reduce((s, t) => s + t.amount, 0)
-  const expenses    = transactions.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0)
-  const savings     = transactions.filter((t) => t.type === 'savings').reduce((s, t) => s + t.amount, 0)
-  const investments = transactions.filter((t) => t.type === 'investment').reduce((s, t) => s + t.amount, 0)
-  const balance     = income - expenses - savings - investments
+  const sumBy = (type: string, cur: 'ARS' | 'USD') =>
+    transactions.filter((t) => t.type === type && t.currency === cur).reduce((s, t) => s + t.amount, 0)
+
+  const incomeARS      = sumBy('income', 'ARS'),     incomeUSD      = sumBy('income', 'USD')
+  const expensesARS    = sumBy('expense', 'ARS'),    expensesUSD    = sumBy('expense', 'USD')
+  const savingsARS     = sumBy('savings', 'ARS'),    savingsUSD     = sumBy('savings', 'USD')
+  const investmentsARS = sumBy('investment', 'ARS'), investmentsUSD = sumBy('investment', 'USD')
+  const balanceARS     = incomeARS - expensesARS - savingsARS - investmentsARS
+  const balanceUSD     = incomeUSD - expensesUSD - savingsUSD - investmentsUSD
+
   const filteredTxs = txFilter === 'all' ? transactions : transactions.filter((t) => t.type === txFilter)
   const recent      = filteredTxs.slice(0, 8)
 
@@ -240,11 +271,11 @@ export function DashboardClient({
   const spendingData   = useMemo(() => buildSpendingData(transactions), [transactions])
 
   const kpiCards = [
-    { label: 'Balance total',  value: balance,     icon: Wallet,       color: 'text-primary',          bg: 'bg-primary/10'          },
-    { label: 'Ingresos',       value: income,      icon: ArrowDownLeft, color: 'text-emerald-500',     bg: 'bg-emerald-500/10'      },
-    { label: 'Gastos',         value: expenses,    icon: ArrowUpRight,  color: 'text-rose-500',        bg: 'bg-rose-500/10'         },
-    { label: 'Ahorros',        value: savings,     icon: PiggyBank,     color: 'text-sky-500',         bg: 'bg-sky-500/10'          },
-    { label: 'Inversiones',    value: investments, icon: TrendingUp,    color: 'text-violet-500',      bg: 'bg-violet-500/10'       },
+    { label: 'Balance total',  ars: balanceARS,     usd: balanceUSD,     icon: Wallet,        color: 'text-primary',         bg: 'bg-primary/10'         },
+    { label: 'Ingresos',       ars: incomeARS,      usd: incomeUSD,      icon: ArrowDownLeft, color: 'text-emerald-500',     bg: 'bg-emerald-500/10'     },
+    { label: 'Gastos',         ars: expensesARS,    usd: expensesUSD,    icon: ArrowUpRight,  color: 'text-rose-500',        bg: 'bg-rose-500/10'        },
+    { label: 'Ahorros',        ars: savingsARS,     usd: savingsUSD,     icon: PiggyBank,     color: 'text-sky-500',         bg: 'bg-sky-500/10'         },
+    { label: 'Inversiones',    ars: investmentsARS, usd: investmentsUSD, icon: TrendingUp,    color: 'text-violet-500',      bg: 'bg-violet-500/10'      },
   ]
 
   function openQuickAdd(type?: string) {
@@ -286,7 +317,7 @@ export function DashboardClient({
 
           {/* 5 KPI cards — ABOVE the chart */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            {kpiCards.map(({ label, value, icon: Icon, color, bg }, idx) => {
+            {kpiCards.map(({ label, ars, usd, icon: Icon, color, bg }, idx) => {
               const modalType: ModalType | null =
                 label === 'Ingresos'    ? 'income'     :
                 label === 'Ahorros'     ? 'savings'    :
@@ -314,9 +345,7 @@ export function DashboardClient({
                     <Icon className={cn('w-3.5 h-3.5', color)} />
                   </div>
                   <div>
-                    <p className="font-mono tabular-nums font-bold text-[17px] leading-none tracking-tight text-foreground">
-                      {formatCurrency(value, currency as 'ARS' | 'USD')}
-                    </p>
+                    <KpiAmounts ars={ars} usd={usd} />
                     <p className={cn('text-[10px] font-semibold mt-1.5 uppercase tracking-wider leading-none flex items-center gap-1', color.replace('text-', 'text-').replace('500', '400'))}>
                       {label}
                       <span className="opacity-60 text-[9px]">↗</span>
@@ -333,9 +362,7 @@ export function DashboardClient({
                     <Icon className={cn('w-3.5 h-3.5', color)} />
                   </div>
                   <div>
-                    <p className="font-mono tabular-nums font-bold text-[17px] leading-none tracking-tight text-foreground">
-                      {formatCurrency(value, currency as 'ARS' | 'USD')}
-                    </p>
+                    <KpiAmounts ars={ars} usd={usd} />
                     <p className="text-[10px] text-muted-foreground font-semibold mt-1.5 uppercase tracking-wider leading-none">
                       {label}
                     </p>
