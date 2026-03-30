@@ -1,13 +1,12 @@
 'use client'
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { X, Plus, ChevronLeft, ChevronRight, ChevronDown, Search, LayoutGrid, List } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/types'
 import type { Transaction, Category, Profile, Currency, TransactionType, MfiSheet } from '@/lib/types'
-import { Popover, PopoverContent, PopoverTrigger, PopoverAnchor } from '@/components/ui/popover'
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -262,123 +261,6 @@ function EditableRow({ tx, categories, defaultCurrency, defaultSheetId, onSave, 
   )
 }
 
-
-// ─── Cell Details Popover ───────────────────────────────────────────────────
-
-function CellDetailsPopoverContent({
-  day,
-  catId,
-  currentMonth,
-  userId,
-  activeSheetId,
-  existing,
-  onTxsChange,
-  closePopover
-}: {
-  day: number,
-  catId: string,
-  currentMonth: string,
-  userId: string,
-  activeSheetId: string | null,
-  existing: Transaction[],
-  onTxsChange: (updater: (prev: Transaction[]) => Transaction[]) => void,
-  closePopover: () => void
-}) {
-  const supabase = createClient()
-  const [subAmount, setSubAmount] = useState('')
-  const [subNote, setSubNote] = useState('')
-  const [saving, setSaving] = useState(false)
-  const dateStr = `${currentMonth}-${String(day).padStart(2, '0')}`
-
-  // Use a local ref for autoFocus on the amount input after rendering
-  const amountRef = useRef<HTMLInputElement>(null)
-  useEffect(() => {
-    // slight delay to ensure popover transition is mostly done
-    const t = setTimeout(() => {
-      amountRef.current?.focus()
-    }, 50)
-    return () => clearTimeout(t)
-  }, [])
-
-  async function addSub() {
-    const amount = parseFloat(subAmount.replace(',', '.'))
-    if (!amount || amount <= 0) return
-    setSaving(true)
-    const { data } = await supabase.from('transactions')
-      .insert({ user_id: userId, sheet_id: activeSheetId, type: 'expense', date: dateStr, category_id: catId, amount, currency: 'ARS', status: 'confirmed', note: subNote.trim() || null })
-      .select('*, category:categories(*)')
-      .single()
-    setSaving(false)
-    if (data) {
-      onTxsChange((prev) => [...prev, data as Transaction])
-      setSubAmount('')
-      setSubNote('')
-      amountRef.current?.focus()
-    }
-  }
-
-  async function deleteSub(id: string) {
-    await supabase.from('transactions').delete().eq('id', id)
-    onTxsChange((prev) => prev.filter((t) => t.id !== id))
-  }
-
-  return (
-    <div className="flex flex-col gap-2 text-[12px]">
-      <div className="flex items-center justify-between border-b border-border/60 pb-1.5 mb-1">
-        <span className="font-semibold text-foreground">Detalle del día {day}</span>
-        <button onClick={(e) => { e.stopPropagation(); closePopover() }} className="text-muted-foreground hover:text-foreground p-1 transition-colors rounded hover:bg-muted"><X className="w-3.5 h-3.5" /></button>
-      </div>
-
-      {existing.length > 0 && (
-        <>
-          <div className="flex flex-col gap-0.5 max-h-[150px] overflow-y-auto overflow-x-hidden">
-            {existing.map(tx => (
-              <div key={tx.id} className="flex items-center gap-2 group/tx hover:bg-muted/50 rounded-lg px-2 py-1 transition-colors">
-                <span className="flex-1 min-w-0 truncate text-muted-foreground text-[12px]">{tx.note ?? <span className="italic opacity-50">sin detalle</span>}</span>
-                <span className="font-mono font-semibold tabular-nums text-rose-500 text-[12px] shrink-0">−{tx.amount.toLocaleString('es-AR')}</span>
-                <button onClick={(e) => { e.stopPropagation(); deleteSub(tx.id) }} className="text-muted-foreground hover:text-rose-500 transition-colors shrink-0">
-                  <X className="w-3 h-3" />
-                </button>
-              </div>
-            ))}
-          </div>
-          <div className="flex items-center justify-between px-2 py-1 bg-muted/40 rounded-lg font-semibold">
-            <span className="text-[11px] text-muted-foreground uppercase tracking-wide">Total</span>
-            <span className="font-mono text-rose-500 text-[13px]">−{existing.reduce((s,t)=>s+t.amount,0).toLocaleString('es-AR')}</span>
-          </div>
-        </>
-      )}
-
-      <div className="flex flex-col gap-2 pt-2 border-t border-border/60">
-        <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Agregar gasto</span>
-        <input
-          ref={amountRef}
-          type="text"
-          inputMode="decimal"
-          value={subAmount}
-          onChange={(e) => setSubAmount(e.target.value.replace(/[^0-9.,]/g, ''))}
-          onKeyDown={(e) => { if (e.key === 'Enter') addSub() }}
-          placeholder="Monto"
-          className="w-full bg-background font-mono font-semibold border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/40 text-[13px] tabular-nums"
-        />
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={subNote}
-            onChange={(e) => setSubNote(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') addSub() }}
-            placeholder="Descripción (opcional)"
-            className="flex-1 min-w-0 bg-background text-foreground border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/40 text-[12px]"
-          />
-          <button onClick={addSub} disabled={saving || !subAmount} className="bg-primary text-primary-foreground hover:bg-primary/90 transition-colors font-bold rounded-lg px-3 py-2 disabled:opacity-40 shrink-0 text-[12px]">
-            {saving ? '…' : 'Agregar'}
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ─── Grid View ───────────────────────────────────────────────────────────────
 
 interface GridViewProps {
@@ -393,13 +275,7 @@ interface GridViewProps {
 function GridView({ transactions, categories, currentMonth, userId, activeSheetId, onTxsChange }: GridViewProps) {
   const supabase = createClient()
   const [editCell, setEditCell] = useState<{ day: number; catId: string } | null>(null)
-  const [popoverOpen, setPopoverOpen] = useState(false)
-  const [inlineEditing, setInlineEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
-  const inputRef = useRef<HTMLInputElement>(null)
-  // Selection: rectangle defined by anchor + end (in catIdx space)
-  const [selAnchor, setSelAnchor] = useState<{ day: number; catIdx: number } | null>(null)
-  const [selEnd, setSelEnd] = useState<{ day: number; catIdx: number } | null>(null)
   const [sheetCols, setSheetCols] = useState<string[] | null>(null)
   const [showAddCol, setShowAddCol] = useState(false)
   const [newColName, setNewColName] = useState('')
@@ -412,6 +288,8 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
   const [incomeCurr, setIncomeCurr] = useState<Currency>('ARS')
   const [incomeNote, setIncomeNote] = useState('')
   const [savingIncome, setSavingIncome] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const navigatingRef = useRef(false)
 
   const [y, m] = currentMonth.split('-').map(Number)
   const daysInMonth = new Date(y, m, 0).getDate()
@@ -423,20 +301,14 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
     [categories, extraCats]
   )
   const isCustomSheet = activeSheetId !== null
-  const storageKey = activeSheetId ? `mfi_cols_${activeSheetId}` : 'mfi_cols_general'
+  const storageKey = activeSheetId ? `mfi_cols_${activeSheetId}` : null
 
-  // Load column config for sheets from localStorage
+  // Load column config for custom sheets from localStorage
   useEffect(() => {
-    if (!storageKey) return
+    if (!storageKey) { setSheetCols(null); return }
     const saved = localStorage.getItem(storageKey)
-    if (saved) {
-      setSheetCols(JSON.parse(saved))
-    } else if (activeSheetId === null) {
-      setSheetCols(null) // general sheet explicitly falls back to ALL cats when it has no saved config yet
-    } else {
-      setSheetCols([])
-    }
-  }, [storageKey, activeSheetId])
+    setSheetCols(saved ? JSON.parse(saved) : [])
+  }, [storageKey])
 
   // Close add-col dropdown on outside click
   useEffect(() => {
@@ -470,32 +342,13 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
 
   // Which categories are active in this view
   const activeCats = useMemo(() => {
-    if (sheetCols === null) return allExpenseCats
+    if (!isCustomSheet || sheetCols === null) return allExpenseCats
     return sheetCols.map((id) => allExpenseCats.find((c) => c.id === id)).filter(Boolean) as Category[]
-  }, [sheetCols, allExpenseCats])
+  }, [isCustomSheet, sheetCols, allExpenseCats])
 
   const remainingCats = useMemo(() =>
-    sheetCols !== null ? allExpenseCats.filter((c) => !sheetCols.includes(c.id)) : []
-  , [sheetCols, allExpenseCats])
-
-  // Renombrar categoría
-  const [renamingCatId, setRenamingCatId] = useState<string | null>(null)
-  const [renameCatValue, setRenameCatValue] = useState('')
-
-  async function handleRenameCategory(catId: string, name: string) {
-    if (!name.trim() || !savingIncome) { /* using savingIncome randomly wasn't needed, but I'll skip it */ }
-    if (!name.trim()) { setRenamingCatId(null); return }
-    await supabase.from('categories').update({ name: name.trim() }).eq('id', catId)
-    setExtraCats((prev) => {
-      const exists = prev.find(p => p.id === catId)
-      if (exists) return prev.map(c => c.id === catId ? { ...c, name: name.trim() } : c)
-      // Since 'categories' are from props, we just refresh the page entirely for simplicity 
-      // when a prop-level category is renamed, or we can mutate via window location reload
-      return prev
-    })
-    setRenamingCatId(null)
-    window.location.reload()
-  }
+    isCustomSheet && sheetCols !== null ? allExpenseCats.filter((c) => !sheetCols.includes(c.id)) : []
+  , [isCustomSheet, sheetCols, allExpenseCats])
 
   // ARS-only lookup (grid never shows/creates USD)
   const lookup = useMemo(() => {
@@ -510,91 +363,27 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
     return map
   }, [transactions])
 
-  function isInSelection(day: number, catIdx: number): boolean {
-    if (!selAnchor || !selEnd) return false
-    const minDay = Math.min(selAnchor.day, selEnd.day)
-    const maxDay = Math.max(selAnchor.day, selEnd.day)
-    const minCat = Math.min(selAnchor.catIdx, selEnd.catIdx)
-    const maxCat = Math.max(selAnchor.catIdx, selEnd.catIdx)
-    return day >= minDay && day <= maxDay && catIdx >= minCat && catIdx <= maxCat
-  }
-
-  const selectionInfo = useMemo(() => {
-    if (!selAnchor || !selEnd) return null
-    const minDay = Math.min(selAnchor.day, selEnd.day)
-    const maxDay = Math.max(selAnchor.day, selEnd.day)
-    const minCat = Math.min(selAnchor.catIdx, selEnd.catIdx)
-    const maxCat = Math.max(selAnchor.catIdx, selEnd.catIdx)
-    let sum = 0, count = 0
-    for (let d = minDay; d <= maxDay; d++) {
-      for (let ci = minCat; ci <= maxCat; ci++) {
-        const total = (lookup[`${d}-${activeCats[ci]?.id}`] ?? []).reduce((s: number, t: Transaction) => s + t.amount, 0)
-        if (total > 0) { sum += total; count++ }
-      }
-    }
-    return { sum, count, cells: (maxDay - minDay + 1) * (maxCat - minCat + 1) }
-  }, [selAnchor, selEnd, lookup, activeCats])
-
-  function clearSelection() { setSelAnchor(null); setSelEnd(null) }
-
   function getCellTotal(day: number, catId: string): number {
     return (lookup[`${day}-${catId}`] ?? []).reduce((s: number, t: Transaction) => s + t.amount, 0)
   }
 
-  function openCell(day: number, catId: string, openPop = false) {
-    setInlineEditing(false)
-    setEditValue('')
-    setEditCell({ day, catId })
-    if (openPop) setPopoverOpen(true)
-  }
-
-  function startInlineEdit(day: number, catId: string, initialChar?: string) {
+  function openCell(day: number, catId: string) {
     const total = getCellTotal(day, catId)
     setEditCell({ day, catId })
-    setPopoverOpen(false)
-    setInlineEditing(true)
-    setEditValue(initialChar ?? (total > 0 ? String(total) : ''))
-    setTimeout(() => { inputRef.current?.focus(); if (!initialChar) inputRef.current?.select() }, 0)
+    setEditValue(total > 0 ? String(total) : '')
   }
 
-  async function commitInline(day: number, catId: string) {
-    setInlineEditing(false)
-    const amount = parseFloat(editValue.replace(',', '.'))
-    const existing = lookup[`${day}-${catId}`] ?? []
-    const dateStr = `${currentMonth}-${String(day).padStart(2, '0')}`
-    if (!amount || amount <= 0) {
-      if (existing.length > 0) {
-        const ids = existing.map((t) => t.id)
-        await supabase.from('transactions').delete().in('id', ids)
-        onTxsChange((prev) => prev.filter((t) => !ids.includes(t.id)))
-      }
-      return
+  useEffect(() => {
+    if (editCell) {
+      inputRef.current?.focus()
+      inputRef.current?.select()
     }
-    // Replace all existing with a single transaction
-    if (existing.length > 0) {
-      const [first, ...rest] = existing
-      if (rest.length > 0) {
-        const restIds = rest.map((t) => t.id)
-        await supabase.from('transactions').delete().in('id', restIds)
-        onTxsChange((prev) => prev.filter((t) => !restIds.includes(t.id)))
-      }
-      const { data } = await supabase.from('transactions').update({ amount }).eq('id', first.id).select('*, category:categories(*)').single()
-      if (data) onTxsChange((prev) => prev.map((t) => t.id === (data as Transaction).id ? (data as Transaction) : t))
-    } else {
-      const { data } = await supabase.from('transactions')
-        .insert({ user_id: userId, sheet_id: activeSheetId, type: 'expense', date: dateStr, category_id: catId, amount, currency: 'ARS', status: 'confirmed' })
-        .select('*, category:categories(*)')
-        .single()
-      if (data) onTxsChange((prev) => [...prev, data as Transaction])
-    }
-  }
-
-
+  }, [editCell])
 
   // Start navigation from (1, 0) when no cell is focused and an arrow key is pressed
   useEffect(() => {
     if (activeCats.length === 0) return
-    const handler = (e: React.KeyboardEvent) => {
+    const handler = (e: KeyboardEvent) => {
       if (editCell) return
       if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return
       e.preventDefault()
@@ -638,132 +427,51 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
   }
 
   function navigate(day: number, catId: string, nextDay: number, nextCatId: string) {
-    // No longer saving dynamically inline unless they interacted with popover.
-    // So just move focus.
-    setPopoverOpen(false)
+    navigatingRef.current = true
+    saveCell(day, catId, editValue)
+    navigatingRef.current = false
     openCell(nextDay, nextCatId)
   }
 
-  async function deleteSelection() {
-    if (!selAnchor || !selEnd) return
-    const minDay = Math.min(selAnchor.day, selEnd.day)
-    const maxDay = Math.max(selAnchor.day, selEnd.day)
-    const minCat = Math.min(selAnchor.catIdx, selEnd.catIdx)
-    const maxCat = Math.max(selAnchor.catIdx, selEnd.catIdx)
-    const ids: string[] = []
-    for (let d = minDay; d <= maxDay; d++) {
-      for (let ci = minCat; ci <= maxCat; ci++) {
-        const txs = lookup[`${d}-${activeCats[ci]?.id}`] ?? []
-        txs.forEach((t) => ids.push(t.id))
-      }
+  function handleKeyDown(e: React.KeyboardEvent, day: number, catId: string) {
+    const catIdx = activeCats.findIndex((c) => c.id === catId)
+    if (e.key === 'Escape') { e.preventDefault(); setEditCell(null); return }
+    if (e.key === 'Enter' || e.key === 'ArrowDown') {
+      e.preventDefault()
+      if (day < daysInMonth) navigate(day, catId, day + 1, catId)
+      else saveCell(day, catId, editValue)
+      return
     }
-    if (ids.length === 0) return
-    await supabase.from('transactions').delete().in('id', ids)
-    onTxsChange((prev) => prev.filter((t) => !ids.includes(t.id)))
-    clearSelection()
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      if (day > 1) navigate(day, catId, day - 1, catId)
+      else saveCell(day, catId, editValue)
+      return
+    }
+    if (e.key === 'ArrowRight') {
+      e.preventDefault()
+      if (catIdx < activeCats.length - 1) navigate(day, catId, day, activeCats[catIdx + 1].id)
+      return
+    }
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault()
+      if (catIdx > 0) navigate(day, catId, day, activeCats[catIdx - 1].id)
+      return
+    }
+    if (e.key === 'Tab' && !e.shiftKey) {
+      e.preventDefault()
+      if (catIdx < activeCats.length - 1) navigate(day, catId, day, activeCats[catIdx + 1].id)
+      else if (day < daysInMonth) navigate(day, catId, day + 1, activeCats[0].id)
+      else saveCell(day, catId, editValue)
+      return
+    }
+    if (e.key === 'Tab' && e.shiftKey) {
+      e.preventDefault()
+      if (catIdx > 0) navigate(day, catId, day, activeCats[catIdx - 1].id)
+      else if (day > 1) navigate(day, catId, day - 1, activeCats[activeCats.length - 1].id)
+      else saveCell(day, catId, editValue)
+    }
   }
-
-  // Bind global grid keydown
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      // Popover open: only Escape
-      if (popoverOpen) {
-        if (e.key === 'Escape') { e.preventDefault(); setPopoverOpen(false) }
-        return
-      }
-      // Inline editing
-      if (inlineEditing && editCell) {
-        if (e.key === 'Escape') { e.preventDefault(); setInlineEditing(false); setEditValue(''); return }
-        if (e.key === 'Enter') { e.preventDefault(); commitInline(editCell.day, editCell.catId); return }
-        if (e.key === 'ArrowDown') {
-          e.preventDefault(); commitInline(editCell.day, editCell.catId)
-          if (editCell.day < daysInMonth) { setInlineEditing(false); setEditValue(''); setEditCell({ day: editCell.day + 1, catId: editCell.catId }) }
-          return
-        }
-        if (e.key === 'ArrowUp') {
-          e.preventDefault(); commitInline(editCell.day, editCell.catId)
-          if (editCell.day > 1) { setInlineEditing(false); setEditValue(''); setEditCell({ day: editCell.day - 1, catId: editCell.catId }) }
-          return
-        }
-        return
-      }
-      // No focused cell
-      if (!editCell) {
-        if (selAnchor && selEnd) {
-          if (e.key === 'Escape') { e.preventDefault(); clearSelection(); return }
-          if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); deleteSelection(); return }
-          if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
-            e.preventDefault()
-            if (selectionInfo) navigator.clipboard.writeText(selectionInfo.sum.toLocaleString('es-AR'))
-            return
-          }
-        }
-        if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key) && activeCats.length > 0) {
-          e.preventDefault(); openCell(1, activeCats[0].id)
-        }
-        return
-      }
-      const { day, catId } = editCell
-      const catIdx = activeCats.findIndex((c) => c.id === catId)
-      // Escape: clear selection first, then unfocus
-      if (e.key === 'Escape') {
-        e.preventDefault()
-        if (selAnchor) { clearSelection() } else { setEditCell(null) }
-        return
-      }
-      // Ctrl+C: copy sum of selection or current cell
-      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
-        e.preventDefault()
-        const val = selectionInfo ? selectionInfo.sum : getCellTotal(day, catId)
-        navigator.clipboard.writeText(val.toLocaleString('es-AR'))
-        return
-      }
-      // Delete: clear selection or current cell
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        e.preventDefault()
-        if (selAnchor && selEnd) { deleteSelection(); return }
-        const existing = lookup[`${day}-${catId}`] ?? []
-        if (existing.length > 0) {
-          const ids = existing.map((t) => t.id)
-          supabase.from('transactions').delete().in('id', ids).then(() => {
-            onTxsChange((prev) => prev.filter((t) => !ids.includes(t.id)))
-          })
-        }
-        return
-      }
-      // Shift+arrows: extend selection
-      if (e.shiftKey && ['ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft'].includes(e.key)) {
-        e.preventDefault()
-        const anchor = selAnchor ?? { day, catIdx }
-        const end = selEnd ?? { day, catIdx }
-        if (!selAnchor) setSelAnchor(anchor)
-        if (e.key === 'ArrowDown') setSelEnd({ day: Math.min(end.day + 1, daysInMonth), catIdx: end.catIdx })
-        if (e.key === 'ArrowUp') setSelEnd({ day: Math.max(end.day - 1, 1), catIdx: end.catIdx })
-        if (e.key === 'ArrowRight') setSelEnd({ day: end.day, catIdx: Math.min(end.catIdx + 1, activeCats.length - 1) })
-        if (e.key === 'ArrowLeft') setSelEnd({ day: end.day, catIdx: Math.max(end.catIdx - 1, 0) })
-        return
-      }
-      if (e.key === 'Enter') { e.preventDefault(); setPopoverOpen(true); return }
-      if (/^[0-9]$/.test(e.key)) { e.preventDefault(); clearSelection(); startInlineEdit(day, catId, e.key); return }
-      if (e.key === 'ArrowDown') { e.preventDefault(); clearSelection(); if (day < daysInMonth) navigate(day, catId, day + 1, catId); return }
-      if (e.key === 'ArrowUp') { e.preventDefault(); clearSelection(); if (day > 1) navigate(day, catId, day - 1, catId); return }
-      if (e.key === 'ArrowRight') { e.preventDefault(); clearSelection(); if (catIdx < activeCats.length - 1) navigate(day, catId, day, activeCats[catIdx + 1].id); return }
-      if (e.key === 'ArrowLeft') { e.preventDefault(); clearSelection(); if (catIdx > 0) navigate(day, catId, day, activeCats[catIdx - 1].id); return }
-      if (e.key === 'Tab' && !e.shiftKey) {
-        e.preventDefault(); clearSelection()
-        if (catIdx < activeCats.length - 1) navigate(day, catId, day, activeCats[catIdx + 1].id)
-        else if (day < daysInMonth) navigate(day, catId, day + 1, activeCats[0].id); return
-      }
-      if (e.key === 'Tab' && e.shiftKey) {
-        e.preventDefault(); clearSelection()
-        if (catIdx > 0) navigate(day, catId, day, activeCats[catIdx - 1].id)
-        else if (day > 1) navigate(day, catId, day - 1, activeCats[activeCats.length - 1].id); return
-      }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [editCell, popoverOpen, inlineEditing, activeCats, daysInMonth, editValue, selAnchor, selEnd, selectionInfo])
-
 
   const colTotals = activeCats.map((cat) =>
     Array.from({ length: daysInMonth }, (_, i) => getCellTotal(i + 1, cat.id)).reduce((a: number, b: number) => a + b, 0)
@@ -801,7 +509,7 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
   }
 
   // Empty state: custom sheet with no columns yet
-  if (sheetCols !== null && sheetCols.length === 0) {
+  if (isCustomSheet && sheetCols !== null && sheetCols.length === 0) {
     return (
       <div className="rounded-2xl border border-border bg-card flex flex-col items-center gap-4 py-10 text-center px-6">
         <p className="text-[13px] font-semibold text-foreground">Esta planilla no tiene columnas</p>
@@ -822,7 +530,7 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
     )
   }
 
-  if (sheetCols === null && allExpenseCats.length === 0) {
+  if (!isCustomSheet && allExpenseCats.length === 0) {
     return (
       <div className="rounded-2xl border border-border bg-card flex flex-col items-center gap-3 py-12 text-center">
         <p className="text-[13px] font-semibold text-foreground">Sin categorías de gasto</p>
@@ -944,46 +652,29 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
         )}
       </div>
 
-      <div className="overflow-x-auto overflow-y-auto max-h-[70vh]">
-      <table className="min-w-full text-[12px] border-collapse">
+      <table className="w-full text-[12px] border-collapse">
         <thead>
           <tr className="border-b border-border bg-muted/30">
-            <th className="text-left px-2 py-2.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider w-8 sticky left-0 z-[2] bg-muted/30 border-r border-border/60 select-none">
+            <th className="text-left px-2 py-2.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider w-8 sticky left-0 bg-muted/30 border-r border-border/60 select-none">
               Día
             </th>
             {activeCats.map((cat) => (
               <th key={cat.id} className="px-2 py-2.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider text-right">
-                {renamingCatId === cat.id ? (
-                  <input
-                    autoFocus
-                    value={renameCatValue}
-                    onChange={(e) => setRenameCatValue(e.target.value)}
-                    onBlur={() => handleRenameCategory(cat.id, renameCatValue)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleRenameCategory(cat.id, renameCatValue)
-                      if (e.key === 'Escape') setRenamingCatId(null)
-                    }}
-                    className="h-6 text-[10px] font-bold text-foreground bg-background border border-primary/50 rounded px-1.5 w-[80px] focus:outline-none focus:ring-1 focus:ring-primary/40 text-right"
-                  />
-                ) : (
-                  <span 
-                    className="group/col inline-flex items-center justify-end gap-1 min-w-0 max-w-full cursor-text"
-                    onDoubleClick={() => { setRenamingCatId(cat.id); setRenameCatValue(cat.name) }}
-                    title="Doble clic para cambiar nombre"
-                  >
+                <span className="group/col inline-flex items-center justify-end gap-1 min-w-0 max-w-full">
+                  {isCustomSheet && (
                     <button
-                      onClick={(e) => { e.stopPropagation(); persistCols((sheetCols ?? allExpenseCats.map(c=>c.id)).filter((id) => id !== cat.id)) }}
+                      onClick={() => persistCols((sheetCols ?? []).filter((id) => id !== cat.id))}
                       className="opacity-0 group-hover/col:opacity-100 transition-opacity shrink-0 text-muted-foreground hover:text-rose-500"
                     >
                       <X className="w-2.5 h-2.5" />
                     </button>
-                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: cat.color ?? '#94a3b8' }} />
-                    <span className="truncate select-none">{cat.name}</span>
-                  </span>
-                )}
+                  )}
+                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: cat.color ?? '#94a3b8' }} />
+                  <span className="truncate">{cat.name}</span>
+                </span>
               </th>
             ))}
-            {true && (
+            {isCustomSheet && (
               <th className="px-2 py-2.5 w-10 relative">
                 <div className="relative flex justify-center">
                   <button
@@ -1044,7 +735,7 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
                 </div>
               </th>
             )}
-            <th className="px-2 py-2.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider text-right border-l border-border/60 w-20 sticky right-0 z-[2] bg-muted/30">
+            <th className="px-2 py-2.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider text-right border-l border-border/60 w-20">
               Totales
             </th>
           </tr>
@@ -1055,68 +746,37 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
             const isToday = day === todayDay
             return (
               <tr key={day} className={cn('border-b border-border/40 last:border-0', isToday ? 'bg-primary/5' : 'hover:bg-muted/10')}>
-                <td className={cn('px-2 py-1 font-mono font-bold text-[11px] sticky left-0 z-[1] border-r border-border/60 select-none w-8', isToday ? 'text-primary bg-primary/5' : 'text-muted-foreground bg-card')}>
+                <td className={cn('px-2 py-1 font-mono font-bold text-[11px] sticky left-0 border-r border-border/60 select-none w-8', isToday ? 'text-primary bg-primary/5' : 'text-muted-foreground bg-card')}>
                   {day}
                 </td>
-                {activeCats.map((cat, catIdx) => {
-                  const isFocused = editCell?.day === day && editCell?.catId === cat.id
-                  const isInline = isFocused && inlineEditing
-                  const isPopActive = isFocused && popoverOpen
-                  const isSelected = isInSelection(day, catIdx)
+                {activeCats.map((cat) => {
+                  const isEditing = editCell?.day === day && editCell?.catId === cat.id
                   const total = getCellTotal(day, cat.id)
-                  const existing = lookup[`${day}-${cat.id}`] ?? []
-
                   return (
                     <td
                       key={cat.id}
-                      className={cn('py-0.5 text-right text-[11px] font-mono tabular-nums relative transition-all duration-75 group/cell',
-                        isInline ? 'bg-primary/10 outline outline-1 -outline-offset-1 outline-primary/70' :
-                        isPopActive ? 'bg-primary/10 outline outline-1 -outline-offset-1 outline-primary/70' :
-                        isSelected ? 'bg-blue-500/15 outline outline-1 -outline-offset-1 outline-blue-500/40' :
-                        isFocused ? 'bg-primary/5 outline outline-1 -outline-offset-1 outline-primary/40' :
-                        'cursor-pointer hover:bg-muted/40'
-                      )}
-                      onClick={(e) => {
-                        if (e.shiftKey && editCell) {
-                          const anchorCatIdx = activeCats.findIndex((c) => c.id === editCell.catId)
-                          setSelAnchor({ day: editCell.day, catIdx: anchorCatIdx })
-                          setSelEnd({ day, catIdx })
-                        } else {
-                          clearSelection()
-                          if (!isFocused) openCell(day, cat.id)
-                        }
-                      }}
-                      onDoubleClick={() => { clearSelection(); setInlineEditing(false); setEditValue(''); openCell(day, cat.id, true) }}
+                      className={cn('py-0.5 text-right', isEditing ? 'bg-primary/10 outline outline-1 -outline-offset-1 outline-primary/50' : 'cursor-pointer hover:bg-muted/40')}
+                      onClick={() => !isEditing && openCell(day, cat.id)}
                     >
-                      <Popover open={isPopActive}>
-                        <PopoverAnchor className="absolute inset-0 pointer-events-none" />
-                        <PopoverContent align="center" side="right" sideOffset={8} className="p-3 shadow-xl pointer-events-auto w-72" onInteractOutside={() => setPopoverOpen(false)}>
-                          <CellDetailsPopoverContent
-                            day={day} catId={cat.id} currentMonth={currentMonth} userId={userId} activeSheetId={activeSheetId}
-                            existing={existing} onTxsChange={onTxsChange} closePopover={() => { setPopoverOpen(false); setEditCell(null) }}
-                          />
-                        </PopoverContent>
-                      </Popover>
-
-                      <span className={cn('absolute top-0 right-0 w-0 h-0 border-t-[6px] border-r-[6px] border-t-transparent', total > 0 ? 'border-r-emerald-500/70' : 'border-r-muted-foreground/20')} />
-                      {isInline ? (
+                      {isEditing ? (
                         <input
                           ref={inputRef}
                           type="text"
                           inputMode="numeric"
                           value={editValue}
                           onChange={(e) => setEditValue(e.target.value.replace(/[^0-9.,]/g, ''))}
-                          onBlur={() => commitInline(day, cat.id)}
+                          onBlur={() => { if (!navigatingRef.current) saveCell(day, cat.id, editValue) }}
+                          onKeyDown={(e) => handleKeyDown(e, day, cat.id)}
                           className="w-full bg-transparent text-right font-mono font-semibold text-foreground focus:outline-none tabular-nums text-[12px] px-2 py-0.5"
                         />
                       ) : total > 0 ? (
-                        <span className="px-2">{total.toLocaleString('es-AR')}</span>
+                        <span className="font-mono tabular-nums text-foreground px-2 text-[11px]">{total.toLocaleString('es-AR')}</span>
                       ) : null}
                     </td>
                   )
                 })}
-                {true && <td />}
-                <td className={cn('px-2 py-1 text-right font-mono tabular-nums font-semibold border-l border-border/60 text-[11px] w-20 sticky right-0 z-[1]', isToday ? 'bg-primary/5' : 'bg-card', rowTotal > 0 ? 'text-rose-500' : 'text-transparent select-none')}>
+                {isCustomSheet && <td />}
+                <td className={cn('px-2 py-1 text-right font-mono tabular-nums font-semibold border-l border-border/60 text-[11px] w-20', rowTotal > 0 ? 'text-rose-500' : 'text-transparent select-none')}>
                   {rowTotal > 0 ? rowTotal.toLocaleString('es-AR') : '0'}
                 </td>
               </tr>
@@ -1125,7 +785,7 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
         </tbody>
         <tfoot>
           <tr className="border-t-2 border-border bg-muted/40">
-            <td className="px-2 py-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider sticky left-0 z-[1] bg-muted/40 border-r border-border/60 select-none w-8">
+            <td className="px-2 py-2 text-[10px] font-bold text-muted-foreground uppercase tracking-wider sticky left-0 bg-muted/40 border-r border-border/60 select-none w-8">
               Total
             </td>
             {activeCats.map((cat, i) => (
@@ -1133,28 +793,13 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
                 {colTotals[i] > 0 ? colTotals[i].toLocaleString('es-AR') : '—'}
               </td>
             ))}
-            {true && <td />}
-            <td className="px-2 py-2 text-right font-mono tabular-nums text-[11px] font-bold text-rose-500 border-l border-border/60 w-20 sticky right-0 z-[1] bg-muted/40">
+            {isCustomSheet && <td />}
+            <td className="px-2 py-2 text-right font-mono tabular-nums text-[11px] font-bold text-rose-500 border-l border-border/60 w-20">
               {grandTotal > 0 ? grandTotal.toLocaleString('es-AR') : '—'}
             </td>
           </tr>
         </tfoot>
       </table>
-      </div>
-
-      {selectionInfo && (
-        <div className="flex items-center gap-3 px-3 py-1.5 bg-muted/60 border-t border-border text-[11px] text-muted-foreground">
-          <span>{selectionInfo.cells} {selectionInfo.cells === 1 ? 'celda' : 'celdas'} seleccionadas</span>
-          {selectionInfo.count > 0 && (
-            <>
-              <span className="text-border">|</span>
-              <span>Suma: <span className="font-mono font-semibold text-foreground">{selectionInfo.sum.toLocaleString('es-AR')}</span></span>
-            </>
-          )}
-          <span className="text-border">|</span>
-          <span className="text-[10px]">Ctrl+C copiar · Delete borrar · Esc cancelar</span>
-        </div>
-      )}
     </div>
   )
 }
@@ -1265,7 +910,7 @@ export function MFITransactionsClient({
 
   // Keyboard navigation & shortcuts
   useEffect(() => {
-    function handler(e: React.KeyboardEvent) {
+    function handler(e: KeyboardEvent) {
       if (editingId || isAddingNew) return
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || e.target instanceof HTMLTextAreaElement) return
 
