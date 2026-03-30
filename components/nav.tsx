@@ -178,7 +178,7 @@ export function MobileBottomNav() {
               key={href}
               href={href}
               className={cn(
-                'flex flex-col items-center gap-1 px-3 py-1 rounded-xl shrink-0 flex-1 min-w-[56px] transition-colors duration-150',
+                'flex flex-col items-center gap-1 px-3 py-1 rounded-xl shrink-0 min-w-[64px] transition-colors duration-150',
                 active ? 'text-primary' : 'text-muted-foreground/60 hover:text-muted-foreground',
               )}
               aria-current={active ? 'page' : undefined}

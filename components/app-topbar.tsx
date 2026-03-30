@@ -190,20 +190,20 @@ export function AppTopbar({ user, profile, mfiMode, onToggleMfi }: AppTopbarProp
   }
 
   return (
-    <header className="h-14 border-b border-border bg-background/90 backdrop-blur-sm sticky top-0 z-40 flex items-center justify-between px-4 md:px-6 shrink-0">
-      <div className="md:hidden flex items-baseline gap-1.5 select-none">
+    <header className="h-14 border-b border-border bg-background/90 backdrop-blur-sm sticky top-0 z-40 flex items-center justify-between px-4 md:px-6 shrink-0 overflow-hidden">
+      <div className="md:hidden flex items-baseline gap-1.5 select-none shrink-0">
         <span className="font-serif text-[17px] font-semibold tracking-tight text-foreground leading-none">MFI</span>
         <span className="text-[9px] font-sans font-medium uppercase tracking-[0.15em] text-foreground/35 leading-none">Fin</span>
       </div>
       <div className="hidden md:block" aria-hidden />
 
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1 overflow-x-auto scrollbar-none ml-2">
         {/* MFI Mode toggle */}
         <button
           onClick={onToggleMfi}
           title={mfiMode ? 'Desactivar modo rápido' : 'Activar modo rápido'}
           className={cn(
-            'flex items-center gap-1.5 h-9 px-3 rounded-xl text-[12px] font-bold transition-all duration-200',
+            'flex items-center gap-1.5 h-9 px-3 rounded-xl text-[12px] font-bold transition-all duration-200 shrink-0',
             mfiMode
               ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/30'
               : 'text-muted-foreground hover:text-foreground hover:bg-muted',
@@ -219,7 +219,7 @@ export function AppTopbar({ user, profile, mfiMode, onToggleMfi }: AppTopbarProp
           disabled={switchingToMfi}
           title="Ir a Modo MFI"
           className={cn(
-            'flex items-center gap-1.5 h-9 px-3 rounded-xl text-[12px] font-bold transition-all duration-200',
+            'flex items-center gap-1.5 h-9 px-3 rounded-xl text-[12px] font-bold transition-all duration-200 shrink-0',
             'border border-border text-muted-foreground hover:text-foreground hover:bg-muted',
             switchingToMfi && 'opacity-60 cursor-wait',
           )}
@@ -252,7 +252,7 @@ export function AppTopbar({ user, profile, mfiMode, onToggleMfi }: AppTopbarProp
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[11px] font-bold hover:opacity-85 transition-opacity ml-1"
+              className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[11px] font-bold hover:opacity-85 transition-opacity ml-1 shrink-0"
               aria-label="Menú de usuario"
             >
               {initials}

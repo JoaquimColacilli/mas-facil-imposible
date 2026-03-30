@@ -30,7 +30,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" suppressHydrationWarning>
-      <body className={`${dmSans.variable} ${sora.variable} ${dmMono.variable} font-sans antialiased overflow-x-hidden`}>
+      <body className={`${dmSans.variable} ${sora.variable} ${dmMono.variable} font-sans antialiased`}>
         {children}
         <Analytics />
       </body>
