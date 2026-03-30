@@ -67,7 +67,7 @@ export function MFIShell({ user, profile, children }: MFIShellProps) {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
+    <div className="flex flex-col min-h-screen bg-background" style={{ zoom: 1.25 }}>
       {/* Top navbar */}
       <header className="h-12 border-b border-border bg-background/95 backdrop-blur-sm sticky top-0 z-40">
         <div className="h-full flex items-center justify-between px-4 md:px-6">
