@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { MFITransactionsClient } from './mfi-transactions-client'
-import type { Transaction, Category, Profile } from '@/lib/types'
+import type { Transaction, Category, Profile, MfiSheet } from '@/lib/types'
 
 export default async function MFIPage({
   searchParams,
@@ -29,7 +29,7 @@ export default async function MFIPage({
   const endOfMonth = new Date(year, month + 1, 0).toISOString().split('T')[0]
   const currentMonth = `${year}-${String(month + 1).padStart(2, '0')}`
 
-  const [profileRes, txRes, catRes] = await Promise.all([
+  const [profileRes, txRes, catRes, sheetsRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', user.id).single(),
     supabase
       .from('transactions')
@@ -39,12 +39,14 @@ export default async function MFIPage({
       .lte('date', endOfMonth)
       .order('date', { ascending: false }),
     supabase.from('categories').select('*').eq('user_id', user.id),
+    supabase.from('mfi_sheets').select('*').eq('user_id', user.id).order('created_at', { ascending: true }),
   ])
 
   return (
     <MFITransactionsClient
       transactions={(txRes.data ?? []) as Transaction[]}
       categories={(catRes.data ?? []) as Category[]}
+      initialSheets={(sheetsRes.data ?? []) as MfiSheet[]}
       profile={profileRes.data as Profile | null}
       currentMonth={currentMonth}
       userId={user.id}

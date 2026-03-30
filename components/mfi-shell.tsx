@@ -3,8 +3,10 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LayoutDashboard, BarChart3, Target, List, Settings, LogOut } from 'lucide-react'
+import { LayoutDashboard, BarChart3, Target, List, Settings, LogOut, Shield } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { MfiPortfolioWidget } from '@/components/mfi-portfolio-widget'
+import { FeedbackModal } from '@/components/feedback-modal'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import type { Profile } from '@/lib/types'
@@ -148,6 +150,24 @@ export function MFIShell({ user, profile, children }: MFIShellProps) {
               )}
               <span className="hidden xs:inline">Modo clásico</span>
             </button>
+            
+            <MfiPortfolioWidget profileCurrency={profile?.default_currency ?? 'ARS'} />
+            
+            {user.email?.toLowerCase().trim() === 'joaquimcolacilli9@gmail.com' && (
+              <Link
+                href="/admin/sugerencias"
+                title="Panel de Administrador"
+                className={cn(
+                  'flex items-center gap-1.5 h-8 px-3 rounded-xl text-[12px] font-bold transition-all duration-200 ml-1',
+                  'bg-blue-500/10 text-blue-500 hover:bg-blue-500/20'
+                )}
+              >
+                <Shield className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Admin</span>
+              </Link>
+            )}
+
+            <FeedbackModal />
             <ThemeToggle />
             <button
               onClick={handleLogout}

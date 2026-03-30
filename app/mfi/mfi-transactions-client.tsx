@@ -6,7 +6,7 @@ import { X, Plus, ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/types'
-import type { Transaction, Category, Profile, Currency, TransactionType } from '@/lib/types'
+import type { Transaction, Category, Profile, Currency, TransactionType, MfiSheet } from '@/lib/types'
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -50,6 +50,7 @@ function navigateMonth(current: string, delta: number) {
 interface Props {
   transactions: Transaction[]
   categories: Category[]
+  initialSheets: MfiSheet[]
   profile: Profile | null
   currentMonth: string
   userId: string
@@ -61,12 +62,13 @@ interface EditableRowProps {
   tx: Transaction | null
   categories: Category[]
   defaultCurrency: Currency
+  defaultSheetId: string | null
   onSave: (saved: Transaction) => void
   onCancel: () => void
   autoFocus?: boolean
 }
 
-function EditableRow({ tx, categories, defaultCurrency, onSave, onCancel, autoFocus }: EditableRowProps) {
+function EditableRow({ tx, categories, defaultCurrency, defaultSheetId, onSave, onCancel, autoFocus }: EditableRowProps) {
   const supabase = createClient()
   const [type, setType] = useState<TransactionType>(tx?.type ?? 'expense')
   const [date, setDate] = useState(tx?.date ?? todayISO())
@@ -122,6 +124,7 @@ function EditableRow({ tx, categories, defaultCurrency, onSave, onCancel, autoFo
           .from('transactions')
           .insert({
             user_id: user.id,
+            sheet_id: defaultSheetId,
             type,
             date,
             note: note.trim() || null,
@@ -307,12 +310,16 @@ function MonthNavigator({ currentMonth }: { currentMonth: string }) {
 export function MFITransactionsClient({
   transactions: initialTransactions,
   categories,
+  initialSheets,
   profile,
   currentMonth,
   userId,
 }: Props) {
   const supabase = createClient()
   const [txs, setTxs] = useState<Transaction[]>(initialTransactions)
+  const [sheets, setSheets] = useState<MfiSheet[]>(initialSheets)
+  const [activeSheetId, setActiveSheetId] = useState<string | null>(null)
+  
   const [editingId, setEditingId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [typeFilter, setTypeFilter] = useState<'all' | TransactionType>('all')
@@ -320,23 +327,32 @@ export function MFITransactionsClient({
   const [isAddingNew, setIsAddingNew] = useState(false)
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
 
+  // Sheet Creation State
+  const [isCreatingSheet, setIsCreatingSheet] = useState(false)
+  const [newSheetName, setNewSheetName] = useState('')
+  const [savingSheet, setSavingSheet] = useState(false)
+
   const defaultCurrency: Currency = (profile?.default_currency as Currency) ?? 'ARS'
 
   // Sync with new server data on month change
   useEffect(() => {
     setTxs(initialTransactions)
+    setSheets(initialSheets)
     setEditingId(null)
     setIsAddingNew(false)
     setFocusedIndex(null)
-  }, [initialTransactions])
+  }, [initialTransactions, initialSheets])
 
   // Reset focus when filtering changes
   useEffect(() => {
     setFocusedIndex(null)
-  }, [typeFilter, search])
+  }, [typeFilter, search, activeSheetId])
 
-  // Filtered transactions
-  const filtered = txs
+  // Transactions belonging strictly to the currently active sheet
+  const sheetTransactions = txs.filter((t) => (t.sheet_id || null) === activeSheetId)
+
+  // Filtered transactions for the view
+  const filtered = sheetTransactions
     .filter((t) => typeFilter === 'all' || t.type === typeFilter)
     .filter(
       (t) =>
@@ -391,8 +407,8 @@ export function MFITransactionsClient({
     return () => window.removeEventListener('keydown', handler)
   }, [editingId, isAddingNew, filtered, focusedIndex])
 
-  // Totals for footer
-  const totals = txs.reduce(
+  // Totals for footer based ONLY on the active sheet
+  const totals = sheetTransactions.reduce(
     (acc, t) => {
       if (t.type === 'income') {
         if (t.currency === 'USD') acc.incomeUSD += t.amount
@@ -406,6 +422,27 @@ export function MFITransactionsClient({
     },
     { incomeARS: 0, incomeUSD: 0, expenseARS: 0, expenseUSD: 0 },
   )
+
+  async function handleCreateSheet() {
+    if (!newSheetName.trim()) return
+    setSavingSheet(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const { data, error } = await supabase
+      .from('mfi_sheets')
+      .insert({ user_id: user.id, name: newSheetName.trim() })
+      .select()
+      .single()
+
+    if (!error && data) {
+      setSheets([...sheets, data as MfiSheet])
+      setActiveSheetId(data.id)
+      setIsCreatingSheet(false)
+      setNewSheetName('')
+    }
+    setSavingSheet(false)
+  }
 
   async function handleDelete(id: string) {
     await supabase.from('transactions').delete().eq('id', id)
@@ -429,6 +466,56 @@ export function MFITransactionsClient({
       <div className="flex items-center justify-between">
         <h1 className="font-serif text-[22px] font-bold tracking-tight">Transacciones</h1>
         <MonthNavigator currentMonth={currentMonth} />
+      </div>
+
+      {/* ── MFI Tabs / Sheets ────────────────────────────────────────── */}
+      <div className="flex items-center gap-1 overflow-x-auto pb-0 -mb-1 scrollbar-none border-b border-border/50">
+        <button
+          onClick={() => setActiveSheetId(null)}
+          className={cn(
+            "px-4 py-2.5 text-[13px] font-semibold transition-all border-b-2 whitespace-nowrap",
+            activeSheetId === null ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30 rounded-t-lg"
+          )}
+        >
+          General
+        </button>
+        {sheets.map(s => (
+          <button
+            key={s.id}
+            onClick={() => setActiveSheetId(s.id)}
+            className={cn(
+              "px-4 py-2.5 text-[13px] font-semibold transition-all border-b-2 whitespace-nowrap",
+              activeSheetId === s.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/30 rounded-t-lg"
+            )}
+          >
+            {s.name}
+          </button>
+        ))}
+        
+        {isCreatingSheet ? (
+          <div className="flex items-center gap-2 px-2 ml-2">
+            <input
+              autoFocus
+              value={newSheetName}
+              onChange={(e) => setNewSheetName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleCreateSheet()
+                if (e.key === 'Escape') setIsCreatingSheet(false)
+              }}
+              placeholder="Nombre Planilla..."
+              className="h-7 text-[12px] bg-background border border-border/80 rounded px-2 w-[120px] focus:outline-none focus:ring-1 focus:ring-primary/40"
+            />
+            <button onClick={handleCreateSheet} disabled={savingSheet || !newSheetName.trim()} className="text-[11px] font-bold text-primary hover:text-primary/80 disabled:opacity-40">✓</button>
+            <button onClick={() => setIsCreatingSheet(false)} className="text-[11px] font-bold text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setIsCreatingSheet(true)}
+            className="px-3 py-2.5 text-[13px] font-medium text-muted-foreground hover:text-foreground flex items-center gap-1 hover:bg-muted/30 rounded-t-lg transition-colors whitespace-nowrap ml-1"
+          >
+            <Plus className="w-3.5 h-3.5" /> Nueva
+          </button>
+        )}
       </div>
 
       {/* ── Filters bar & Shortcuts ────────────────────────────────────────── */}
@@ -517,6 +604,7 @@ export function MFITransactionsClient({
                 tx={tx}
                 categories={categories}
                 defaultCurrency={defaultCurrency}
+                defaultSheetId={activeSheetId}
                 onSave={handleSaveEdit}
                 onCancel={() => setEditingId(null)}
                 autoFocus
@@ -619,6 +707,7 @@ export function MFITransactionsClient({
             tx={null}
             categories={categories}
             defaultCurrency={defaultCurrency}
+            defaultSheetId={activeSheetId}
             onSave={handleSaveNew}
             onCancel={() => setIsAddingNew(false)}
             autoFocus

@@ -39,6 +39,7 @@ export interface Transaction {
   date: string
   note: string | null
   status: TransactionStatus
+  sheet_id: string | null
   created_at: string
   updated_at: string
   // joined
@@ -74,14 +75,54 @@ export interface Loan {
   updated_at: string
 }
 
+export interface Portfolio {
+  id: string
+  user_id: string
+  name: string
+  currency: Currency
+  balance: number
+  created_at: string
+}
+
+export interface PortfolioLog {
+  id: string
+  portfolio_id: string
+  date: string
+  percentage_change: number
+  absolute_change: number
+  new_balance: number
+  created_at: string
+}
+
+export interface MfiSheet {
+  id: string
+  user_id: string
+  name: string
+  created_at: string
+}
+
 export interface Notification {
   id: string
   user_id: string
+  type: NotificationType
   title: string
   message: string
-  type: NotificationType
   read: boolean
+  data: Record<string, any> | null
   created_at: string
+}
+
+export interface Feedback {
+  id: string
+  user_id: string
+  message: string
+  image_urls: string[]
+  status: 'pending' | 'reviewed' | 'done'
+  created_at: string
+  profile?: {
+    email: string
+    full_name: string | null
+  }
 }
 
 // ─── UI helpers ──────────────────────────────────────────────────────────────
