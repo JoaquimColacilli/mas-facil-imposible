@@ -31,7 +31,10 @@ import { QuickAddTransaction } from '@/components/quick-add-transaction'
 import { EditTransactionModal } from '@/components/edit-transaction-modal'
 import { CategoryManagerButton } from '@/components/category-manager'
 import { PendingLoans } from '@/components/pending-loans'
+import { TransactionTypeModal } from '@/components/transaction-type-modal'
 import type { Loan } from '@/lib/types'
+
+type ModalType = 'income' | 'savings' | 'investment'
 
 interface DashboardClientProps {
   profile: Profile | null
@@ -201,6 +204,8 @@ export function DashboardClient({
   const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [mounted, setMounted] = useState(false)
+  const [openTypeModal, setOpenTypeModal] = useState<ModalType | null>(null)
+  const [txFilter, setTxFilter] = useState<'all' | 'income' | 'expense' | 'savings' | 'investment'>('all')
 
   useEffect(() => {
     const h = new Date().getHours()
@@ -227,7 +232,8 @@ export function DashboardClient({
   const savings     = transactions.filter((t) => t.type === 'savings').reduce((s, t) => s + t.amount, 0)
   const investments = transactions.filter((t) => t.type === 'investment').reduce((s, t) => s + t.amount, 0)
   const balance     = income - expenses - savings - investments
-  const recent         = transactions.slice(0, 8)
+  const filteredTxs = txFilter === 'all' ? transactions : transactions.filter((t) => t.type === txFilter)
+  const recent      = filteredTxs.slice(0, 8)
 
   const { label: monthLabel, isCurrentMonth } = formatMonthLabel(currentMonth)
   const chartData      = useMemo(() => buildChartData(transactions, currentMonth), [transactions, currentMonth])
@@ -280,25 +286,63 @@ export function DashboardClient({
 
           {/* 5 KPI cards — ABOVE the chart */}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            {kpiCards.map(({ label, value, icon: Icon, color, bg }, idx) => (
-              <div
-                key={label}
-                className="group flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 transition-all duration-200 hover:shadow-md hover:-translate-y-[2px] animate-fade-in-up"
-                style={{ animationDelay: `${idx * 60}ms`, animationFillMode: 'both' }}
-              >
-                <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110', bg)}>
-                  <Icon className={cn('w-3.5 h-3.5', color)} />
+            {kpiCards.map(({ label, value, icon: Icon, color, bg }, idx) => {
+              const modalType: ModalType | null =
+                label === 'Ingresos'    ? 'income'     :
+                label === 'Ahorros'     ? 'savings'    :
+                label === 'Inversiones' ? 'investment' : null
+              const borderHover =
+                label === 'Ingresos'    ? 'hover:border-emerald-500/50 hover:ring-1 hover:ring-emerald-500/20' :
+                label === 'Ahorros'     ? 'hover:border-sky-500/50 hover:ring-1 hover:ring-sky-500/20'        :
+                label === 'Inversiones' ? 'hover:border-violet-500/50 hover:ring-1 hover:ring-violet-500/20'  : ''
+              const activeBorder =
+                label === 'Ingresos'    ? 'border-emerald-500/30' :
+                label === 'Ahorros'     ? 'border-sky-500/30'     :
+                label === 'Inversiones' ? 'border-violet-500/30'  : 'border-border'
+
+              return modalType ? (
+                <button
+                  key={label}
+                  onClick={() => setOpenTypeModal(modalType)}
+                  className={cn(
+                    'group flex flex-col gap-3 rounded-2xl border bg-card p-4 transition-all duration-200 hover:shadow-md hover:-translate-y-[2px] animate-fade-in-up text-left cursor-pointer',
+                    activeBorder, borderHover,
+                  )}
+                  style={{ animationDelay: `${idx * 60}ms`, animationFillMode: 'both' }}
+                >
+                  <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110', bg)}>
+                    <Icon className={cn('w-3.5 h-3.5', color)} />
+                  </div>
+                  <div>
+                    <p className="font-mono tabular-nums font-bold text-[17px] leading-none tracking-tight text-foreground">
+                      {formatCurrency(value, currency as 'ARS' | 'USD')}
+                    </p>
+                    <p className={cn('text-[10px] font-semibold mt-1.5 uppercase tracking-wider leading-none flex items-center gap-1', color.replace('text-', 'text-').replace('500', '400'))}>
+                      {label}
+                      <span className="opacity-60 text-[9px]">↗</span>
+                    </p>
+                  </div>
+                </button>
+              ) : (
+                <div
+                  key={label}
+                  className="group flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 transition-all duration-200 hover:shadow-md hover:-translate-y-[2px] animate-fade-in-up"
+                  style={{ animationDelay: `${idx * 60}ms`, animationFillMode: 'both' }}
+                >
+                  <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110', bg)}>
+                    <Icon className={cn('w-3.5 h-3.5', color)} />
+                  </div>
+                  <div>
+                    <p className="font-mono tabular-nums font-bold text-[17px] leading-none tracking-tight text-foreground">
+                      {formatCurrency(value, currency as 'ARS' | 'USD')}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground font-semibold mt-1.5 uppercase tracking-wider leading-none">
+                      {label}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-mono tabular-nums font-bold text-[17px] leading-none tracking-tight text-foreground">
-                    {formatCurrency(value, currency as 'ARS' | 'USD')}
-                  </p>
-                  <p className="text-[10px] text-muted-foreground font-semibold mt-1.5 uppercase tracking-wider leading-none">
-                    {label}
-                  </p>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
 
           {/* Monthly Overview chart — BELOW the KPIs */}
@@ -420,6 +464,29 @@ export function DashboardClient({
                   Ver todos <ChevronRight className="w-3 h-3" />
                 </Link>
               </div>
+            </div>
+            {/* Filter pills */}
+            <div className="flex items-center gap-1.5 px-5 py-2.5 border-b border-border overflow-x-auto scrollbar-none">
+              {([
+                { key: 'all',        label: 'Todos'       },
+                { key: 'income',     label: 'Ingresos'    },
+                { key: 'expense',    label: 'Gastos'      },
+                { key: 'savings',    label: 'Ahorros'     },
+                { key: 'investment', label: 'Inversiones' },
+              ] as const).map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setTxFilter(key)}
+                  className={cn(
+                    'px-3 py-1 rounded-full text-[11px] font-semibold whitespace-nowrap transition-all duration-150 shrink-0',
+                    txFilter === key
+                      ? 'bg-foreground text-background'
+                      : 'bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80',
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
 
             {recent.length === 0 ? (
@@ -595,7 +662,9 @@ export function DashboardClient({
                       formatter={(v: number, _: string, props: { payload?: { currency?: 'ARS' | 'USD' } }) =>
                         [formatCurrency(v, props.payload?.currency ?? (currency as 'ARS' | 'USD')), '']
                       }
-                      contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 12, fontSize: 12 }}
+                      contentStyle={{ background: 'var(--popover)', border: '1px solid var(--border)', borderRadius: 12, fontSize: 12, color: 'var(--popover-foreground)' }}
+                      itemStyle={{ color: 'var(--popover-foreground)' }}
+                      labelStyle={{ color: 'var(--muted-foreground)' }}
                     />
                   </PieChart>}
                 </div>
@@ -649,6 +718,23 @@ export function DashboardClient({
           onDeleted={(id) => {
             setTransactions((prev) => prev.filter((t) => t.id !== id))
             setEditingTx(null)
+          }}
+        />
+      )}
+
+      {openTypeModal && (
+        <TransactionTypeModal
+          type={openTypeModal}
+          transactions={transactions.filter((t) => t.type === openTypeModal)}
+          currency={currency as 'ARS' | 'USD'}
+          currentMonth={currentMonth}
+          onClose={() => setOpenTypeModal(null)}
+          onChanged={(updated) => {
+            const type = openTypeModal
+            setTransactions((prev) => [
+              ...prev.filter((t) => t.type !== type),
+              ...updated,
+            ])
           }}
         />
       )}

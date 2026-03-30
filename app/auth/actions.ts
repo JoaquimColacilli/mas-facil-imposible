@@ -10,13 +10,30 @@ export async function login(formData: FormData) {
   const email = formData.get('email') as string
   const password = formData.get('password') as string
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  const { error, data: authData } = await supabase.auth.signInWithPassword({ email, password })
 
   if (error) {
     return { error: error.message }
   }
 
   revalidatePath('/', 'layout')
+
+  // Route based on profile preferences
+  if (authData.user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('preferred_mode, onboarding_completed')
+      .eq('id', authData.user.id)
+      .single()
+
+    if (!profile?.onboarding_completed) {
+      redirect('/onboarding')
+    }
+    if (profile?.preferred_mode === 'mfi') {
+      redirect('/mfi')
+    }
+  }
+
   redirect('/dashboard')
 }
 
@@ -77,6 +94,23 @@ export async function updatePassword(formData: FormData) {
 
   if (error) {
     return { error: error.message }
+  }
+
+  // Route based on profile preferences
+  const { data: { user } } = await supabase.auth.getUser()
+  if (user) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('preferred_mode, onboarding_completed')
+      .eq('id', user.id)
+      .single()
+
+    if (!profile?.onboarding_completed) {
+      redirect('/onboarding')
+    }
+    if (profile?.preferred_mode === 'mfi') {
+      redirect('/mfi')
+    }
   }
 
   redirect('/dashboard')

@@ -8,7 +8,7 @@ export default function VerifyEmailPage() {
       <div className="w-full max-w-sm text-center">
         <div className="flex items-center justify-center gap-2 mb-10">
           <TrendingUp className="w-5 h-5 text-primary" />
-          <span className="text-foreground font-semibold text-base tracking-tight">Finely</span>
+          <span className="text-foreground font-semibold text-base tracking-tight">MFI</span>
         </div>
 
         <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto mb-6">
@@ -17,7 +17,7 @@ export default function VerifyEmailPage() {
 
         <h1 className="text-2xl font-semibold text-foreground mb-2 text-balance">Verificá tu email</h1>
         <p className="text-muted-foreground text-sm leading-relaxed mb-8">
-          Te enviamos un link de confirmación a tu email. Hacé clic en el link para activar tu cuenta y empezar a usar Finely.
+          Te enviamos un link de confirmación a tu email. Hacé clic en el link para activar tu cuenta y empezar a usar MFI.
         </p>
 
         <p className="text-xs text-muted-foreground mb-6">

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import type { User } from '@supabase/supabase-js'
 import type { Profile, Notification, NotificationType } from '@/lib/types'
@@ -15,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Bell, LogOut, Settings, CheckCheck, Info, AlertTriangle, CheckCircle2, AlertCircle, ChevronRight } from 'lucide-react'
+import { Bell, LogOut, Settings, CheckCheck, Info, AlertTriangle, CheckCircle2, AlertCircle, ChevronRight, Zap, Table2 } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { cn } from '@/lib/utils'
 import useSWR from 'swr'
@@ -23,6 +24,8 @@ import useSWR from 'swr'
 interface AppTopbarProps {
   user: User
   profile: Profile | null
+  mfiMode?: boolean
+  onToggleMfi?: () => void
 }
 
 const TYPE_ICONS: Record<NotificationType, React.ReactNode> = {
@@ -167,12 +170,22 @@ function NotificationsPopover({ userId }: { userId: string }) {
   )
 }
 
-export function AppTopbar({ user, profile }: AppTopbarProps) {
+export function AppTopbar({ user, profile, mfiMode, onToggleMfi }: AppTopbarProps) {
+  const router = useRouter()
+  const [switchingToMfi, setSwitchingToMfi] = useState(false)
   const initials = profile?.full_name
     ? profile.full_name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()
     : user.email?.slice(0, 2).toUpperCase() ?? 'U'
 
   const displayName = profile?.full_name ?? user.email ?? 'Usuario'
+
+  async function handleSwitchToMfi() {
+    if (switchingToMfi) return
+    setSwitchingToMfi(true)
+    const supabase = createClient()
+    await supabase.from('profiles').update({ preferred_mode: 'mfi' }).eq('id', user.id)
+    router.push('/mfi')
+  }
 
   return (
     <header className="h-14 border-b border-border bg-background/90 backdrop-blur-sm sticky top-0 z-40 flex items-center justify-between px-4 md:px-6 shrink-0">
@@ -183,6 +196,36 @@ export function AppTopbar({ user, profile }: AppTopbarProps) {
       <div className="hidden md:block" aria-hidden />
 
       <div className="flex items-center gap-1">
+        {/* MFI Mode toggle */}
+        <button
+          onClick={onToggleMfi}
+          title={mfiMode ? 'Desactivar modo rápido' : 'Activar modo rápido'}
+          className={cn(
+            'flex items-center gap-1.5 h-9 px-3 rounded-xl text-[12px] font-bold transition-all duration-200',
+            mfiMode
+              ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/30'
+              : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+          )}
+        >
+          <Zap className={cn('w-3.5 h-3.5', mfiMode && 'fill-current')} />
+          <span className="hidden sm:inline">Modo rápido</span>
+        </button>
+
+        {/* Switch to MFI mode */}
+        <button
+          onClick={handleSwitchToMfi}
+          disabled={switchingToMfi}
+          title="Ir a Modo MFI"
+          className={cn(
+            'flex items-center gap-1.5 h-9 px-3 rounded-xl text-[12px] font-bold transition-all duration-200',
+            'border border-border text-muted-foreground hover:text-foreground hover:bg-muted',
+            switchingToMfi && 'opacity-60 cursor-wait',
+          )}
+        >
+          <Table2 className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Modo MFI</span>
+        </button>
+
         <ThemeToggle />
 
         <NotificationsPopover userId={user.id} />

@@ -6,11 +6,15 @@ export type TransactionStatus = 'confirmed' | 'pending' | 'cancelled'
 export type GoalStatus = 'active' | 'completed' | 'paused'
 export type NotificationType = 'info' | 'warning' | 'success' | 'alert'
 
+export type AppMode = 'classic' | 'mfi'
+
 export interface Profile {
   id: string
   full_name: string | null
   avatar_url: string | null
   default_currency: Currency
+  preferred_mode: AppMode
+  onboarding_completed: boolean
   created_at: string
   updated_at: string
 }
