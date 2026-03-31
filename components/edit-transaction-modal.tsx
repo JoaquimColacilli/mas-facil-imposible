@@ -6,6 +6,7 @@ import type { Transaction, Category, Currency, TransactionType } from '@/lib/typ
 import { TRANSACTION_TYPE_LABELS } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { MoneyInput, parseMoneyInput, formatMoneyInput } from '@/components/money-input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -142,7 +143,7 @@ export function EditTransactionModal({ transaction, onClose, onSaved, onDeleted 
   const supabase = createClient()
 
   const [type, setType] = useState<TransactionType>(transaction.type)
-  const [amount, setAmount] = useState(String(transaction.amount))
+  const [amount, setAmount] = useState(formatMoneyInput(transaction.amount))
   const [currency, setCurrency] = useState<Currency>(transaction.currency)
   const [note, setNote] = useState(transaction.note ?? '')
   const [categoryId, setCategoryId] = useState(transaction.category_id ?? '')
@@ -161,7 +162,7 @@ export function EditTransactionModal({ transaction, onClose, onSaved, onDeleted 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
-    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+    if (!amount || parseMoneyInput(amount) <= 0) {
       setError('Ingresá un monto válido')
       return
     }
@@ -170,7 +171,7 @@ export function EditTransactionModal({ transaction, onClose, onSaved, onDeleted 
     const { data, error: err } = await updateTransaction({
       id: transaction.id,
       type,
-      amount: Number(amount),
+      amount: parseMoneyInput(amount),
       currency,
       note: note.trim() || null,
       category_id: categoryId || null,
@@ -223,8 +224,8 @@ export function EditTransactionModal({ transaction, onClose, onSaved, onDeleted 
           <div className="flex gap-2">
             <div className="flex-1">
               <Label htmlFor="edit-amount" className="text-[11px] font-semibold text-muted-foreground mb-2 block tracking-wide uppercase">Monto</Label>
-              <Input id="edit-amount" type="number" placeholder="0.00" min="0" step="0.01"
-                value={amount} onChange={(e) => setAmount(e.target.value)} required
+              <MoneyInput id="edit-amount" placeholder="0,00"
+                value={amount} onChange={setAmount} required
                 className="h-10 text-base font-mono font-semibold tabular-nums rounded-xl" />
             </div>
             <div className="w-24">

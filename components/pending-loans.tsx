@@ -6,6 +6,7 @@ import type { Loan } from '@/lib/types'
 import { formatCurrency, formatDate } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { liveFormatMoney, parseMoneyInput, formatMoneyInput } from '@/components/money-input'
 import {
   Handshake,
   Plus,
@@ -40,7 +41,7 @@ function AddLoanForm({
   const [error, setError] = useState<string | null>(null)
 
   async function handleSave() {
-    if (!personName.trim() || !amount || Number(amount) <= 0) {
+    if (!personName.trim() || parseMoneyInput(amount) <= 0) {
       setError('Completá nombre y monto')
       return
     }
@@ -50,7 +51,7 @@ function AddLoanForm({
     const { createLoan } = await import('@/app/(app)/dashboard/actions')
     const { data, error: err } = await createLoan({
       person_name: personName.trim(),
-      amount: Number(amount),
+      amount: parseMoneyInput(amount),
       currency: curr,
       note: note.trim() || null,
       date,
@@ -75,11 +76,11 @@ function AddLoanForm({
       <div className="flex gap-2">
         <input
           className={cn(inputCls, 'flex-1')}
-          type="number"
+          type="text"
+          inputMode="decimal"
           placeholder="Monto"
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          min="0"
+          onChange={(e) => setAmount(liveFormatMoney(e.target.value))}
         />
         <select
           className={cn(inputCls, 'w-20 shrink-0')}
@@ -339,20 +340,20 @@ function EditLoanInline({
   onCancel: () => void
 }) {
   const [personName, setPersonName] = useState(loan.person_name)
-  const [amount, setAmount] = useState(String(loan.amount))
+  const [amount, setAmount] = useState(formatMoneyInput(loan.amount))
   const [curr, setCurr] = useState<'ARS' | 'USD'>(loan.currency)
   const [note, setNote] = useState(loan.note ?? '')
   const [date, setDate] = useState(loan.date)
   const [saving, setSaving] = useState(false)
 
   async function handleSave() {
-    if (!personName.trim() || !amount || Number(amount) <= 0) return
+    if (!personName.trim() || parseMoneyInput(amount) <= 0) return
     setSaving(true)
     const { updateLoan } = await import('@/app/(app)/dashboard/actions')
     const { data } = await updateLoan({
       id: loan.id,
       person_name: personName.trim(),
-      amount: Number(amount),
+      amount: parseMoneyInput(amount),
       currency: curr,
       note: note.trim() || null,
       date,
@@ -367,7 +368,7 @@ function EditLoanInline({
     <div className="p-3 border-b border-border bg-muted/20 flex flex-col gap-2">
       <input className={inputCls} value={personName} onChange={(e) => setPersonName(e.target.value)} placeholder="Nombre" autoFocus />
       <div className="flex gap-2">
-        <input className={cn(inputCls, 'flex-1')} type="number" value={amount} onChange={(e) => setAmount(e.target.value)} min="0" />
+        <input className={cn(inputCls, 'flex-1')} type="text" inputMode="decimal" value={amount} onChange={(e) => setAmount(liveFormatMoney(e.target.value))} />
         <select className={cn(inputCls, 'w-20 shrink-0')} value={curr} onChange={(e) => setCurr(e.target.value as 'ARS' | 'USD')}>
           <option value="ARS">ARS</option>
           <option value="USD">USD</option>

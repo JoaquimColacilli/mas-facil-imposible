@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { decryptRow } from '@/lib/crypto'
 import { MFITransactionsClient } from './mfi-transactions-client'
 import type { Transaction, Category, Profile, MfiSheet } from '@/lib/types'
 
@@ -42,9 +43,11 @@ export default async function MFIPage({
     supabase.from('mfi_sheets').select('*').eq('user_id', user.id).order('created_at', { ascending: true }),
   ])
 
+  const transactions = (txRes.data ?? []).map((r) => decryptRow(r) as Transaction)
+
   return (
     <MFITransactionsClient
-      transactions={(txRes.data ?? []) as Transaction[]}
+      transactions={transactions}
       categories={(catRes.data ?? []) as Category[]}
       initialSheets={(sheetsRes.data ?? []) as MfiSheet[]}
       profile={profileRes.data as Profile | null}

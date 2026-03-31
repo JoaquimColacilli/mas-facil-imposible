@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { MoneyInput, parseMoneyInput } from '@/components/money-input'
 import { Label } from '@/components/ui/label'
 import { Progress } from '@/components/ui/progress'
 import {
@@ -58,8 +59,8 @@ export function GoalsClient({ goals: initial }: GoalsClientProps) {
     const { createGoal } = await import('./actions')
     const { data, error } = await createGoal({
       name: form.name,
-      target_amount: Number(form.target_amount),
-      current_amount: Number(form.current_amount) || 0,
+      target_amount: parseMoneyInput(form.target_amount),
+      current_amount: parseMoneyInput(form.current_amount),
       currency: form.currency,
       deadline: form.deadline || null,
       color: form.color,
@@ -81,7 +82,7 @@ export function GoalsClient({ goals: initial }: GoalsClientProps) {
   }
 
   async function handleDeposit(goal: Goal) {
-    const amt = Number(depositAmount)
+    const amt = parseMoneyInput(depositAmount)
     if (!amt || amt <= 0) return
     const newAmount = goal.current_amount + amt
     const status: GoalStatus = newAmount >= goal.target_amount ? 'completed' : 'active'
@@ -181,11 +182,10 @@ export function GoalsClient({ goals: initial }: GoalsClientProps) {
                         {goal.status === 'active' && (
                           depositGoalId === goal.id ? (
                             <div className="flex gap-2">
-                              <Input
-                                type="number"
+                              <MoneyInput
                                 placeholder="Monto a depositar"
                                 value={depositAmount}
-                                onChange={(e) => setDepositAmount(e.target.value)}
+                                onChange={setDepositAmount}
                                 className="h-8 text-sm"
                               />
                               <Button size="sm" className="h-8" onClick={() => handleDeposit(goal)}>Guardar</Button>
@@ -238,11 +238,10 @@ export function GoalsClient({ goals: initial }: GoalsClientProps) {
               <div className="flex gap-2">
                 <div className="flex-1">
                   <Label className="text-xs text-muted-foreground mb-1.5 block">Objetivo</Label>
-                  <Input
-                    type="number"
+                  <MoneyInput
                     placeholder="0"
                     value={form.target_amount}
-                    onChange={(e) => setForm((f) => ({ ...f, target_amount: e.target.value }))}
+                    onChange={(v) => setForm((f) => ({ ...f, target_amount: v }))}
                     required
                     className="h-10"
                   />
@@ -260,11 +259,10 @@ export function GoalsClient({ goals: initial }: GoalsClientProps) {
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs text-muted-foreground">Monto inicial (opcional)</Label>
-                <Input
-                  type="number"
+                <MoneyInput
                   placeholder="0"
                   value={form.current_amount}
-                  onChange={(e) => setForm((f) => ({ ...f, current_amount: e.target.value }))}
+                  onChange={(v) => setForm((f) => ({ ...f, current_amount: v }))}
                   className="h-10"
                 />
               </div>

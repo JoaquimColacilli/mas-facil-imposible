@@ -83,6 +83,38 @@ export async function deleteTransaction(id: string): Promise<{ error: string | n
   return { error: error?.message ?? null }
 }
 
+/**
+ * Partial update — only amount and note are re-encrypted.
+ * Used by the MFI grid inline editor where only the amount changes.
+ * Pass the existing decrypted note so it is preserved in enc_data.
+ */
+export async function updateTransactionAmount(
+  id: string,
+  amount: number,
+  existingNote: string | null,
+): Promise<{ data: Transaction | null; error: string | null }> {
+  const supabase = await createClient()
+  const enc_data = encryptFields({ amount, note: existingNote })
+
+  const { data, error } = await supabase
+    .from('transactions')
+    .update({ amount: 0, note: null, enc_data, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select('*, category:categories(*)')
+    .single()
+
+  if (error) return { data: null, error: error.message }
+  return { data: decryptRow(data) as Transaction, error: null }
+}
+
+/** Bulk delete — used by MFI grid selection delete and inline replacement. */
+export async function deleteManyTransactions(ids: string[]): Promise<{ error: string | null }> {
+  if (ids.length === 0) return { error: null }
+  const supabase = await createClient()
+  const { error } = await supabase.from('transactions').delete().in('id', ids)
+  return { error: error?.message ?? null }
+}
+
 /** Used by TransactionsClient to refetch after add, with server-side decryption. */
 export async function fetchTransactions(): Promise<Transaction[]> {
   const supabase = await createClient()

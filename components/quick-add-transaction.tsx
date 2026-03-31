@@ -6,6 +6,7 @@ import type { Category, Currency, TransactionType } from '@/lib/types'
 import { TRANSACTION_TYPE_LABELS } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { MoneyInput, parseMoneyInput } from '@/components/money-input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -287,7 +288,7 @@ export function QuickAddTransaction({ onClose, onSuccess }: QuickAddTransactionP
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
-    if (!amount || isNaN(Number(amount)) || Number(amount) <= 0) {
+    if (!amount || parseMoneyInput(amount) <= 0) {
       setError('Ingresá un monto válido')
       return
     }
@@ -296,7 +297,7 @@ export function QuickAddTransaction({ onClose, onSuccess }: QuickAddTransactionP
     const { createTransaction } = await import('@/app/(app)/transactions/actions')
     const { error: insertError } = await createTransaction({
       type,
-      amount: Number(amount),
+      amount: parseMoneyInput(amount),
       currency,
       note: note.trim() || null,
       category_id: categoryId || null,
@@ -350,14 +351,11 @@ export function QuickAddTransaction({ onClose, onSuccess }: QuickAddTransactionP
           <div className="flex gap-2">
             <div className="flex-1">
               <Label htmlFor="amount" className="text-[11px] font-semibold text-muted-foreground mb-2 block tracking-wide uppercase">Monto</Label>
-              <Input
+              <MoneyInput
                 id="amount"
-                type="number"
-                placeholder="0.00"
-                min="0"
-                step="0.01"
+                placeholder="0,00"
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onChange={setAmount}
                 required
                 className="h-10 text-base font-mono font-semibold tabular-nums rounded-xl"
                 autoFocus

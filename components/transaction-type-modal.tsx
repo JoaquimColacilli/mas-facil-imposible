@@ -6,6 +6,7 @@ import type { Transaction, Category, Currency, TransactionType } from '@/lib/typ
 import { formatCurrency, formatDate } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { MoneyInput, parseMoneyInput, formatMoneyInput } from '@/components/money-input'
 import { Label } from '@/components/ui/label'
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -194,7 +195,7 @@ interface TxFormProps {
 
 function TxForm({ type, initialTx, currentMonth, categories, currency, onSaved, onDeleted, onCancel, cfg }: TxFormProps) {
   const supabase = createClient()
-  const [amount, setAmount] = useState(initialTx ? String(initialTx.amount) : '')
+  const [amount, setAmount] = useState(initialTx ? formatMoneyInput(initialTx.amount) : '')
   const [txCurrency, setTxCurrency] = useState<Currency>(initialTx?.currency ?? currency)
   const [date, setDate] = useState(initialTx?.date ?? `${currentMonth}-01`)
   const [note, setNote] = useState(initialTx?.note ?? '')
@@ -205,7 +206,7 @@ function TxForm({ type, initialTx, currentMonth, categories, currency, onSaved, 
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   async function handleSave() {
-    const amt = parseFloat(amount.replace(',', '.'))
+    const amt = parseMoneyInput(amount)
     if (!amt || isNaN(amt) || amt <= 0) return
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
@@ -246,10 +247,10 @@ function TxForm({ type, initialTx, currentMonth, categories, currency, onSaved, 
         <div className="col-span-2 flex gap-2">
           <div className="flex-1">
             <Label className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider mb-1.5 block">Monto</Label>
-            <Input
+            <MoneyInput
               autoFocus
-              type="number" min="0" step="0.01" placeholder="0.00"
-              value={amount} onChange={(e) => setAmount(e.target.value)}
+              placeholder="0,00"
+              value={amount} onChange={setAmount}
               onKeyDown={(e) => { if (e.key === 'Enter') handleSave() }}
               className="h-9 rounded-xl text-[13px] font-mono"
             />

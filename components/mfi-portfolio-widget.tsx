@@ -6,6 +6,7 @@ import { TrendingUp, Plus, X, ArrowRight, Wallet } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { MoneyInput, parseMoneyInput } from '@/components/money-input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import type { Portfolio } from '@/lib/types'
@@ -76,7 +77,7 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
         user_id: user.id,
         name: newName.trim(),
         currency: profileCurrency,
-        balance: parseFloat(newBalance) || 0
+        balance: parseMoneyInput(newBalance)
       })
       .select()
       .single()
@@ -233,11 +234,10 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
                     </div>
                     <div className="space-y-1.5">
                       <Label className="text-[11px] text-muted-foreground uppercase tracking-wider">Saldo Inicial ({profileCurrency})</Label>
-                      <Input
-                        type="number"
+                      <MoneyInput
                         value={newBalance}
-                        onChange={e => setNewBalance(e.target.value)}
-                        placeholder="0.00"
+                        onChange={setNewBalance}
+                        placeholder="0,00"
                         className="h-10 text-[13px] rounded-xl bg-background font-mono tabular-nums"
                       />
                     </div>

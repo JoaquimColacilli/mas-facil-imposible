@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { X, Plus, ChevronLeft, ChevronRight, ChevronDown, Search, LayoutGrid, List } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
+import { liveFormatMoney, parseMoneyInput, formatMoneyInput } from '@/components/money-input'
 import { formatCurrency } from '@/lib/types'
 import type { Transaction, Category, Profile, Currency, TransactionType, MfiSheet } from '@/lib/types'
 import { Popover, PopoverContent, PopoverTrigger, PopoverAnchor } from '@/components/ui/popover'
@@ -75,7 +76,7 @@ function EditableRow({ tx, categories, defaultCurrency, defaultSheetId, onSave, 
   const [date, setDate] = useState(tx?.date ?? todayISO())
   const [note, setNote] = useState(tx?.note ?? '')
   const [categoryId, setCategoryId] = useState(tx?.category_id ?? '')
-  const [amount, setAmount] = useState(tx ? String(tx.amount) : '')
+  const [amount, setAmount] = useState(tx ? formatMoneyInput(tx.amount) : '')
   const [curr, setCurr] = useState<Currency>(tx?.currency ?? defaultCurrency)
   const [saving, setSaving] = useState(false)
 
@@ -97,46 +98,38 @@ function EditableRow({ tx, categories, defaultCurrency, defaultSheetId, onSave, 
   }
 
   async function handleSave() {
-    const parsedAmount = parseFloat(amount)
+    const parsedAmount = parseMoneyInput(amount)
     if (!parsedAmount || parsedAmount <= 0) return
     setSaving(true)
     try {
       if (tx) {
         // Update existing
-        const { data, error } = await supabase
-          .from('transactions')
-          .update({
-            type,
-            date,
-            note: note.trim() || null,
-            category_id: categoryId || null,
-            amount: parsedAmount,
-            currency: curr,
-          })
-          .eq('id', tx.id)
-          .select('*, category:categories(*)')
-          .single()
-        if (!error && data) onSave(data as Transaction)
+        const { updateTransaction } = await import('@/app/(app)/transactions/actions')
+        const { data, error } = await updateTransaction({
+          id: tx.id,
+          type,
+          date,
+          note: note.trim() || null,
+          category_id: categoryId || null,
+          amount: parsedAmount,
+          currency: curr,
+          status: tx.status,
+        })
+        if (!error && data) onSave(data)
       } else {
         // Insert new
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) return
-        const { data, error } = await supabase
-          .from('transactions')
-          .insert({
-            user_id: user.id,
-            sheet_id: defaultSheetId,
-            type,
-            date,
-            note: note.trim() || null,
-            category_id: categoryId || null,
-            amount: parsedAmount,
-            currency: curr,
-            status: 'confirmed',
-          })
-          .select('*, category:categories(*)')
-          .single()
-        if (!error && data) onSave(data as Transaction)
+        const { createTransaction } = await import('@/app/(app)/transactions/actions')
+        const { data, error } = await createTransaction({
+          sheet_id: defaultSheetId,
+          type,
+          date,
+          note: note.trim() || null,
+          category_id: categoryId || null,
+          amount: parsedAmount,
+          currency: curr,
+          status: 'confirmed',
+        })
+        if (!error && data) onSave(data)
       }
     } catch {
       // silent
@@ -219,11 +212,10 @@ function EditableRow({ tx, categories, defaultCurrency, defaultSheetId, onSave, 
       <div className="w-[120px] shrink-0 pr-1">
         <input
           ref={amountRef}
-          type="number"
-          step="0.01"
-          min="0"
+          type="text"
+          inputMode="decimal"
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          onChange={(e) => setAmount(liveFormatMoney(e.target.value))}
           placeholder="0"
           className="w-full bg-transparent text-[13px] font-mono font-semibold text-right text-foreground border border-border/60 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary/40 placeholder:text-muted-foreground/40 tabular-nums"
         />
@@ -301,16 +293,23 @@ function CellDetailsPopoverContent({
   }, [])
 
   async function addSub() {
-    const amount = parseFloat(subAmount.replace(',', '.'))
+    const amount = parseMoneyInput(subAmount)
     if (!amount || amount <= 0) return
     setSaving(true)
-    const { data } = await supabase.from('transactions')
-      .insert({ user_id: userId, sheet_id: activeSheetId, type: 'expense', date: dateStr, category_id: catId, amount, currency: 'ARS', status: 'confirmed', note: subNote.trim() || null })
-      .select('*, category:categories(*)')
-      .single()
+    const { createTransaction } = await import('@/app/(app)/transactions/actions')
+    const { data } = await createTransaction({
+      sheet_id: activeSheetId,
+      type: 'expense',
+      date: dateStr,
+      category_id: catId,
+      amount,
+      currency: 'ARS',
+      status: 'confirmed',
+      note: subNote.trim() || null,
+    })
     setSaving(false)
     if (data) {
-      onTxsChange((prev) => [...prev, data as Transaction])
+      onTxsChange((prev) => [...prev, data])
       setSubAmount('')
       setSubNote('')
       amountRef.current?.focus()
@@ -356,7 +355,7 @@ function CellDetailsPopoverContent({
           type="text"
           inputMode="decimal"
           value={subAmount}
-          onChange={(e) => setSubAmount(e.target.value.replace(/[^0-9.,]/g, ''))}
+          onChange={(e) => setSubAmount(liveFormatMoney(e.target.value))}
           onKeyDown={(e) => { if (e.key === 'Enter') addSub() }}
           placeholder="Monto"
           className="w-full bg-background font-mono font-semibold border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-primary/40 text-[13px] tabular-nums"
@@ -553,13 +552,13 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
     setEditCell({ day, catId })
     setPopoverOpen(false)
     setInlineEditing(true)
-    setEditValue(initialChar ?? (total > 0 ? String(total) : ''))
+    setEditValue(initialChar ?? (total > 0 ? formatMoneyInput(total) : ''))
     setTimeout(() => { inputRef.current?.focus(); if (!initialChar) inputRef.current?.select() }, 0)
   }
 
   async function commitInline(day: number, catId: string) {
     setInlineEditing(false)
-    const amount = parseFloat(editValue.replace(',', '.'))
+    const amount = parseMoneyInput(editValue)
     const existing = lookup[`${day}-${catId}`] ?? []
     const dateStr = `${currentMonth}-${String(day).padStart(2, '0')}`
     if (!amount || amount <= 0) {
@@ -578,14 +577,16 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
         await supabase.from('transactions').delete().in('id', restIds)
         onTxsChange((prev) => prev.filter((t) => !restIds.includes(t.id)))
       }
-      const { data } = await supabase.from('transactions').update({ amount }).eq('id', first.id).select('*, category:categories(*)').single()
-      if (data) onTxsChange((prev) => prev.map((t) => t.id === (data as Transaction).id ? (data as Transaction) : t))
+      const { updateTransactionAmount } = await import('@/app/(app)/transactions/actions')
+      const { data } = await updateTransactionAmount(first.id, amount, first.note)
+      if (data) onTxsChange((prev) => prev.map((t) => t.id === data.id ? data : t))
     } else {
-      const { data } = await supabase.from('transactions')
-        .insert({ user_id: userId, sheet_id: activeSheetId, type: 'expense', date: dateStr, category_id: catId, amount, currency: 'ARS', status: 'confirmed' })
-        .select('*, category:categories(*)')
-        .single()
-      if (data) onTxsChange((prev) => [...prev, data as Transaction])
+      const { createTransaction } = await import('@/app/(app)/transactions/actions')
+      const { data } = await createTransaction({
+        sheet_id: activeSheetId, type: 'expense', date: dateStr,
+        category_id: catId, amount, currency: 'ARS', status: 'confirmed', note: null,
+      })
+      if (data) onTxsChange((prev) => [...prev, data])
     }
   }
 
@@ -606,7 +607,7 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
 
   async function saveCell(day: number, catId: string, rawValue: string) {
     setEditCell(null)
-    const amount = parseFloat(rawValue.replace(',', '.'))
+    const amount = parseMoneyInput(rawValue)
     const existing = lookup[`${day}-${catId}`] ?? []
     const dateStr = `${currentMonth}-${String(day).padStart(2, '0')}`
 
@@ -626,14 +627,16 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
         await supabase.from('transactions').delete().in('id', restIds)
         onTxsChange((prev) => prev.filter((t) => !restIds.includes(t.id)))
       }
-      const { data } = await supabase.from('transactions').update({ amount }).eq('id', first.id).select('*, category:categories(*)').single()
-      if (data) onTxsChange((prev) => prev.map((t) => t.id === (data as Transaction).id ? (data as Transaction) : t))
+      const { updateTransactionAmount } = await import('@/app/(app)/transactions/actions')
+      const { data } = await updateTransactionAmount(first.id, amount, first.note)
+      if (data) onTxsChange((prev) => prev.map((t) => t.id === data.id ? data : t))
     } else {
-      const { data } = await supabase.from('transactions')
-        .insert({ user_id: userId, sheet_id: activeSheetId, type: 'expense', date: dateStr, category_id: catId, amount, currency: 'ARS', status: 'confirmed' })
-        .select('*, category:categories(*)')
-        .single()
-      if (data) onTxsChange((prev) => [...prev, data as Transaction])
+      const { createTransaction } = await import('@/app/(app)/transactions/actions')
+      const { data } = await createTransaction({
+        sheet_id: activeSheetId, type: 'expense', date: dateStr,
+        category_id: catId, amount, currency: 'ARS', status: 'confirmed', note: null,
+      })
+      if (data) onTxsChange((prev) => [...prev, data])
     }
   }
 
@@ -778,17 +781,22 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
   const incomeTotalUSD = incomeTxs.filter((t) => t.currency === 'USD').reduce((s, t) => s + t.amount, 0)
 
   async function saveIncome() {
-    const amount = parseFloat(incomeAmount.replace(',', '.'))
+    const amount = parseMoneyInput(incomeAmount)
     if (!amount || amount <= 0) return
     setSavingIncome(true)
-    const { data } = await supabase
-      .from('transactions')
-      .insert({ user_id: userId, sheet_id: activeSheetId, type: 'income', date: incomeDate, note: incomeNote.trim() || null, amount, currency: incomeCurr, status: 'confirmed' })
-      .select('*, category:categories(*)')
-      .single()
+    const { createTransaction } = await import('@/app/(app)/transactions/actions')
+    const { data } = await createTransaction({
+      sheet_id: activeSheetId,
+      type: 'income',
+      date: incomeDate,
+      note: incomeNote.trim() || null,
+      amount,
+      currency: incomeCurr,
+      status: 'confirmed',
+    })
     setSavingIncome(false)
     if (data) {
-      onTxsChange((prev) => [data as Transaction, ...prev])
+      onTxsChange((prev) => [data, ...prev])
       setIncomeAmount('')
       setIncomeNote('')
       setAddingIncome(false)
@@ -894,9 +902,10 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
                 />
                 <input
                   autoFocus
-                  type="number"
+                  type="text"
+                  inputMode="decimal"
                   value={incomeAmount}
-                  onChange={(e) => setIncomeAmount(e.target.value)}
+                  onChange={(e) => setIncomeAmount(liveFormatMoney(e.target.value))}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') saveIncome()
                     if (e.key === 'Escape') { setAddingIncome(false); setIncomeAmount('') }
@@ -1103,9 +1112,9 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
                         <input
                           ref={inputRef}
                           type="text"
-                          inputMode="numeric"
+                          inputMode="decimal"
                           value={editValue}
-                          onChange={(e) => setEditValue(e.target.value.replace(/[^0-9.,]/g, ''))}
+                          onChange={(e) => setEditValue(liveFormatMoney(e.target.value))}
                           onBlur={() => commitInline(day, cat.id)}
                           className="w-full bg-transparent text-right font-mono font-semibold text-foreground focus:outline-none tabular-nums text-[12px] px-2 py-0.5"
                         />

@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import type { Transaction, TransactionType, Currency } from '@/lib/types'
 import { formatCurrency } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { liveFormatMoney, parseMoneyInput } from '@/components/money-input'
 import {
   ArrowDownLeft, ArrowUpRight, PiggyBank, TrendingUp,
   Check, ChevronDown, X,
@@ -109,8 +110,8 @@ export function MFIQuickEntry({ defaultCurrency = 'ARS', onEntryAdded }: MFIQuic
   useEffect(() => { amountRef.current?.focus() }, [])
 
   const handleSave = useCallback(async () => {
-    const amt = parseFloat(amount.replace(',', '.'))
-    if (!amt || isNaN(amt) || amt <= 0) { amountRef.current?.focus(); return }
+    const amt = parseMoneyInput(amount)
+    if (!amt || amt <= 0) { amountRef.current?.focus(); return }
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setSaving(false); return }
@@ -178,12 +179,11 @@ export function MFIQuickEntry({ defaultCurrency = 'ARS', onEntryAdded }: MFIQuic
             <input
               ref={amountRef}
               tabIndex={2}
-              type="number"
-              min="0"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               placeholder="0"
               value={amount}
-              onChange={e => setAmount(e.target.value)}
+              onChange={e => setAmount(liveFormatMoney(e.target.value))}
               onKeyDown={handleKeyDown}
               className="w-full h-9 pl-9 pr-3 rounded-xl border border-border bg-background text-[13px] font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all"
             />

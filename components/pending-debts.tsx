@@ -6,6 +6,7 @@ import type { Debt } from '@/lib/types'
 import { formatCurrency, formatDate } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { liveFormatMoney, parseMoneyInput, formatMoneyInput } from '@/components/money-input'
 import {
   CreditCard,
   Plus,
@@ -39,7 +40,7 @@ function AddDebtForm({
   const [error, setError] = useState<string | null>(null)
 
   async function handleSave() {
-    if (!personName.trim() || !amount || Number(amount) <= 0) {
+    if (!personName.trim() || parseMoneyInput(amount) <= 0) {
       setError('Completá nombre y monto')
       return
     }
@@ -49,7 +50,7 @@ function AddDebtForm({
     const { createDebt } = await import('@/app/(app)/dashboard/actions')
     const { data, error: err } = await createDebt({
       person_name: personName.trim(),
-      amount: Number(amount),
+      amount: parseMoneyInput(amount),
       currency: curr,
       note: note.trim() || null,
       date,
@@ -74,11 +75,11 @@ function AddDebtForm({
       <div className="flex gap-2">
         <input
           className={cn(inputCls, 'flex-1')}
-          type="number"
+          type="text"
+          inputMode="decimal"
           placeholder="Monto"
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-          min="0"
+          onChange={(e) => setAmount(liveFormatMoney(e.target.value))}
         />
         <select
           className={cn(inputCls, 'w-20 shrink-0')}
@@ -338,20 +339,20 @@ function EditDebtInline({
   onCancel: () => void
 }) {
   const [personName, setPersonName] = useState(debt.person_name)
-  const [amount, setAmount] = useState(String(debt.amount))
+  const [amount, setAmount] = useState(formatMoneyInput(debt.amount))
   const [curr, setCurr] = useState<'ARS' | 'USD'>(debt.currency)
   const [note, setNote] = useState(debt.note ?? '')
   const [date, setDate] = useState(debt.date)
   const [saving, setSaving] = useState(false)
 
   async function handleSave() {
-    if (!personName.trim() || !amount || Number(amount) <= 0) return
+    if (!personName.trim() || parseMoneyInput(amount) <= 0) return
     setSaving(true)
     const { updateDebt } = await import('@/app/(app)/dashboard/actions')
     const { data } = await updateDebt({
       id: debt.id,
       person_name: personName.trim(),
-      amount: Number(amount),
+      amount: parseMoneyInput(amount),
       currency: curr,
       note: note.trim() || null,
       date,
@@ -366,7 +367,7 @@ function EditDebtInline({
     <div className="p-3 border-b border-border bg-muted/20 flex flex-col gap-2">
       <input className={inputCls} value={personName} onChange={(e) => setPersonName(e.target.value)} placeholder="A quién le debés" autoFocus />
       <div className="flex gap-2">
-        <input className={cn(inputCls, 'flex-1')} type="number" value={amount} onChange={(e) => setAmount(e.target.value)} min="0" />
+        <input className={cn(inputCls, 'flex-1')} type="text" inputMode="decimal" value={amount} onChange={(e) => setAmount(liveFormatMoney(e.target.value))} />
         <select className={cn(inputCls, 'w-20 shrink-0')} value={curr} onChange={(e) => setCurr(e.target.value as 'ARS' | 'USD')}>
           <option value="ARS">ARS</option>
           <option value="USD">USD</option>
