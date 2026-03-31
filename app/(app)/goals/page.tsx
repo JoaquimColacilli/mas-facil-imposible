@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { decryptRow } from '@/lib/crypto'
 import type { Goal } from '@/lib/types'
 import { GoalsClient } from './goals-client'
 
@@ -16,5 +17,7 @@ export default async function GoalsPage() {
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
-  return <GoalsClient goals={(data ?? []) as Goal[]} />
+  const goals = (data ?? []).map((row) => decryptRow(row) as Goal)
+
+  return <GoalsClient goals={goals} />
 }

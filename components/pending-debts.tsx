@@ -45,27 +45,19 @@ function AddDebtForm({
     }
     setSaving(true)
     setError(null)
-    const supabase = createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setSaving(false); return }
 
-    const { data, error: err } = await supabase
-      .from('debts')
-      .insert({
-        user_id: user.id,
-        person_name: personName.trim(),
-        amount: Number(amount),
-        currency: curr,
-        note: note.trim() || null,
-        date,
-        paid: false,
-      })
-      .select()
-      .single()
+    const { createDebt } = await import('@/app/(app)/dashboard/actions')
+    const { data, error: err } = await createDebt({
+      person_name: personName.trim(),
+      amount: Number(amount),
+      currency: curr,
+      note: note.trim() || null,
+      date,
+    })
 
     setSaving(false)
-    if (err) { setError(err.message); return }
-    onSave(data as Debt)
+    if (err) { setError(err); return }
+    if (data) onSave(data)
   }
 
   const inputCls = 'w-full bg-muted/50 border border-border rounded-lg px-2.5 py-1.5 text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/60 transition-shadow'
@@ -226,19 +218,14 @@ export function PendingDebts({ initialDebts, currency }: PendingDebtsProps) {
   const totalPending = pending.reduce((s, d) => d.currency === currency ? s + d.amount : s, 0)
 
   async function handleMarkPaid(id: string) {
-    const supabase = createClient()
-    const { data } = await supabase
-      .from('debts')
-      .update({ paid: true, paid_at: new Date().toISOString() })
-      .eq('id', id)
-      .select()
-      .single()
-    if (data) setDebts((prev) => prev.map((d) => d.id === id ? data as Debt : d))
+    const { markDebtPaid } = await import('@/app/(app)/dashboard/actions')
+    const { data } = await markDebtPaid(id)
+    if (data) setDebts((prev) => prev.map((d) => d.id === id ? data : d))
   }
 
   async function handleDelete(id: string) {
-    const supabase = createClient()
-    await supabase.from('debts').delete().eq('id', id)
+    const { deleteDebt } = await import('@/app/(app)/dashboard/actions')
+    await deleteDebt(id)
     setDebts((prev) => prev.filter((d) => d.id !== id))
   }
 
@@ -360,22 +347,17 @@ function EditDebtInline({
   async function handleSave() {
     if (!personName.trim() || !amount || Number(amount) <= 0) return
     setSaving(true)
-    const supabase = createClient()
-    const { data } = await supabase
-      .from('debts')
-      .update({
-        person_name: personName.trim(),
-        amount: Number(amount),
-        currency: curr,
-        note: note.trim() || null,
-        date,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', debt.id)
-      .select()
-      .single()
+    const { updateDebt } = await import('@/app/(app)/dashboard/actions')
+    const { data } = await updateDebt({
+      id: debt.id,
+      person_name: personName.trim(),
+      amount: Number(amount),
+      currency: curr,
+      note: note.trim() || null,
+      date,
+    })
     setSaving(false)
-    if (data) onSave(data as Debt)
+    if (data) onSave(data)
   }
 
   const inputCls = 'w-full bg-muted/50 border border-border rounded-lg px-2.5 py-1.5 text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/60 transition-shadow'

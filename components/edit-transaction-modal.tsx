@@ -166,30 +166,27 @@ export function EditTransactionModal({ transaction, onClose, onSaved, onDeleted 
       return
     }
     setLoading(true)
-    const { data, error: err } = await supabase
-      .from('transactions')
-      .update({
-        type,
-        amount: Number(amount),
-        currency,
-        note: note.trim() || null,
-        category_id: categoryId || null,
-        date,
-        status,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', transaction.id)
-      .select('*, category:categories(*)')
-      .single()
+    const { updateTransaction } = await import('@/app/(app)/transactions/actions')
+    const { data, error: err } = await updateTransaction({
+      id: transaction.id,
+      type,
+      amount: Number(amount),
+      currency,
+      note: note.trim() || null,
+      category_id: categoryId || null,
+      date,
+      status,
+    })
     setLoading(false)
-    if (err) { setError(err.message); return }
-    onSaved(data as Transaction)
+    if (err) { setError(err); return }
+    if (data) onSaved(data)
   }
 
   async function handleDelete() {
     if (!confirmDelete) { setConfirmDelete(true); return }
     setDeleting(true)
-    await supabase.from('transactions').delete().eq('id', transaction.id)
+    const { deleteTransaction } = await import('@/app/(app)/transactions/actions')
+    await deleteTransaction(transaction.id)
     onDeleted(transaction.id)
   }
 

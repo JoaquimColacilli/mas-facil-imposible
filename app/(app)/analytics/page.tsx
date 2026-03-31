@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { decryptRow } from '@/lib/crypto'
 import type { Transaction } from '@/lib/types'
 import { AnalyticsClient } from './analytics-client'
 
@@ -20,5 +21,7 @@ export default async function AnalyticsPage() {
     .gte('date', sixMonthsAgo)
     .order('date', { ascending: true })
 
-  return <AnalyticsClient transactions={(data ?? []) as Transaction[]} />
+  const transactions = (data ?? []).map((row) => decryptRow(row) as Transaction)
+
+  return <AnalyticsClient transactions={transactions} />
 }

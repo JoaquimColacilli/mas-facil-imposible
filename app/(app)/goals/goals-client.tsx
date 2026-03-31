@@ -55,22 +55,19 @@ export function GoalsClient({ goals: initial }: GoalsClientProps) {
     e.preventDefault()
     setError(null)
     setLoading(true)
-    const { data, error } = await supabase
-      .from('goals')
-      .insert({
-        name: form.name,
-        target_amount: Number(form.target_amount),
-        current_amount: Number(form.current_amount) || 0,
-        currency: form.currency,
-        deadline: form.deadline || null,
-        color: form.color,
-      })
-      .select()
-      .single()
+    const { createGoal } = await import('./actions')
+    const { data, error } = await createGoal({
+      name: form.name,
+      target_amount: Number(form.target_amount),
+      current_amount: Number(form.current_amount) || 0,
+      currency: form.currency,
+      deadline: form.deadline || null,
+      color: form.color,
+    })
     if (error) {
-      setError(error.message)
-    } else {
-      setGoals((prev) => [data as Goal, ...prev])
+      setError(error)
+    } else if (data) {
+      setGoals((prev) => [data, ...prev])
       setShowAdd(false)
       setForm({ name: '', target_amount: '', current_amount: '', currency: 'ARS', deadline: '', color: PRESET_COLORS[0] })
     }
@@ -78,7 +75,8 @@ export function GoalsClient({ goals: initial }: GoalsClientProps) {
   }
 
   async function handleDelete(id: string) {
-    const { error } = await supabase.from('goals').delete().eq('id', id)
+    const { deleteGoal } = await import('./actions')
+    const { error } = await deleteGoal(id)
     if (!error) setGoals((prev) => prev.filter((g) => g.id !== id))
   }
 
@@ -87,14 +85,16 @@ export function GoalsClient({ goals: initial }: GoalsClientProps) {
     if (!amt || amt <= 0) return
     const newAmount = goal.current_amount + amt
     const status: GoalStatus = newAmount >= goal.target_amount ? 'completed' : 'active'
-    const { data, error } = await supabase
-      .from('goals')
-      .update({ current_amount: newAmount, status, updated_at: new Date().toISOString() })
-      .eq('id', goal.id)
-      .select()
-      .single()
+    const { depositToGoal } = await import('./actions')
+    const { data, error } = await depositToGoal({
+      id: goal.id,
+      name: goal.name,
+      target_amount: goal.target_amount,
+      new_current_amount: newAmount,
+      status,
+    })
     if (!error && data) {
-      setGoals((prev) => prev.map((g) => (g.id === goal.id ? (data as Goal) : g)))
+      setGoals((prev) => prev.map((g) => (g.id === goal.id ? data : g)))
     }
     setDepositGoalId(null)
     setDepositAmount('')

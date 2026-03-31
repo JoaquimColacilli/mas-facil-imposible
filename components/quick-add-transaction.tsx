@@ -293,12 +293,8 @@ export function QuickAddTransaction({ onClose, onSuccess }: QuickAddTransactionP
     }
     setLoading(true)
 
-    // Must include user_id to satisfy RLS
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) { setError('No autenticado'); setLoading(false); return }
-
-    const { error: insertError } = await supabase.from('transactions').insert({
-      user_id: user.id,
+    const { createTransaction } = await import('@/app/(app)/transactions/actions')
+    const { error: insertError } = await createTransaction({
       type,
       amount: Number(amount),
       currency,
@@ -307,7 +303,7 @@ export function QuickAddTransaction({ onClose, onSuccess }: QuickAddTransactionP
       date,
     })
     if (insertError) {
-      setError(insertError.message)
+      setError(insertError)
       setLoading(false)
     } else {
       onSuccess()

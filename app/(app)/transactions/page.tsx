@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { decryptRow } from '@/lib/crypto'
 import type { Transaction } from '@/lib/types'
 import { TransactionsClient } from './transactions-client'
 
@@ -18,5 +19,7 @@ export default async function TransactionsPage() {
     .order('created_at', { ascending: false })
     .limit(200)
 
-  return <TransactionsClient transactions={(data ?? []) as Transaction[]} />
+  const transactions = (data ?? []).map((row) => decryptRow(row) as Transaction)
+
+  return <TransactionsClient transactions={transactions} />
 }

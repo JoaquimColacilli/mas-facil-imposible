@@ -81,13 +81,9 @@ export function TransactionsClient({ transactions: initial }: TransactionsClient
 
   async function handleAddSuccess() {
     setShowAdd(false)
-    const { data } = await supabase
-      .from('transactions')
-      .select('*, category:categories(*)')
-      .order('date', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(200)
-    setTransactions((data ?? []) as Transaction[])
+    const { fetchTransactions } = await import('./actions')
+    const data = await fetchTransactions()
+    setTransactions(data)
   }
 
   return (

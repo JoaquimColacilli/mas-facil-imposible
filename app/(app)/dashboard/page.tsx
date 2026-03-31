@@ -1,6 +1,7 @@
 // v9 — month navigation + loans + debts
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
+import { decryptRow } from '@/lib/crypto'
 import { DashboardClient } from './dashboard-client'
 import type { Transaction, Goal, Profile, Loan, Debt } from '@/lib/types'
 
@@ -59,13 +60,18 @@ export default async function DashboardPage({
       .order('created_at', { ascending: false }),
   ])
 
+  const transactions = (txRes.data ?? []).map((r) => decryptRow(r) as Transaction)
+  const goals        = (goalsRes.data ?? []).map((r) => decryptRow(r) as Goal)
+  const loans        = (loansRes.data ?? []).map((r) => decryptRow(r) as Loan)
+  const debts        = (debtsRes.data ?? []).map((r) => decryptRow(r) as Debt)
+
   return (
     <DashboardClient
       profile={profileRes.data as Profile | null}
-      transactions={(txRes.data ?? []) as Transaction[]}
-      goals={(goalsRes.data ?? []) as Goal[]}
-      loans={(loansRes.data ?? []) as Loan[]}
-      debts={(debtsRes.data ?? []) as Debt[]}
+      transactions={transactions}
+      goals={goals}
+      loans={loans}
+      debts={debts}
       userEmail={user.email ?? ''}
       currentMonth={currentMonthParam}
     />
