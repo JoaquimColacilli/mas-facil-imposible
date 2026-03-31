@@ -595,7 +595,7 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
   // Start navigation from (1, 0) when no cell is focused and an arrow key is pressed
   useEffect(() => {
     if (activeCats.length === 0) return
-    const handler = (e: React.KeyboardEvent) => {
+    const handler = (e: KeyboardEvent) => {
       if (editCell) return
       if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) return
       e.preventDefault()
@@ -788,6 +788,7 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
     const { data } = await createTransaction({
       sheet_id: activeSheetId,
       type: 'income',
+      category_id: null,
       date: incomeDate,
       note: incomeNote.trim() || null,
       amount,
@@ -1274,7 +1275,7 @@ export function MFITransactionsClient({
 
   // Keyboard navigation & shortcuts
   useEffect(() => {
-    function handler(e: React.KeyboardEvent) {
+    function handler(e: KeyboardEvent) {
       if (editingId || isAddingNew) return
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLSelectElement || e.target instanceof HTMLTextAreaElement) return
 

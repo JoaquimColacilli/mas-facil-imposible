@@ -15,6 +15,7 @@ export interface Profile {
   default_currency: Currency
   preferred_mode: AppMode
   onboarding_completed: boolean
+  last_seen_version: string | null
   created_at: string
   updated_at: string
 }
