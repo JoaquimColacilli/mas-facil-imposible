@@ -27,23 +27,27 @@ function isNewer(current: string, lastSeen: string) {
   return false
 }
 
+const LS_KEY = 'mfi_last_seen_version'
+
 export function WhatsNewModal({ lastSeenVersion }: { lastSeenVersion: string | null | undefined }) {
   const [open, setOpen] = useState(false)
   const [unseenVersions, setUnseenVersions] = useState<ChangelogEntry[]>([])
 
   useEffect(() => {
-    // Solo mostramos Novedades en cliente si el usuario tiene una sesión "cargada".
-    // Evaluamos las versiones que son más nuevas que lo que vió el usuario.
-    const missing = changelog.filter(entry => isNewer(entry.version, lastSeenVersion || '0.0.0'))
-    
+    // Use localStorage as primary source — works immediately without waiting for DB round-trip.
+    // Fall back to server-side lastSeenVersion if localStorage has nothing yet.
+    const localSeen = typeof window !== 'undefined' ? localStorage.getItem(LS_KEY) : null
+    const effectiveSeen = localSeen ?? lastSeenVersion ?? '0.0.0'
+
+    const missing = changelog.filter(entry => isNewer(entry.version, effectiveSeen))
+
     if (missing.length > 0) {
-      if (!lastSeenVersion) {
-        // En su primer ingreso después de que esta feature exista, mostrame nomás la primera para no atosigar.
+      if (!localSeen && !lastSeenVersion) {
+        // First login after this feature shipped — show only the latest to avoid overwhelming.
         setUnseenVersions([missing[0]])
       } else {
         setUnseenVersions(missing)
       }
-      // Pequeño timeout para no pelear con la inicialización visual inmediata.
       const t = setTimeout(() => setOpen(true), 500)
       return () => clearTimeout(t)
     }
@@ -53,6 +57,9 @@ export function WhatsNewModal({ lastSeenVersion }: { lastSeenVersion: string | n
     if (!val) {
       setOpen(false)
       const latestVersion = changelog[0].version
+      // Persist locally immediately so repeated F5 won't re-show.
+      localStorage.setItem(LS_KEY, latestVersion)
+      // Also persist to DB (best-effort — column may not exist yet).
       await updateLastSeenVersion(latestVersion)
     }
   }

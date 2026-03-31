@@ -165,6 +165,24 @@ SUPABASE_JWT_SECRET=
 - **TypeScript errors ignored in build**: `next.config.mjs` has `typescript.ignoreBuildErrors: true`. Don't rely on this — fix type errors properly.
 - **Image optimization disabled**: `images.unoptimized: true` in next config.
 
+## Changelog & Release — IMPORTANT
+
+At the end of **every session where code was modified**, you MUST:
+
+1. Run the non-interactive changelog script with a `patch` bump (or `minor`/`major` if significant):
+   ```bash
+   node scripts/add-changelog.mjs patch "Descripción del cambio 1" "Descripción del cambio 2"
+   ```
+   This updates `lib/changelog.ts` and bumps `package.json` version automatically.
+
+2. The full interactive release (commit + push) is `npm run release` — only run this if the user explicitly asks to publish.
+
+Rules:
+- Always write changelog entries in **Spanish (es-AR)**
+- One entry per bullet, concise (e.g., "Agregado formateo es-AR en inputs de moneda")
+- Default to `patch` unless you added a major feature (`minor`) or breaking change (`major`)
+- Do NOT skip this step — the user relies on it to track changes across sessions
+
 ## Upcoming / Coming Soon
 
 - Transfer funds between accounts

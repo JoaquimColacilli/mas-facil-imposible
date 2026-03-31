@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { TrendingUp, Plus, X, ArrowRight, Wallet, BarChart2, List } from 'lucide-react'
+import { TrendingUp, Plus, X, ArrowRight, BarChart2, List } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,7 +10,11 @@ import { MoneyInput, parseMoneyInput } from '@/components/money-input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/types'
-import type { Portfolio, Transaction } from '@/lib/types'
+import type { Portfolio, PortfolioLog, Transaction } from '@/lib/types'
+
+type PortfolioLogWithPortfolio = PortfolioLog & {
+  portfolio: { name: string; currency: string }
+}
 
 function todayISO() {
   const d = new Date()
@@ -37,6 +41,7 @@ type Tab = 'portfolios' | 'movimientos'
 export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: string }) {
   const supabase = createClient()
   const [portfolios, setPortfolios] = useState<Portfolio[]>([])
+  const [portfolioLogs, setPortfolioLogs] = useState<PortfolioLogWithPortfolio[]>([])
   const [investTx, setInvestTx] = useState<Transaction[]>([])
   const [isOpen, setIsOpen] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -68,22 +73,30 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    const [portfoliosRes, logsRes, txRes] = await Promise.all([
+    const { fetchInvestmentTransactions } = await import('@/app/(app)/transactions/actions')
+
+    const [portfoliosRes, logsRes, investTxData] = await Promise.all([
       supabase.from('portfolios').select('*').eq('user_id', user.id).order('created_at', { ascending: true }),
       supabase.from('portfolio_logs').select('*', { count: 'exact', head: true }).eq('date', todayISO()),
-      supabase
-        .from('transactions')
-        .select('*, category:categories(id,name,icon,color,type,user_id,created_at)')
-        .eq('user_id', user.id)
-        .eq('type', 'investment')
-        .gte('date', startOfCurrentMonth())
-        .lte('date', endOfCurrentMonth())
-        .order('date', { ascending: false }),
+      fetchInvestmentTransactions(startOfCurrentMonth(), endOfCurrentMonth()),
     ])
 
     const ports = (portfoliosRes.data || []) as Portfolio[]
     setPortfolios(ports)
-    setInvestTx((txRes.data || []) as Transaction[])
+    setInvestTx(investTxData)
+
+    if (ports.length > 0) {
+      const { data: logsData } = await supabase
+        .from('portfolio_logs')
+        .select('*, portfolio:portfolios(name, currency)')
+        .in('portfolio_id', ports.map(p => p.id))
+        .gte('date', startOfCurrentMonth())
+        .lte('date', endOfCurrentMonth())
+        .order('date', { ascending: false })
+      setPortfolioLogs((logsData || []) as PortfolioLogWithPortfolio[])
+    } else {
+      setPortfolioLogs([])
+    }
 
     const nowLocal = new Date()
     const isPast17 = nowLocal.getHours() >= 17
@@ -202,9 +215,9 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
       }
 
       setNeedsUpdate(false)
-      setIsOpen(false)
       setUpdates({})
       await fetchData()
+      setIsOpen(false)
     } catch (e) {
       console.error(e)
     } finally {
@@ -287,9 +300,9 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
                 >
                   <List className="w-3.5 h-3.5" />
                   Movimientos
-                  {investTx.length > 0 && (
+                  {(investTx.length + portfolioLogs.length) > 0 && (
                     <span className="text-[10px] bg-violet-500/15 text-violet-400 px-1.5 py-0.5 rounded-full font-bold">
-                      {investTx.length}
+                      {investTx.length + portfolioLogs.length}
                     </span>
                   )}
                 </button>
@@ -407,8 +420,80 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
 
               {/* ── TAB: MOVIMIENTOS ── */}
               {tab === 'movimientos' && (
-                <div className="space-y-2">
-                  {investTx.length === 0 ? (
+                <div className="space-y-4">
+                  {/* Portfolio logs (daily % updates) */}
+                  {portfolioLogs.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-1">Rendimientos del mes</p>
+                      {portfolioLogs.map(log => {
+                        const isPos = log.percentage_change > 0
+                        const isNeg = log.percentage_change < 0
+                        const pctStr = (isPos ? '+' : '') + log.percentage_change.toFixed(2) + '%'
+                        const curr = log.portfolio.currency
+                        const absSign = isPos ? '+' : ''
+                        const absStr = absSign + (curr === 'USD' ? 'U$S' : '$') + ' ' + Math.abs(log.absolute_change).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                        const newBalStr = (curr === 'USD' ? 'U$S' : '$') + ' ' + Number(log.new_balance).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                        const dateStr = new Date(log.date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
+
+                        return (
+                          <div key={log.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-muted/30 transition-colors">
+                            <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 bg-violet-500/10">
+                              <span className="text-violet-400 font-bold text-[12px]">
+                                {log.portfolio.name.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[13px] font-semibold truncate">{log.portfolio.name}</p>
+                              <p className="text-[11px] text-muted-foreground">{dateStr} · {newBalStr}</p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className={cn('text-[13px] font-mono font-bold', isPos && 'text-emerald-400', isNeg && 'text-rose-400', !isPos && !isNeg && 'text-muted-foreground')}>
+                                {pctStr}
+                              </p>
+                              <p className={cn('text-[11px] font-mono', isPos && 'text-emerald-400/70', isNeg && 'text-rose-400/70', !isPos && !isNeg && 'text-muted-foreground')}>
+                                {absStr}
+                              </p>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* Investment transactions */}
+                  {investTx.length > 0 && (
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-1">Inversiones registradas</p>
+                      {investTx.map(tx => {
+                        const catColor = tx.category?.color ?? '#8b5cf6'
+                        const catName = tx.category?.name ?? 'Inversión'
+                        const dateStr = new Date(tx.date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
+                        const amountStr = formatCurrency(tx.amount, tx.currency)
+
+                        return (
+                          <div key={tx.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-muted/30 transition-colors">
+                            <div
+                              className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+                              style={{ backgroundColor: catColor + '20' }}
+                            >
+                              <span style={{ color: catColor }} className="font-bold text-[12px]">
+                                {catName.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-[13px] font-semibold truncate">{tx.note || catName}</p>
+                              <p className="text-[11px] text-muted-foreground">{catName} · {dateStr}</p>
+                            </div>
+                            <span className="text-[13px] font-mono font-semibold text-violet-400 shrink-0">
+                              +{amountStr}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {portfolioLogs.length === 0 && investTx.length === 0 && (
                     <div className="text-center py-10">
                       <div className="w-12 h-12 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-3">
                         <List className="w-5 h-5 text-muted-foreground/60" />
@@ -416,33 +501,6 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
                       <p className="text-[14px] font-semibold">Sin movimientos</p>
                       <p className="text-[12px] text-muted-foreground">No hay inversiones registradas este mes.</p>
                     </div>
-                  ) : (
-                    investTx.map(tx => {
-                      const catColor = tx.category?.color ?? '#8b5cf6'
-                      const catName = tx.category?.name ?? 'Inversión'
-                      const dateStr = new Date(tx.date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
-                      const amountStr = formatCurrency(tx.amount, tx.currency)
-
-                      return (
-                        <div key={tx.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-muted/30 transition-colors group">
-                          <div
-                            className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-[14px]"
-                            style={{ backgroundColor: catColor + '20' }}
-                          >
-                            <span style={{ color: catColor }} className="font-bold text-[12px]">
-                              {catName.charAt(0).toUpperCase()}
-                            </span>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-[13px] font-semibold truncate">{tx.note || catName}</p>
-                            <p className="text-[11px] text-muted-foreground">{catName} · {dateStr}</p>
-                          </div>
-                          <span className="text-[13px] font-mono font-semibold text-violet-400 shrink-0">
-                            +{amountStr}
-                          </span>
-                        </div>
-                      )
-                    })
                   )}
                 </div>
               )}

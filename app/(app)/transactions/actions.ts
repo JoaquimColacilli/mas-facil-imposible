@@ -115,6 +115,26 @@ export async function deleteManyTransactions(ids: string[]): Promise<{ error: st
   return { error: error?.message ?? null }
 }
 
+/** Fetch investment transactions for a given month range, with server-side decryption. */
+export async function fetchInvestmentTransactions(startDate: string, endDate: string): Promise<Transaction[]> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const { data } = await supabase
+    .from('transactions')
+    .select('*, category:categories(*)')
+    .eq('user_id', user.id)
+    .eq('type', 'investment')
+    .gte('date', startDate)
+    .lte('date', endDate)
+    .order('date', { ascending: false })
+
+  return (data ?? []).map((row) => decryptRow(row) as Transaction)
+}
+
 /** Used by TransactionsClient to refetch after add, with server-side decryption. */
 export async function fetchTransactions(): Promise<Transaction[]> {
   const supabase = await createClient()
