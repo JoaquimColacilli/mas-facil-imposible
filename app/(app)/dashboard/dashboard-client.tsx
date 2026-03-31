@@ -36,7 +36,7 @@ import { PendingDebts } from '@/components/pending-debts'
 import { TransactionTypeModal } from '@/components/transaction-type-modal'
 import type { Loan } from '@/lib/types'
 
-type ModalType = 'income' | 'savings' | 'investment'
+type ModalType = 'income' | 'savings'
 
 interface DashboardClientProps {
   profile: Profile | null
@@ -345,8 +345,7 @@ export function DashboardClient({
             {kpiCards.map(({ label, ars, usd, icon: Icon, color, bg }, idx) => {
               const modalType: ModalType | null =
                 label === 'Ingresos'    ? 'income'     :
-                label === 'Ahorros'     ? 'savings'    :
-                label === 'Inversiones' ? 'investment' : null
+                label === 'Ahorros'     ? 'savings'    : null
               const borderHover =
                 label === 'Ingresos'    ? 'hover:border-emerald-500/50 hover:ring-1 hover:ring-emerald-500/20' :
                 label === 'Ahorros'     ? 'hover:border-sky-500/50 hover:ring-1 hover:ring-sky-500/20'        :
@@ -356,10 +355,19 @@ export function DashboardClient({
                 label === 'Ahorros'     ? 'border-sky-500/30'     :
                 label === 'Inversiones' ? 'border-violet-500/30'  : 'border-border'
 
-              return modalType ? (
+              const isInvestment = label === 'Inversiones'
+              const isClickable = !!modalType || isInvestment
+
+              return isClickable ? (
                 <button
                   key={label}
-                  onClick={() => setOpenTypeModal(modalType)}
+                  onClick={() => {
+                    if (isInvestment) {
+                      window.dispatchEvent(new CustomEvent('open-portfolio-widget'))
+                    } else {
+                      setOpenTypeModal(modalType!)
+                    }
+                  }}
                   className={cn(
                     'group flex flex-col gap-3 rounded-2xl border bg-card p-4 transition-all duration-200 hover:shadow-md hover:-translate-y-[2px] animate-fade-in-up text-left cursor-pointer',
                     activeBorder, borderHover,
