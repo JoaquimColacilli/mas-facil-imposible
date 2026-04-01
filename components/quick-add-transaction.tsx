@@ -367,7 +367,7 @@ export function QuickAddTransaction({ onClose, onSuccess }: QuickAddTransactionP
                 <SelectTrigger className="h-10 rounded-xl">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="z-[70]">
                   <SelectItem value="ARS">ARS</SelectItem>
                   <SelectItem value="USD">USD</SelectItem>
                 </SelectContent>

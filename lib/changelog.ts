@@ -6,6 +6,15 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.3.4',
+    date: '2026-04-01',
+    changes: [
+      'Fix dropdown moneda (ARS/USD) visible por encima del modal al agregar gasto',
+      'Corregido mes actual en dashboard usando timezone America/Argentina/Buenos_Aires',
+      'Reemplazado window.location.reload() por router.refresh() al agregar transacción'
+    ]
+  },
+  {
     version: '0.3.3',
     date: '2026-03-31',
     changes: [

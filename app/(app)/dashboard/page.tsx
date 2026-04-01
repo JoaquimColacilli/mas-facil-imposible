@@ -19,8 +19,17 @@ export default async function DashboardPage({
   const params = await searchParams
   const now = new Date()
 
-  let year = now.getFullYear()
-  let month = now.getMonth()
+  // Compute current date in Argentina timezone (UTC-3) to avoid showing next month at night
+  const argDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Argentina/Buenos_Aires',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now)
+  const [argYear, argMonth] = argDate.split('-').map(Number)
+
+  let year = argYear
+  let month = argMonth - 1
 
   if (params.month && /^\d{4}-\d{2}$/.test(params.month)) {
     const [y, m] = params.month.split('-').map(Number)

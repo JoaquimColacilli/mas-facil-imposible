@@ -199,6 +199,7 @@ export function DashboardClient({
   userEmail,
   currentMonth,
 }: DashboardClientProps) {
+  const router = useRouter()
   const [showQuickAdd, setShowQuickAdd] = useState(false)
   const [quickAddType, setQuickAddType] = useState<string | undefined>(undefined)
   const [greeting, setGreeting] = useState('')
@@ -832,7 +833,7 @@ export function DashboardClient({
           onSuccess={() => {
             setShowQuickAdd(false)
             setQuickAddType(undefined)
-            window.location.reload()
+            router.refresh()
           }}
         />
       )}
