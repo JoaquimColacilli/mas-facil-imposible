@@ -153,3 +153,28 @@ export async function fetchTransactions(): Promise<Transaction[]> {
 
   return (data ?? []).map((row) => decryptRow(row) as Transaction)
 }
+
+/** Fetch transactions for a specific month (YYYY-MM), with server-side decryption. */
+export async function fetchTransactionsForMonth(month: string): Promise<Transaction[]> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return []
+
+  const [year, mo] = month.split('-').map(Number)
+  const start = `${year}-${String(mo).padStart(2, '0')}-01`
+  const lastDay = new Date(year, mo, 0).getDate()
+  const end = `${year}-${String(mo).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+
+  const { data } = await supabase
+    .from('transactions')
+    .select('*, category:categories(*)')
+    .eq('user_id', user.id)
+    .gte('date', start)
+    .lte('date', end)
+    .order('date', { ascending: false })
+    .order('created_at', { ascending: false })
+
+  return (data ?? []).map((row) => decryptRow(row) as Transaction)
+}

@@ -53,6 +53,7 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
   const [isCreating, setIsCreating] = useState(false)
   const [newName, setNewName] = useState('')
   const [newBalance, setNewBalance] = useState('')
+  const [newCurrency, setNewCurrency] = useState<'ARS' | 'USD'>(profileCurrency as 'ARS' | 'USD')
 
   // Update state (keyed by portfolio id)
   const [updates, setUpdates] = useState<Record<string, { pct: string; final: string }>>({})
@@ -140,7 +141,7 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
       .insert({
         user_id: user.id,
         name: newName.trim(),
-        currency: profileCurrency,
+        currency: newCurrency,
         balance: parseMoneyInput(newBalance),
       })
       .select()
@@ -151,6 +152,7 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
       setIsCreating(false)
       setNewName('')
       setNewBalance('')
+      setNewCurrency(profileCurrency as 'ARS' | 'USD')
     }
     setSaving(false)
   }
@@ -340,7 +342,27 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
                           />
                         </div>
                         <div className="space-y-1.5">
-                          <Label className="text-[11px] text-muted-foreground uppercase tracking-wider">Saldo Inicial ({profileCurrency})</Label>
+                          <Label className="text-[11px] text-muted-foreground uppercase tracking-wider">Moneda</Label>
+                          <div className="flex gap-1 p-1 bg-muted/40 rounded-xl">
+                            {(['ARS', 'USD'] as const).map(cur => (
+                              <button
+                                key={cur}
+                                type="button"
+                                onClick={() => setNewCurrency(cur)}
+                                className={cn(
+                                  'flex-1 py-1.5 rounded-lg text-[12px] font-semibold transition-all duration-150',
+                                  newCurrency === cur
+                                    ? 'bg-card text-foreground shadow-sm'
+                                    : 'text-muted-foreground hover:text-foreground'
+                                )}
+                              >
+                                {cur === 'ARS' ? '$ ARS' : 'U$S USD'}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-[11px] text-muted-foreground uppercase tracking-wider">Saldo Inicial ({newCurrency === 'USD' ? 'U$S' : '$'})</Label>
                           <MoneyInput
                             value={newBalance}
                             onChange={setNewBalance}
@@ -350,7 +372,7 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
                         </div>
                         <div className="flex gap-2 pt-2">
                           <Button onClick={handleCreatePortfolio} disabled={saving || !newName} className="flex-1 h-9 rounded-xl text-[12px]">Guardar</Button>
-                          <Button onClick={() => setIsCreating(false)} variant="outline" className="h-9 rounded-xl text-[12px]">Cancelar</Button>
+                          <Button onClick={() => { setIsCreating(false); setNewCurrency(profileCurrency as 'ARS' | 'USD') }} variant="outline" className="h-9 rounded-xl text-[12px]">Cancelar</Button>
                         </div>
                       </div>
                     </div>
@@ -406,7 +428,10 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
                                   value={update.final}
                                   onChange={e => handleUpdateChange(p.id, 'final', e.target.value)}
                                   placeholder="Saldo de Hoy"
-                                  className="h-10 rounded-xl bg-muted/30 text-[13px] font-mono font-semibold focus:bg-background pl-8 transition-colors"
+                                  className={cn(
+                                    'h-10 rounded-xl bg-muted/30 text-[13px] font-mono font-semibold focus:bg-background transition-colors',
+                                    p.currency === 'USD' ? 'pl-11' : 'pl-8'
+                                  )}
                                 />
                               </div>
                             </div>

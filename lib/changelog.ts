@@ -6,6 +6,37 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.6.1',
+    date: '2026-04-01',
+    changes: [
+      'Agregado DatePicker con calendario desplegable en la página de Movimientos',
+      'Soporte para saltar a una fecha específica y filtrar por día',
+      'Botones rápidos: Hoy y Ver mes completo dentro del calendario',
+      'Dropdowns de mes y año en el calendario para navegación rápida'
+    ]
+  },
+  {
+    version: '0.6.0',
+    date: '2026-04-01',
+    changes: [
+      'Rediseño completo de la página de Movimientos (/transactions)',
+      'Agregado navegador de meses con indicador visual de mes histórico',
+      'Agregado resumen mensual con totales por tipo (ingresos, gastos, ahorros, inversiones)',
+      'Agregado paginador con 25 movimientos por página',
+      'Agregados filtros por moneda (ARS/USD) y estado (confirmado/pendiente/cancelado)',
+      'Agregado chip filters con opción de limpiar todos los filtros',
+      'Mejorado estado vacío con mensajes contextuales según mes actual o histórico'
+    ]
+  },
+  {
+    version: '0.5.1',
+    date: '2026-04-01',
+    changes: [
+      'Agregado selector de moneda (ARS/USD) al crear portfolios de inversión',
+      'Creado script de migración para corregir moneda de portfolio COCOS CAPITAL a USD'
+    ]
+  },
+  {
     version: '0.5.0',
     date: '2026-04-01',
     changes: [
