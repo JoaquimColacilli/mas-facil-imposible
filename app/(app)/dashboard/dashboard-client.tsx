@@ -34,6 +34,7 @@ import { CategoryManagerButton } from '@/components/category-manager'
 import { PendingLoans } from '@/components/pending-loans'
 import { PendingDebts } from '@/components/pending-debts'
 import { TransactionTypeModal } from '@/components/transaction-type-modal'
+import { MonthlySummaryBanner } from '@/components/monthly-summary-banner'
 import type { Loan } from '@/lib/types'
 
 type ModalType = 'income' | 'savings'
@@ -45,6 +46,7 @@ interface DashboardClientProps {
   loans: Loan[]
   debts: Debt[]
   userEmail: string
+  userId: string
   currentMonth: string // "YYYY-MM"
 }
 
@@ -197,6 +199,7 @@ export function DashboardClient({
   loans,
   debts,
   userEmail,
+  userId,
   currentMonth,
 }: DashboardClientProps) {
   const router = useRouter()
@@ -322,7 +325,8 @@ export function DashboardClient({
             {firstName}
           </h1>
         </div>
-        <div className="flex items-center gap-2 mt-1">
+        <div className="flex items-center gap-2 mt-1 flex-wrap">
+          <MonthlySummaryBanner userId={userId} />
           <MonthNavigator currentMonth={currentMonth} />
           <Button
             onClick={() => openQuickAdd()}

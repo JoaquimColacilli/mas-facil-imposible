@@ -82,6 +82,7 @@ export default async function DashboardPage({
       loans={loans}
       debts={debts}
       userEmail={user.email ?? ''}
+      userId={user.id}
       currentMonth={currentMonthParam}
     />
   )

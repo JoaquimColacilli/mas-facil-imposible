@@ -161,8 +161,19 @@ CREATE TABLE IF NOT EXISTS public.notifications (
   message TEXT NOT NULL,
   type TEXT NOT NULL DEFAULT 'info' CHECK (type IN ('info', 'warning', 'success', 'alert')),
   read BOOLEAN NOT NULL DEFAULT FALSE,
+  data JSONB DEFAULT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Migration: add data column if table already exists without it
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'notifications' AND column_name = 'data'
+  ) THEN
+    ALTER TABLE public.notifications ADD COLUMN data JSONB DEFAULT NULL;
+  END IF;
+END $$;
 
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 

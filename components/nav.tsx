@@ -149,11 +149,17 @@ export function DesktopSidebar() {
           href="/settings"
           className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-sidebar-accent/40 transition-colors duration-150 group"
         >
-          <div className="w-7 h-7 rounded-full bg-sidebar-primary text-sidebar-primary-foreground flex items-center justify-center text-[10px] font-bold shrink-0 group-hover:scale-105 transition-transform duration-150">
-            {initials || '?'}
-          </div>
+          {profile?.avatar_url ? (
+            <img src={profile.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0 group-hover:scale-105 transition-transform duration-150" />
+          ) : (
+            <div className="w-7 h-7 rounded-full bg-sidebar-primary text-sidebar-primary-foreground flex items-center justify-center text-[10px] font-bold shrink-0 group-hover:scale-105 transition-transform duration-150">
+              {initials || '?'}
+            </div>
+          )}
           <div className="flex-1 min-w-0">
-            <p className="text-[12px] font-semibold text-sidebar-foreground leading-none truncate">{displayName}</p>
+            <p className="text-[12px] font-semibold text-sidebar-foreground leading-none truncate">
+              {profile?.mood_emoji ? `${profile.mood_emoji} ` : ''}{displayName}
+            </p>
             <p className="text-[10.5px] text-sidebar-foreground/45 leading-none mt-0.5 truncate">{email}</p>
           </div>
         </Link>

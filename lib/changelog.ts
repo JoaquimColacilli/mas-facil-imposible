@@ -6,6 +6,38 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.5.0',
+    date: '2026-04-01',
+    changes: [
+      'Rediseño completo de la página de Ajustes con layout de 2 columnas',
+      'Agregado upload de avatar con crop circular y Supabase Storage',
+      'Agregado campo de apodo/nickname en el perfil',
+      'Agregado mood/estado con emoji y texto corto estilo Discord',
+      'Agregada sección de seguridad para cambiar contraseña',
+      'Avatar real y mood emoji visibles en sidebar y topbar'
+    ]
+  },
+  {
+    version: '0.4.1',
+    date: '2026-04-01',
+    changes: [
+      'Rediseñado banner de resumen mensual: ahora aparece compacto junto al navegador de mes en el dashboard',
+      'Corregida creación de notificación mensual (filtro JSON mejorado)',
+      'Corregido popover de notificaciones que no se mostraba correctamente (overflow del header)',
+      'Corregido botón X de cierre del banner de resumen'
+    ]
+  },
+  {
+    version: '0.4.0',
+    date: '2026-04-01',
+    changes: [
+      'Agregado banner de resumen mensual con descarga de Excel y PDF (días 1-5 de cada mes)',
+      'Agregada notificación automática cuando el resumen mensual está disponible',
+      'Agregada descarga de reportes desde notificaciones (popover y página)',
+      'Agregado server action para obtener datos del reporte mensual con decryptación'
+    ]
+  },
+  {
     version: '0.3.4',
     date: '2026-04-01',
     changes: [

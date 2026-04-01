@@ -12,6 +12,9 @@ export interface Profile {
   id: string
   full_name: string | null
   avatar_url: string | null
+  nickname: string | null
+  mood_emoji: string | null
+  mood_text: string | null
   default_currency: Currency
   preferred_mode: AppMode
   onboarding_completed: boolean

@@ -16,11 +16,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Bell, LogOut, Settings, CheckCheck, Info, AlertTriangle, CheckCircle2, AlertCircle, ChevronRight, Zap, Table2, Shield } from 'lucide-react'
+import { Bell, LogOut, Settings, CheckCheck, Info, AlertTriangle, CheckCircle2, AlertCircle, ChevronRight, Zap, Table2, Shield, FileSpreadsheet, FileText, Loader2 } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { MfiPortfolioWidget } from '@/components/mfi-portfolio-widget'
 import { FeedbackModal } from '@/components/feedback-modal'
 import { cn } from '@/lib/utils'
+import { fetchMonthlyReportData } from '@/app/(app)/dashboard/actions'
 import useSWR from 'swr'
 
 interface AppTopbarProps {
@@ -40,6 +41,7 @@ const TYPE_ICONS: Record<NotificationType, React.ReactNode> = {
 function NotificationsPopover({ userId }: { userId: string }) {
   const supabase = createClient()
   const [open, setOpen] = useState(false)
+  const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const ref = useRef<HTMLDivElement>(null)
 
   const { data: notifications = [], mutate } = useSWR<Notification[]>(
@@ -68,6 +70,31 @@ function NotificationsPopover({ userId }: { userId: string }) {
   async function markRead(id: string) {
     await supabase.from('notifications').update({ read: true }).eq('id', id)
     mutate(notifications.map((n) => (n.id === id ? { ...n, read: true } : n)), false)
+  }
+
+  async function handleMonthlyDownload(n: Notification, format: 'excel' | 'pdf') {
+    const month = n.data?.month as string
+    if (!month) return
+    setDownloadingId(n.id)
+    try {
+      await markRead(n.id)
+      const result = await fetchMonthlyReportData(month)
+      if (result.error || !result.transactions) return
+      const { transactions, goals, loans, debts } = result
+      const label = new Date(Number(month.split('-')[0]), Number(month.split('-')[1]) - 1, 1)
+        .toLocaleDateString('es-AR', { month: 'long', year: 'numeric' })
+      const capitalizedLabel = label.charAt(0).toUpperCase() + label.slice(1)
+      const { generateExcel, generatePDF } = await import('@/lib/monthly-report')
+      if (format === 'excel') {
+        await generateExcel(transactions, goals!, loans!, debts!, capitalizedLabel)
+      } else {
+        await generatePDF(transactions, goals!, loans!, debts!, capitalizedLabel)
+      }
+    } catch (err) {
+      console.error('Error generating report:', err)
+    } finally {
+      setDownloadingId(null)
+    }
   }
 
   // Close on outside click
@@ -125,34 +152,60 @@ function NotificationsPopover({ userId }: { userId: string }) {
                 <p className="text-[12px] text-muted-foreground">Sin notificaciones</p>
               </div>
             ) : (
-              notifications.map((n, i) => (
-                <button
-                  key={n.id}
-                  onClick={() => markRead(n.id)}
-                  className={cn(
-                    'w-full flex items-start gap-3 px-4 py-3 text-left transition-colors duration-100',
-                    'hover:bg-muted/40',
-                    i < notifications.length - 1 && 'border-b border-border/60',
-                    !n.read && 'bg-accent/20',
-                  )}
-                >
-                  <div className="mt-0.5 shrink-0">{TYPE_ICONS[n.type]}</div>
-                  <div className="flex-1 min-w-0">
-                    <p className={cn('text-[12.5px] text-foreground truncate', !n.read ? 'font-semibold' : 'font-medium')}>
-                      {n.title}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed mt-0.5 line-clamp-2">
-                      {n.message}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground/60 mt-1">
-                      {new Date(n.created_at).toLocaleDateString('es-AR', {
-                        day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
-                      })}
-                    </p>
+              notifications.map((n, i) => {
+                const isMonthly = n.data?.type === 'monthly_summary'
+                return (
+                  <div
+                    key={n.id}
+                    className={cn(
+                      'w-full flex items-start gap-3 px-4 py-3 text-left transition-colors duration-100',
+                      'cursor-pointer',
+                      !isMonthly && 'hover:bg-muted/40',
+                      i < notifications.length - 1 && 'border-b border-border/60',
+                      !n.read && 'bg-accent/20',
+                    )}
+                    onClick={() => markRead(n.id)}
+                    role={!isMonthly ? 'button' : undefined}
+                  >
+                    <div className="mt-0.5 shrink-0">{TYPE_ICONS[n.type]}</div>
+                    <div className="flex-1 min-w-0">
+                      <p className={cn('text-[12.5px] text-foreground truncate', !n.read ? 'font-semibold' : 'font-medium')}>
+                        {n.title}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed mt-0.5 line-clamp-2">
+                        {n.message}
+                      </p>
+                      {isMonthly && (
+                        <div className="flex gap-1.5 mt-1.5" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleMonthlyDownload(n, 'excel') }}
+                            disabled={downloadingId === n.id}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-medium transition-colors disabled:opacity-50 cursor-pointer"
+                          >
+                            {downloadingId === n.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileSpreadsheet className="w-3 h-3" />}
+                            Excel
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleMonthlyDownload(n, 'pdf') }}
+                            disabled={downloadingId === n.id}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-primary/10 hover:bg-primary/20 text-primary text-[10px] font-medium transition-colors disabled:opacity-50 cursor-pointer"
+                          >
+                            {downloadingId === n.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <FileText className="w-3 h-3" />}
+                            PDF
+                          </button>
+                        </div>
+                      )}
+                      <p className="text-[10px] text-muted-foreground/60 mt-1">
+                        {new Date(n.created_at).toLocaleDateString('es-AR', {
+                          day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+                        })}
+                      </p>
+                    </div>
+                    {!n.read && <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />}
                   </div>
-                  {!n.read && <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 shrink-0" />}
-                </button>
-              ))
+                )
+              })
+
             )}
           </div>
 
@@ -190,7 +243,7 @@ export function AppTopbar({ user, profile, mfiMode, onToggleMfi }: AppTopbarProp
   }
 
   return (
-    <header className="h-14 border-b border-border bg-background/90 backdrop-blur-sm sticky top-0 z-40 flex items-center justify-between px-4 md:px-6 shrink-0 overflow-hidden">
+    <header className="h-14 border-b border-border bg-background/90 backdrop-blur-sm sticky top-0 z-40 flex items-center justify-between px-4 md:px-6 shrink-0 overflow-x-clip overflow-y-visible">
       <div className="md:hidden flex items-baseline gap-1.5 select-none shrink-0">
         <span className="font-serif text-[17px] font-semibold tracking-tight text-foreground leading-none">MFI</span>
         <span className="text-[9px] font-sans font-medium uppercase tracking-[0.15em] text-foreground/35 leading-none">Fin</span>
@@ -246,16 +299,23 @@ export function AppTopbar({ user, profile, mfiMode, onToggleMfi }: AppTopbarProp
 
         <FeedbackModal />
         <ThemeToggle />
+      </div>
 
+      {/* Items with dropdowns — outside overflow container so popover/dropdown renders correctly */}
+      <div className="flex items-center gap-1 shrink-0">
         <NotificationsPopover userId={user.id} />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              className="w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[11px] font-bold hover:opacity-85 transition-opacity ml-1 shrink-0"
+              className="w-8 h-8 rounded-full overflow-hidden bg-primary text-primary-foreground flex items-center justify-center text-[11px] font-bold hover:opacity-85 transition-opacity ml-1 shrink-0"
               aria-label="Menú de usuario"
             >
-              {initials}
+              {profile?.avatar_url ? (
+                <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+              ) : (
+                initials
+              )}
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">
