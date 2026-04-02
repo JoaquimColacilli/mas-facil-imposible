@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { encryptFields, decryptRow } from '@/lib/crypto'
-import type { Transaction, TransactionType, Currency, TransactionStatus } from '@/lib/types'
+import type { Transaction, TransactionType, Currency, TransactionStatus, PaymentMethod } from '@/lib/types'
 
 export async function createTransaction(input: {
   type: TransactionType
@@ -12,6 +12,7 @@ export async function createTransaction(input: {
   category_id: string | null
   date: string
   status?: TransactionStatus
+  payment_method?: PaymentMethod | null
   sheet_id?: string | null
 }): Promise<{ data: Transaction | null; error: string | null }> {
   const supabase = await createClient()
@@ -21,6 +22,9 @@ export async function createTransaction(input: {
   if (!user) return { data: null, error: 'No autenticado' }
 
   const enc_data = encryptFields({ amount: input.amount, note: input.note })
+
+  // Credit card expenses default to pending status
+  const status = input.status ?? (input.payment_method === 'credit' ? 'pending' : 'confirmed')
 
   const { data, error } = await supabase
     .from('transactions')
@@ -32,7 +36,8 @@ export async function createTransaction(input: {
       note: null,
       category_id: input.category_id,
       date: input.date,
-      status: input.status ?? 'confirmed',
+      status,
+      payment_method: input.payment_method ?? null,
       sheet_id: input.sheet_id ?? null,
       enc_data,
     })
@@ -52,6 +57,7 @@ export async function updateTransaction(input: {
   category_id: string | null
   date: string
   status: TransactionStatus
+  payment_method?: PaymentMethod | null
 }): Promise<{ data: Transaction | null; error: string | null }> {
   const supabase = await createClient()
   const enc_data = encryptFields({ amount: input.amount, note: input.note })
@@ -66,6 +72,7 @@ export async function updateTransaction(input: {
       category_id: input.category_id,
       date: input.date,
       status: input.status,
+      payment_method: input.payment_method ?? null,
       enc_data,
       updated_at: new Date().toISOString(),
     })
@@ -177,4 +184,31 @@ export async function fetchTransactionsForMonth(month: string): Promise<Transact
     .order('created_at', { ascending: false })
 
   return (data ?? []).map((row) => decryptRow(row) as Transaction)
+}
+
+/** Mark all pending credit card expenses in a given month as confirmed. */
+export async function markCreditCardPaid(month: string): Promise<{ count: number; error: string | null }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { count: 0, error: 'No autenticado' }
+
+  const [year, mo] = month.split('-').map(Number)
+  const start = `${year}-${String(mo).padStart(2, '0')}-01`
+  const lastDay = new Date(year, mo, 0).getDate()
+  const end = `${year}-${String(mo).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+
+  const { data, error } = await supabase
+    .from('transactions')
+    .update({ status: 'confirmed', updated_at: new Date().toISOString() })
+    .eq('user_id', user.id)
+    .eq('payment_method', 'credit')
+    .eq('status', 'pending')
+    .gte('date', start)
+    .lte('date', end)
+    .select('id')
+
+  if (error) return { count: 0, error: error.message }
+  return { count: data?.length ?? 0, error: null }
 }

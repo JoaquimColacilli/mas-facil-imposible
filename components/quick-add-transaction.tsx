@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Category, Currency, TransactionType } from '@/lib/types'
+import type { Category, Currency, TransactionType, PaymentMethod } from '@/lib/types'
 import { TRANSACTION_TYPE_LABELS } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { X, ChevronDown, Plus, Search, Check, Layers } from 'lucide-react'
+import { X, ChevronDown, Plus, Search, Check, Layers, Banknote, CreditCard, Smartphone } from 'lucide-react'
 import useSWR from 'swr'
 import { cn } from '@/lib/utils'
 
@@ -273,6 +273,7 @@ export function QuickAddTransaction({ onClose, onSuccess }: QuickAddTransactionP
   const [note, setNote] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -302,6 +303,7 @@ export function QuickAddTransaction({ onClose, onSuccess }: QuickAddTransactionP
       note: note.trim() || null,
       category_id: categoryId || null,
       date,
+      payment_method: type === 'expense' ? paymentMethod : null,
     })
     if (insertError) {
       setError(insertError)
@@ -411,6 +413,40 @@ export function QuickAddTransaction({ onClose, onSuccess }: QuickAddTransactionP
               className="h-10 rounded-xl"
             />
           </div>
+
+          {/* Payment method — only for expenses */}
+          {type === 'expense' && (
+            <div>
+              <Label className="text-[11px] font-semibold text-muted-foreground mb-2 block tracking-wide uppercase">Método de pago</Label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {([
+                  { value: 'cash' as PaymentMethod, label: 'Efectivo', icon: Banknote },
+                  { value: 'debit' as PaymentMethod, label: 'Débito', icon: Smartphone },
+                  { value: 'credit' as PaymentMethod, label: 'Crédito', icon: CreditCard },
+                ]).map(({ value, label, icon: PMIcon }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setPaymentMethod(paymentMethod === value ? null : value)}
+                    className={cn(
+                      'flex items-center justify-center gap-1.5 text-[11px] font-semibold py-2 px-1 rounded-xl border transition-all duration-150',
+                      paymentMethod === value
+                        ? 'bg-foreground text-background border-foreground'
+                        : 'bg-muted/50 text-muted-foreground border-border hover:border-foreground/30 hover:text-foreground',
+                    )}
+                  >
+                    <PMIcon className="w-3.5 h-3.5" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {paymentMethod === 'credit' && (
+                <p className="text-[10px] text-amber-500 mt-1.5 font-medium">
+                  Se guardará como pendiente hasta que pagues la tarjeta.
+                </p>
+              )}
+            </div>
+          )}
 
           {error && (
             <p className="text-[12px] text-destructive bg-destructive/10 border border-destructive/20 rounded-xl px-3 py-2">

@@ -3,6 +3,7 @@
 export type Currency = 'ARS' | 'USD'
 export type TransactionType = 'expense' | 'income' | 'savings' | 'investment'
 export type TransactionStatus = 'confirmed' | 'pending' | 'cancelled'
+export type PaymentMethod = 'cash' | 'debit' | 'credit'
 export type GoalStatus = 'active' | 'completed' | 'paused'
 export type NotificationType = 'info' | 'warning' | 'success' | 'alert'
 
@@ -43,6 +44,7 @@ export interface Transaction {
   date: string
   note: string | null
   status: TransactionStatus
+  payment_method: PaymentMethod | null
   sheet_id: string | null
   created_at: string
   updated_at: string
@@ -157,6 +159,12 @@ export const TRANSACTION_TYPE_COLORS: Record<TransactionType, string> = {
   income: 'text-emerald-500',
   savings: 'text-blue-500',
   investment: 'text-violet-500',
+}
+
+export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  cash: 'Efectivo',
+  debit: 'Débito',
+  credit: 'Crédito',
 }
 
 export const CURRENCY_SYMBOLS: Record<Currency, string> = {

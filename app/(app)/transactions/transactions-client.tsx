@@ -24,6 +24,9 @@ import {
   ChevronsLeft,
   ChevronsRight,
   CalendarSearch,
+  CreditCard,
+  Banknote,
+  Smartphone,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Calendar } from '@/components/ui/calendar'
@@ -90,6 +93,7 @@ export function TransactionsClient({ transactions: initial, month, totalCount }:
   const [filterType, setFilterType] = useState<string>('all')
   const [filterCurrency, setFilterCurrency] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
+  const [filterPaymentMethod, setFilterPaymentMethod] = useState<string>('all')
   const [page, setPage] = useState(1)
   const [calendarOpen, setCalendarOpen] = useState(false)
   const [filterDate, setFilterDate] = useState<string | null>(null) // YYYY-MM-DD
@@ -137,6 +141,7 @@ export function TransactionsClient({ transactions: initial, month, totalCount }:
       if (filterType !== 'all' && tx.type !== filterType) return false
       if (filterCurrency !== 'all' && tx.currency !== filterCurrency) return false
       if (filterStatus !== 'all' && tx.status !== filterStatus) return false
+      if (filterPaymentMethod !== 'all' && (tx.payment_method ?? 'none') !== filterPaymentMethod) return false
       if (filterDate && tx.date !== filterDate) return false
       if (search) {
         const q = search.toLowerCase()
@@ -148,7 +153,7 @@ export function TransactionsClient({ transactions: initial, month, totalCount }:
       }
       return true
     })
-  }, [transactions, filterType, filterCurrency, filterStatus, filterDate, search])
+  }, [transactions, filterType, filterCurrency, filterStatus, filterPaymentMethod, filterDate, search])
 
   // Summary stats
   const stats = useMemo(() => {
@@ -174,12 +179,13 @@ export function TransactionsClient({ transactions: initial, month, totalCount }:
   const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a))
 
   // Active filter count
-  const activeFilters = [filterType, filterCurrency, filterStatus].filter(f => f !== 'all').length + (filterDate ? 1 : 0)
+  const activeFilters = [filterType, filterCurrency, filterStatus, filterPaymentMethod].filter(f => f !== 'all').length + (filterDate ? 1 : 0)
 
   function clearFilters() {
     setFilterType('all')
     setFilterCurrency('all')
     setFilterStatus('all')
+    setFilterPaymentMethod('all')
     setFilterDate(null)
     setSearch('')
     setPage(1)
@@ -459,6 +465,30 @@ export function TransactionsClient({ transactions: initial, month, totalCount }:
             </button>
           ))}
 
+          <span className="w-px h-4 bg-border mx-1" />
+
+          {/* Payment method filter */}
+          {([
+            { value: 'all', label: 'Todos', icon: null },
+            { value: 'cash', label: 'Efectivo', icon: Banknote },
+            { value: 'debit', label: 'Débito', icon: Smartphone },
+            { value: 'credit', label: 'Crédito', icon: CreditCard },
+          ] as const).map(({ value, label, icon: PMIcon }) => (
+            <button
+              key={`pm-${value}`}
+              onClick={() => { setFilterPaymentMethod(value); setPage(1) }}
+              className={cn(
+                'px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all duration-100 flex items-center gap-1',
+                filterPaymentMethod === value
+                  ? 'bg-foreground text-background shadow-sm'
+                  : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground',
+              )}
+            >
+              {PMIcon && <PMIcon className="w-3 h-3" />}
+              {label}
+            </button>
+          ))}
+
           {activeFilters > 0 && (
             <>
               <span className="w-px h-4 bg-border mx-1" />
@@ -576,6 +606,12 @@ export function TransactionsClient({ transactions: initial, month, totalCount }:
                       <span className="text-[11px] text-muted-foreground">{tx.currency}</span>
                       <span className="text-[11px] text-muted-foreground">·</span>
                       <span className="text-[11px] text-muted-foreground">{formatDate(tx.date)}</span>
+                      {tx.payment_method === 'credit' && (
+                        <>
+                          <span className="text-[11px] text-muted-foreground">·</span>
+                          <CreditCard className="w-3 h-3 text-amber-500" />
+                        </>
+                      )}
                     </div>
                   </div>
 

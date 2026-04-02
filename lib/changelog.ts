@@ -6,6 +6,17 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.7.0',
+    date: '2026-04-02',
+    changes: [
+      'Agregado método de pago (efectivo/débito/crédito) en gastos',
+      'Los gastos con tarjeta de crédito se guardan como pendientes automáticamente',
+      'Agregado banner de tarjeta pendiente en dashboard con botón para marcar como pagado',
+      'Agregado ícono de tarjeta en transacciones recientes y lista de movimientos',
+      'Agregado filtro por método de pago en la lista de movimientos'
+    ]
+  },
+  {
     version: '0.6.1',
     date: '2026-04-01',
     changes: [

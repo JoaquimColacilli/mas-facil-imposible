@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Transaction, Category, Currency, TransactionType } from '@/lib/types'
+import type { Transaction, Category, Currency, TransactionType, PaymentMethod } from '@/lib/types'
 import { TRANSACTION_TYPE_LABELS } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { X, ChevronDown, Search, Check, Plus } from 'lucide-react'
+import { X, ChevronDown, Search, Check, Plus, Banknote, CreditCard, Smartphone } from 'lucide-react'
 import useSWR from 'swr'
 import { cn } from '@/lib/utils'
 
@@ -149,6 +149,7 @@ export function EditTransactionModal({ transaction, onClose, onSaved, onDeleted 
   const [categoryId, setCategoryId] = useState(transaction.category_id ?? '')
   const [date, setDate] = useState(transaction.date)
   const [status, setStatus] = useState(transaction.status)
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(transaction.payment_method ?? null)
   const [loading, setLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -177,6 +178,7 @@ export function EditTransactionModal({ transaction, onClose, onSaved, onDeleted 
       category_id: categoryId || null,
       date,
       status,
+      payment_method: type === 'expense' ? paymentMethod : null,
     })
     setLoading(false)
     if (err) { setError(err); return }
@@ -272,6 +274,40 @@ export function EditTransactionModal({ transaction, onClose, onSaved, onDeleted 
               </Select>
             </div>
           </div>
+
+          {/* Payment method — only for expenses */}
+          {type === 'expense' && (
+            <div>
+              <Label className="text-[11px] font-semibold text-muted-foreground mb-2 block tracking-wide uppercase">Método de pago</Label>
+              <div className="grid grid-cols-3 gap-1.5">
+                {([
+                  { value: 'cash' as PaymentMethod, label: 'Efectivo', icon: Banknote },
+                  { value: 'debit' as PaymentMethod, label: 'Débito', icon: Smartphone },
+                  { value: 'credit' as PaymentMethod, label: 'Crédito', icon: CreditCard },
+                ]).map(({ value, label, icon: PMIcon }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => {
+                      const next = paymentMethod === value ? null : value
+                      setPaymentMethod(next)
+                      if (next === 'credit' && status === 'confirmed') setStatus('pending')
+                      if (next !== 'credit' && paymentMethod === 'credit' && status === 'pending') setStatus('confirmed')
+                    }}
+                    className={cn(
+                      'flex items-center justify-center gap-1.5 text-[11px] font-semibold py-2 px-1 rounded-xl border transition-all duration-150',
+                      paymentMethod === value
+                        ? 'bg-foreground text-background border-foreground'
+                        : 'bg-muted/50 text-muted-foreground border-border hover:border-foreground/30 hover:text-foreground',
+                    )}
+                  >
+                    <PMIcon className="w-3.5 h-3.5" />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {error && (
             <p className="text-[12px] text-destructive bg-destructive/10 border border-destructive/20 rounded-xl px-3 py-2">{error}</p>
