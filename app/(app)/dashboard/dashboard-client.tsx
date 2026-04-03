@@ -37,6 +37,7 @@ import { EditTransactionModal } from '@/components/edit-transaction-modal'
 import { CategoryManagerButton } from '@/components/category-manager'
 import { PendingLoans } from '@/components/pending-loans'
 import { PendingDebts } from '@/components/pending-debts'
+import { MarketCard } from '@/components/market-card'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { TransactionTypeModal } from '@/components/transaction-type-modal'
 import { MonthlySummaryBanner } from '@/components/monthly-summary-banner'
@@ -1001,6 +1002,9 @@ export function DashboardClient({
 
           {/* Cobros pendientes */}
           <PendingLoans initialLoans={loans} currency={currency as 'ARS' | 'USD'} />
+
+          {/* Mercado argentino */}
+          <MarketCard />
 
         </div>
       </div>

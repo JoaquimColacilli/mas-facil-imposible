@@ -14,6 +14,7 @@ import {
 import { TrendingUp, Info, Briefcase, Plus, ArrowRight, ArrowDownToLine, X, Download } from 'lucide-react'
 import { Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { MarketCard } from '@/components/market-card'
 import {
   type InvestmentPeriod,
   type PortfolioLogWithPortfolio,
@@ -734,7 +735,8 @@ export function InvestmentsClient({ portfolios: initialPortfolios, logs: initial
         </div>
       )}
 
-      {/* ── Evolution Chart ── */}
+      {/* ── Evolution Chart + Market Card ── */}
+      <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
       <div className="bg-card border border-border/50 rounded-2xl p-5">
         <SectionTitle title="Evolución" tooltip="Valor total de tus portfolios en el tiempo. Basado en los saldos diarios que cargás." />
 
@@ -775,6 +777,12 @@ export function InvestmentsClient({ portfolios: initialPortfolios, logs: initial
             </AreaChart>
           </ResponsiveContainer>
         )}
+      </div>
+
+      {/* Market Card sidebar */}
+      <div className="xl:sticky xl:top-5 self-start">
+        <MarketCard defaultExpanded chartHeight={48} />
+      </div>
       </div>
 
       {/* ── Holdings + Allocation ── */}
@@ -895,6 +903,7 @@ export function InvestmentsClient({ portfolios: initialPortfolios, logs: initial
           </div>
         </div>
       )}
+
     </div>
   )
 }

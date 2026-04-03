@@ -6,6 +6,83 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.16.1',
+    date: '2026-04-03',
+    changes: [
+      'Fix: sparklines ahora muestran curvas reales (YAxis con domain dataMin/dataMax en vez de 0 a max)',
+      'Reubicada MarketCard en /investments como sidebar sticky al lado del chart de evolución'
+    ]
+  },
+  {
+    version: '0.16.0',
+    date: '2026-04-03',
+    changes: [
+      'Fix: YPF ahora aparece correctamente (ticker cambiado de YPF.BA a YPFD.BA)',
+      'Agregado tab Crypto en MarketCard con datos de CoinGecko: BTC como hero + ETH, SOL, XRP, ADA, DOGE, DOT, LINK',
+      'Tab Acciones/Crypto con persistencia del tab seleccionado en localStorage',
+      'Lazy fetch de crypto: solo se activa al seleccionar el tab por primera vez',
+      'Expand/collapse independiente para acciones y crypto con persistencia separada',
+      'El dot de mercado abierto/cerrado se oculta automáticamente en tab Crypto',
+      'Botón refresh aplica al tab activo (acciones o crypto según contexto)',
+      'Agregados 6 tests para parseo de respuesta CoinGecko'
+    ]
+  },
+  {
+    version: '0.15.0',
+    date: '2026-04-03',
+    changes: [
+      'Ampliada lista de tickers a 10: GGAL, YPF, MELI, BMA, PAMP, TXAR, SUPV, BBAR, LOMA + Merval',
+      'Agregado toggle Ver más/Ver menos con persistencia en localStorage para tickers secundarios',
+      'Agregadas mini sparklines a cada fila de ticker secundario (40x16px)',
+      'Mejorado contraste de badges de variación (opacity y border más pronunciados)',
+      'Mejorada jerarquía visual en filas de tickers (nombre muted, precio destacado)',
+      'Aumentado grosor de sparkline Merval a 2px con gradient más visible',
+      'Integrada MarketCard en /investments expandida por default con chart más alto (48px)',
+      'MarketCard ahora acepta props defaultExpanded y chartHeight para adaptarse al contexto'
+    ]
+  },
+  {
+    version: '0.14.0',
+    date: '2026-04-03',
+    changes: [
+      'Agregado auto-refresh cada 5 min con polling inteligente (pausa en background, resume en focus) para cotización USD y mercado',
+      'Mejorado widget de cotización USD con tooltip detallado (compra/venta, spread, fuente) y botón de refresh manual con cooldown de 30s',
+      'Agregada card de Mercado argentino premium en sidebar derecho: MERVAL con mini chart intraday, GGAL, YPF y MELI con variación diaria',
+      'Agregado proxy API route para Yahoo Finance (evita CORS) con cache de 60s en el edge',
+      'Agregado hook usePolling reutilizable sobre SWR con cache sessionStorage y detección de visibilidad',
+      'Agregado indicador de mercado abierto/cerrado con estado contextual (feriado, fin de semana, fuera de horario)',
+      'Agregados tests para lógica de mercado, parseo Yahoo Finance y flash de precios'
+    ]
+  },
+  {
+    version: '0.13.1',
+    date: '2026-04-03',
+    changes: [
+      'Agregado módulo market-data.ts con lógica de fetching y parsing de datos de mercado argentino desde Yahoo Finance',
+      'Incluye detección de estado del mercado (abierto/cerrado), parsing de respuestas Yahoo Chart API, y helpers de UI'
+    ]
+  },
+  {
+    version: '0.13.0',
+    date: '2026-04-03',
+    changes: [
+      'Agregado widget de cotización USD (MEP y Blue) en el navbar con cache de 1h y fallback graceful',
+      'Agregado widget de racha de inversiones con conteo de días hábiles consecutivos',
+      'Los widgets se ocultan automáticamente en mobile',
+      'Agregados tests para lógica de parsing de cotización y cálculo de streak'
+    ]
+  },
+  {
+    version: '0.12.3',
+    date: '2026-04-03',
+    changes: [
+      'Separado feriado Güemes (17/6) y Bandera (20/6) como entradas independientes',
+      'Agregada lógica de traslado al lunes para feriados trasladables (San Martín, Diversidad Cultural, Soberanía Nacional)',
+      'Eliminado feriado puente falso del 13/10/2026',
+      'Actualizados tests de ar-holidays con cobertura para regla de traslado'
+    ]
+  },
+  {
     version: '0.12.2',
     date: '2026-04-03',
     changes: [

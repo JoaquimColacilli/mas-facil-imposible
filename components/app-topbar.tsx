@@ -19,6 +19,8 @@ import {
 import { Bell, LogOut, Settings, CheckCheck, Info, AlertTriangle, CheckCircle2, AlertCircle, ChevronRight, ChevronDown, Table2, Shield, FileSpreadsheet, FileText, Loader2 } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { MfiPortfolioWidget } from '@/components/mfi-portfolio-widget'
+import { UsdCotizacionWidget } from '@/components/usd-cotizacion-widget'
+import InvestmentStreakWidget from '@/components/investment-streak-widget'
 import { FeedbackModal } from '@/components/feedback-modal'
 import { cn } from '@/lib/utils'
 import { fetchMonthlyReportData } from '@/app/(app)/dashboard/actions'
@@ -273,6 +275,10 @@ export function AppTopbar({ user, profile, mfiMode, onToggleMfi }: AppTopbarProp
 
       {/* All actions grouped right */}
       <div className="flex items-center gap-0.5 shrink-0 relative">
+        {/* Cotización USD + Streak */}
+        <UsdCotizacionWidget />
+        <InvestmentStreakWidget />
+
         {/* Switch to MFI mode */}
         <button
           onClick={handleSwitchToMfi}

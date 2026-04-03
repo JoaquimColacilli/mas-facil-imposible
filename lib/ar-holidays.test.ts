@@ -4,6 +4,7 @@ import {
   isNonTradingDay,
   getHolidays,
   getHolidayName,
+  applyTransferRule,
 } from './ar-holidays'
 
 describe('computeEasterDate', () => {
@@ -26,6 +27,44 @@ describe('computeEasterDate', () => {
     expect(d.getFullYear()).toBe(2028)
     expect(d.getMonth()).toBe(3)
     expect(d.getDate()).toBe(16)
+  })
+})
+
+describe('applyTransferRule', () => {
+  it('lunes → queda igual', () => {
+    // 2026-08-17 es lunes
+    const d = applyTransferRule(new Date(2026, 7, 17))
+    expect(d.getDate()).toBe(17)
+  })
+
+  it('martes → lunes anterior', () => {
+    // 2027-10-12 es martes
+    const d = applyTransferRule(new Date(2027, 9, 12))
+    expect(d.getDate()).toBe(11) // lunes 11
+  })
+
+  it('miércoles → lunes anterior', () => {
+    // 2025-11-20 es jueves... busco un miércoles: 2026-08-12 es miércoles
+    const d = applyTransferRule(new Date(2026, 7, 12))
+    expect(d.getDate()).toBe(10) // lunes 10
+  })
+
+  it('jueves → lunes siguiente', () => {
+    // 2025-11-20 es jueves
+    const d = applyTransferRule(new Date(2025, 10, 20))
+    expect(d.getDate()).toBe(24) // lunes 24
+  })
+
+  it('viernes → lunes siguiente', () => {
+    // 2026-11-20 es viernes
+    const d = applyTransferRule(new Date(2026, 10, 20))
+    expect(d.getDate()).toBe(23) // lunes 23
+  })
+
+  it('domingo → lunes siguiente', () => {
+    // 2025-10-12 es domingo
+    const d = applyTransferRule(new Date(2025, 9, 12))
+    expect(d.getDate()).toBe(13) // lunes 13
   })
 })
 
@@ -65,6 +104,14 @@ describe('isNonTradingDay', () => {
   it('Jueves Santo 2026 (2 de abril coincide con Malvinas) → true', () => {
     expect(isNonTradingDay(new Date(2026, 3, 2))).toBe(true)
   })
+
+  it('Soberanía 2026 trasladado al lunes 23/11 → true', () => {
+    expect(isNonTradingDay(new Date(2026, 10, 23))).toBe(true)
+  })
+
+  it('20/11/2026 (fecha original Soberanía, viernes) → false (fue trasladado)', () => {
+    expect(isNonTradingDay(new Date(2026, 10, 20))).toBe(false)
+  })
 })
 
 describe('getHolidays', () => {
@@ -76,14 +123,16 @@ describe('getHolidays', () => {
     expect(typeof h2026[0].name).toBe('string')
   })
 
-  it('incluye 12 feriados fijos + 4 calculables + puentes del año', () => {
+  // 2026: 10 fijos + 3 trasladables + 4 calculables (Pascua) + 3 puentes = 20
+  it('2026 tiene 20 feriados', () => {
     const h2026 = getHolidays(2026)
     expect(h2026.length).toBe(20)
   })
 
-  it('año sin puentes tiene 16 feriados', () => {
+  // Sin puentes: 10 fijos + 3 trasladables + 4 calculables = 17
+  it('año sin puentes tiene 17 feriados', () => {
     const h2030 = getHolidays(2030)
-    expect(h2030.length).toBe(16)
+    expect(h2030.length).toBe(17)
   })
 
   it('incluye nombre correcto para Navidad', () => {
@@ -96,6 +145,38 @@ describe('getHolidays', () => {
     const h2026 = getHolidays(2026)
     const carnavales = h2026.filter((h) => h.name === 'Carnaval')
     expect(carnavales.length).toBe(2)
+  })
+
+  it('incluye 17 de junio (Güemes) como feriado separado', () => {
+    const h2026 = getHolidays(2026)
+    const guemes = h2026.find((h) => h.date.getMonth() === 5 && h.date.getDate() === 17)
+    expect(guemes?.name).toBe('Paso a la Inmortalidad del Gral. Güemes')
+  })
+
+  it('incluye 20 de junio (Bandera) como feriado separado', () => {
+    const h2026 = getHolidays(2026)
+    const bandera = h2026.find((h) => h.date.getMonth() === 5 && h.date.getDate() === 20)
+    expect(bandera?.name).toBe('Día de la Bandera')
+  })
+
+  it('13 de octubre 2026 NO es feriado (puente eliminado)', () => {
+    const h2026 = getHolidays(2026)
+    const oct13 = h2026.find((h) => h.date.getMonth() === 9 && h.date.getDate() === 13)
+    expect(oct13).toBeUndefined()
+  })
+
+  it('Soberanía 2026 cae el 23/11 (trasladado desde viernes 20)', () => {
+    const h2026 = getHolidays(2026)
+    const soberania = h2026.find((h) => h.name === 'Día de la Soberanía Nacional')
+    expect(soberania?.date.getMonth()).toBe(10)
+    expect(soberania?.date.getDate()).toBe(23)
+  })
+
+  it('Diversidad Cultural 2027 se traslada al lunes 11/10 (martes 12 → lunes anterior)', () => {
+    const h2027 = getHolidays(2027)
+    const diversidad = h2027.find((h) => h.name === 'Día del Respeto a la Diversidad Cultural')
+    expect(diversidad?.date.getMonth()).toBe(9)
+    expect(diversidad?.date.getDate()).toBe(11)
   })
 })
 
@@ -110,5 +191,13 @@ describe('getHolidayName', () => {
 
   it('retorna nombre para Viernes Santo calculado', () => {
     expect(getHolidayName(new Date(2026, 3, 3))).toBe('Viernes Santo')
+  })
+
+  it('retorna Güemes para 17 de junio', () => {
+    expect(getHolidayName(new Date(2026, 5, 17))).toBe('Paso a la Inmortalidad del Gral. Güemes')
+  })
+
+  it('retorna Bandera para 20 de junio', () => {
+    expect(getHolidayName(new Date(2026, 5, 20))).toBe('Día de la Bandera')
   })
 })
