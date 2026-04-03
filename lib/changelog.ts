@@ -6,6 +6,20 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.11.3',
+    date: '2026-04-03',
+    changes: [
+      'PDF de inversiones ahora descarga el período activo seleccionado en los chips'
+    ]
+  },
+  {
+    version: '0.11.2',
+    date: '2026-04-03',
+    changes: [
+      'Descarga de PDF en pantalla de Inversiones: mes actual, año completo o historial'
+    ]
+  },
+  {
     version: '0.11.1',
     date: '2026-04-03',
     changes: [

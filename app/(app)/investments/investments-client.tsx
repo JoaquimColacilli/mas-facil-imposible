@@ -11,7 +11,7 @@ import {
   AreaChart, Area, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts'
-import { TrendingUp, Info, Briefcase, Plus, ArrowRight, ArrowDownToLine, X } from 'lucide-react'
+import { TrendingUp, Info, Briefcase, Plus, ArrowRight, ArrowDownToLine, X, Download } from 'lucide-react'
 import { Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import {
@@ -94,6 +94,138 @@ function SectionTitle({ title, tooltip }: { title: string; tooltip: string }) {
       </TooltipProvider>
     </div>
   )
+}
+
+// ─── PDF Generation ──────────────────────────────────────────────────────────
+
+interface PdfPortfolioRow {
+  name: string
+  currency: string
+  balance: number
+  returnPct: number
+}
+
+interface PdfMonthRow {
+  year: number
+  months: (number | null)[]
+  total: number | null
+}
+
+async function generateInvestmentsPDF(
+  periodLabel: string,
+  totalValue: number,
+  primaryCurrency: string,
+  returnAbs: number,
+  returnPct: number,
+  portfolioRows: PdfPortfolioRow[],
+  monthRows: PdfMonthRow[],
+) {
+  const { jsPDF } = await import('jspdf')
+  const autoTable = (await import('jspdf-autotable')).default
+
+  const doc = new jsPDF()
+  const sym = primaryCurrency === 'USD' ? 'U$S' : '$'
+  const fmt = (n: number) => new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)
+  const fmtPct = (n: number) => `${n > 0 ? '+' : ''}${n.toFixed(2)}%`
+
+  // Dark background
+  doc.setFillColor(20, 20, 24)
+  doc.rect(0, 0, 210, 297, 'F')
+
+  // Header
+  doc.setTextColor(240, 240, 240)
+  doc.setFontSize(18)
+  doc.text('MFI — Inversiones', 20, 22)
+
+  doc.setFontSize(11)
+  doc.setTextColor(160, 160, 165)
+  doc.text(periodLabel, 20, 30)
+  doc.text(`Generado: ${new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })}`, 20, 36)
+
+  doc.setDrawColor(60, 60, 65)
+  doc.line(20, 40, 190, 40)
+
+  // KPIs
+  doc.setTextColor(200, 200, 205)
+  doc.setFontSize(13)
+  doc.text('Resumen', 20, 50)
+
+  const tableDefaults = {
+    theme: 'grid' as const,
+    styles: { fontSize: 10, cellPadding: 4 },
+    headStyles: { fillColor: [35, 35, 40] as [number, number, number], textColor: [200, 200, 205] as [number, number, number], fontStyle: 'bold' as const },
+    bodyStyles: { fillColor: [25, 25, 30] as [number, number, number], textColor: [220, 220, 225] as [number, number, number] },
+    alternateRowStyles: { fillColor: [30, 30, 35] as [number, number, number] },
+    margin: { left: 20, right: 20 },
+  }
+
+  autoTable(doc, {
+    ...tableDefaults,
+    startY: 54,
+    head: [['Métrica', 'Valor']],
+    body: [
+      ['Valor total', `${sym} ${fmt(totalValue)}`],
+      ['Rendimiento', `${sym} ${fmt(returnAbs)} (${fmtPct(returnPct)})`],
+      ['Portfolios', String(portfolioRows.length)],
+    ],
+    columnStyles: { 1: { halign: 'right', font: 'courier' } },
+  })
+
+  // Portfolios table
+  if (portfolioRows.length > 0) {
+    const y = (doc as any).lastAutoTable.finalY + 12
+    doc.setTextColor(200, 200, 205)
+    doc.setFontSize(13)
+    doc.text('Portfolios', 20, y)
+
+    autoTable(doc, {
+      ...tableDefaults,
+      startY: y + 4,
+      head: [['Nombre', 'Moneda', 'Saldo', 'Rendimiento']],
+      body: portfolioRows.map(r => [
+        r.name,
+        r.currency,
+        `${r.currency === 'USD' ? 'U$S' : '$'} ${fmt(r.balance)}`,
+        fmtPct(r.returnPct),
+      ]),
+      columnStyles: { 2: { halign: 'right', font: 'courier' }, 3: { halign: 'right', font: 'courier' } },
+    })
+  }
+
+  // Monthly returns
+  if (monthRows.length > 0) {
+    const y = (doc as any).lastAutoTable.finalY + 12
+    doc.setTextColor(200, 200, 205)
+    doc.setFontSize(13)
+    doc.text('Rendimientos mensuales (%)', 20, y)
+
+    const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+    autoTable(doc, {
+      ...tableDefaults,
+      startY: y + 4,
+      styles: { fontSize: 8, cellPadding: 2 },
+      head: [['Año', ...months, 'Total']],
+      body: monthRows.map(r => [
+        String(r.year),
+        ...r.months.map(m => m !== null ? `${m > 0 ? '+' : ''}${m.toFixed(1)}` : '—'),
+        r.total !== null ? `${r.total > 0 ? '+' : ''}${r.total.toFixed(1)}` : '—',
+      ]),
+      columnStyles: Object.fromEntries(
+        Array.from({ length: 14 }, (_, i) => [i, { halign: i === 0 ? 'left' : 'center' as any, font: i > 0 ? 'courier' : undefined }])
+      ),
+    })
+  }
+
+  // Footer
+  const pageHeight = doc.internal.pageSize.height
+  doc.setTextColor(100, 100, 105)
+  doc.setFontSize(8)
+  doc.text(
+    `Generado por MFI • ${new Date().toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`,
+    105, pageHeight - 10, { align: 'center' },
+  )
+
+  doc.save(`MFI-Inversiones-${periodLabel.replace(/[^a-zA-Z0-9áéíóúñ\s]/g, '').trim().replace(/\s+/g, '-')}.pdf`)
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
@@ -277,6 +409,44 @@ export function InvestmentsClient({ portfolios: initialPortfolios, logs: initial
     setNewName(''); setNewBalance(''); setNewCurrency('USD')
   }
 
+  // ── PDF download (uses active period) ──
+  const PERIOD_LABELS: Record<InvestmentPeriod, string> = {
+    '1W': 'Última semana',
+    '1M': 'Último mes',
+    '3M': 'Últimos 3 meses',
+    '6M': 'Últimos 6 meses',
+    'YTD': `YTD ${new Date().getFullYear()}`,
+    '1Y': 'Último año',
+    'MAX': 'Historial completo',
+  }
+
+  function handleDownloadPDF() {
+    const label = PERIOD_LABELS[period]
+
+    const portfolioRows = holdings.map(h => ({
+      name: h.name,
+      currency: h.currency,
+      balance: h.currentBalance,
+      returnPct: h.periodReturnPct,
+    }))
+
+    const monthRows = heatmapYears.map(({ year, months }) => {
+      const valid = months.filter(m => m !== null) as number[]
+      const total = valid.length > 0 ? (valid.reduce((acc, r) => acc * (1 + r / 100), 1) - 1) * 100 : null
+      return { year, months, total }
+    })
+
+    generateInvestmentsPDF(
+      label,
+      totalValue,
+      primaryCurrency,
+      displayReturn.absolute,
+      displayReturn.pct,
+      portfolioRows,
+      period === '1W' || period === '1M' ? [] : monthRows,
+    )
+  }
+
   // ─── Empty state ───
   if (portfolios.length === 0 && actionPanel !== 'create') {
     return (
@@ -395,20 +565,40 @@ export function InvestmentsClient({ portfolios: initialPortfolios, logs: initial
           )}
         </div>
 
-        {/* Period selector chips */}
-        <div className="flex gap-1 p-1 bg-muted/40 rounded-xl shrink-0">
-          {PERIOD_OPTIONS.map(({ key, label }) => (
-            <button
-              key={key}
-              onClick={() => setPeriod(key)}
-              className={cn(
-                'px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-all duration-150',
-                period === key ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
-              )}
-            >
-              {label}
-            </button>
-          ))}
+        {/* Period selector chips + PDF */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex gap-1 p-1 bg-muted/40 rounded-xl">
+            {PERIOD_OPTIONS.map(({ key, label }) => (
+              <button
+                key={key}
+                onClick={() => setPeriod(key)}
+                className={cn(
+                  'px-3 py-1.5 rounded-lg text-[12px] font-semibold transition-all duration-150',
+                  period === key ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {/* PDF download — tied to active period */}
+          <TooltipProvider delayDuration={200}>
+            <UiTooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={handleDownloadPDF}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-150"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">{PERIOD_OPTIONS.find(o => o.key === period)?.label}</span>
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom" className="text-[11px]">
+                Descargar PDF — {PERIOD_LABELS[period]}
+              </TooltipContent>
+            </UiTooltip>
+          </TooltipProvider>
         </div>
       </div>
 
