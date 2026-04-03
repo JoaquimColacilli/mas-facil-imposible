@@ -22,6 +22,8 @@ import { MfiPortfolioWidget } from '@/components/mfi-portfolio-widget'
 import { FeedbackModal } from '@/components/feedback-modal'
 import { cn } from '@/lib/utils'
 import { fetchMonthlyReportData } from '@/app/(app)/dashboard/actions'
+import { isNonTradingDay, getHolidayName } from '@/lib/ar-holidays'
+import { getNonTradingMessage } from '@/lib/non-trading-messages'
 import useSWR from 'swr'
 
 interface AppTopbarProps {
@@ -225,6 +227,21 @@ function NotificationsPopover({ userId }: { userId: string }) {
   )
 }
 
+function NonTradingBadge() {
+  const today = new Date()
+  if (!isNonTradingDay(today)) return null
+
+  const holidayName = getHolidayName(today)
+  const message = getNonTradingMessage(today, holidayName)
+
+  return (
+    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-muted/60 text-[11px] font-medium text-muted-foreground whitespace-nowrap select-none animate-in fade-in-0 slide-in-from-left-2 duration-300 shrink-0">
+      <span className="w-1.5 h-1.5 rounded-full bg-amber-500/80 shrink-0" />
+      {message}
+    </span>
+  )
+}
+
 export function AppTopbar({ user, profile, mfiMode, onToggleMfi }: AppTopbarProps) {
   const router = useRouter()
   const [switchingToMfi, setSwitchingToMfi] = useState(false)
@@ -281,6 +298,7 @@ export function AppTopbar({ user, profile, mfiMode, onToggleMfi }: AppTopbarProp
           <span className="hidden sm:inline">Modo MFI</span>
         </button>
 
+        <NonTradingBadge />
         <MfiPortfolioWidget profileCurrency={profile?.default_currency ?? 'ARS'} />
         
         {user.email?.toLowerCase().trim() === 'joaquimcolacilli9@gmail.com' && (

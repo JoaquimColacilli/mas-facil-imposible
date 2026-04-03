@@ -6,6 +6,26 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.8.0',
+    date: '2026-04-03',
+    changes: [
+      'Agregado badge de día no operable en el navbar con mensajes rotativos determinísticos',
+      'Refactoreado getHolidays() para retornar { date, name } en lugar de Date[]',
+      'Agregada función getHolidayName() para buscar nombre de feriado por fecha',
+      'Creado módulo non-trading-messages.ts con selección sin repetición mensual',
+      'Agregados 31 tests unitarios para ar-holidays y non-trading-messages'
+    ]
+  },
+  {
+    version: '0.7.1',
+    date: '2026-04-03',
+    changes: [
+      'Agregado módulo de feriados argentinos para filtrar días no operables del mercado',
+      'Las notificaciones de inversiones ahora se skipean en sábados, domingos y feriados nacionales',
+      'Agregados tests unitarios para ar-holidays con vitest'
+    ]
+  },
+  {
     version: '0.7.0',
     date: '2026-04-02',
     changes: [

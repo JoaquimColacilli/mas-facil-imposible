@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { MoneyInput, parseMoneyInput } from '@/components/money-input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
+import { isNonTradingDay } from '@/lib/ar-holidays'
 import { formatCurrency } from '@/lib/types'
 import type { Portfolio, PortfolioLog, Transaction } from '@/lib/types'
 
@@ -103,7 +104,7 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
     const isPast17 = nowLocal.getHours() >= 17
     const hasLogsToday = (logsRes.count || 0) > 0
 
-    if (ports.length > 0 && !hasLogsToday && isPast17) {
+    if (ports.length > 0 && !hasLogsToday && isPast17 && !isNonTradingDay(nowLocal)) {
       setNeedsUpdate(true)
       // Create daily reminder notification if not already sent today
       const startOfToday = `${todayISO()}T00:00:00`
