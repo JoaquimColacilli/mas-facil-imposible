@@ -40,6 +40,7 @@ import { createClient } from '@/lib/supabase/client'
 interface TransactionsClientProps {
   transactions: Transaction[]
   portfolios: Portfolio[]
+  cumulativeSavings: { ARS: number; USD: number }
   month: string // YYYY-MM
   totalCount: number
 }
@@ -83,7 +84,7 @@ function shiftMonth(month: string, delta: number) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
-export function TransactionsClient({ transactions: initial, portfolios, month, totalCount }: TransactionsClientProps) {
+export function TransactionsClient({ transactions: initial, portfolios, cumulativeSavings, month, totalCount }: TransactionsClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
@@ -168,13 +169,16 @@ export function TransactionsClient({ transactions: initial, portfolios, month, t
       if (tx.status === 'cancelled') continue
       s[tx.type][tx.currency] += tx.amount
     }
+    // Ahorros: usar saldo acumulado (no depende del mes)
+    if (cumulativeSavings.ARS > 0) s.savings.ARS = cumulativeSavings.ARS
+    if (cumulativeSavings.USD > 0) s.savings.USD = cumulativeSavings.USD
     // Inversiones: usar saldo acumulado de portfolios (no depende del mes)
     const portfolioARS = portfolios.filter(p => p.currency === 'ARS').reduce((sum, p) => sum + Number(p.balance), 0)
     const portfolioUSD = portfolios.filter(p => p.currency === 'USD').reduce((sum, p) => sum + Number(p.balance), 0)
     if (portfolioARS > 0) s.investment.ARS = portfolioARS
     if (portfolioUSD > 0) s.investment.USD = portfolioUSD
     return s
-  }, [transactions, portfolios])
+  }, [transactions, portfolios, cumulativeSavings])
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))

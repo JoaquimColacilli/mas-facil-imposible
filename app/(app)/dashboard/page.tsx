@@ -41,7 +41,7 @@ export default async function DashboardPage({
   const endOfMonth      = new Date(year, month + 1, 0).toISOString().split('T')[0]
   const currentMonthParam = `${year}-${String(month + 1).padStart(2, '0')}`
 
-  const [profileRes, txRes, goalsRes, loansRes, debtsRes, portfolioRes] = await Promise.all([
+  const [profileRes, txRes, goalsRes, loansRes, debtsRes, portfolioRes, savingsTxRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', user.id).single(),
     supabase
       .from('transactions')
@@ -71,6 +71,14 @@ export default async function DashboardPage({
       .from('portfolios')
       .select('*')
       .eq('user_id', user.id),
+    // Cumulative savings: all savings transactions up to end of selected month
+    supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('type', 'savings')
+      .lte('date', endOfMonth)
+      .neq('status', 'cancelled'),
   ])
 
   const transactions = (txRes.data ?? []).map((r) => decryptRow(r) as Transaction)
@@ -78,6 +86,13 @@ export default async function DashboardPage({
   const loans        = (loansRes.data ?? []).map((r) => decryptRow(r) as Loan)
   const debts        = (debtsRes.data ?? []).map((r) => decryptRow(r) as Debt)
   const portfolios   = (portfolioRes.data ?? []) as Portfolio[]
+
+  // Cumulative savings balance (sum of all savings transactions up to end of month)
+  const allSavingsTx = (savingsTxRes.data ?? []).map((r) => decryptRow(r) as Transaction)
+  const cumulativeSavings = { ARS: 0, USD: 0 }
+  for (const tx of allSavingsTx) {
+    cumulativeSavings[tx.currency] += tx.amount
+  }
 
   return (
     <DashboardClient
@@ -87,6 +102,7 @@ export default async function DashboardPage({
       loans={loans}
       debts={debts}
       portfolios={portfolios}
+      cumulativeSavings={cumulativeSavings}
       userEmail={user.email ?? ''}
       userId={user.id}
       currentMonth={currentMonthParam}

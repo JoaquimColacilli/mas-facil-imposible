@@ -6,6 +6,24 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.12.1',
+    date: '2026-04-03',
+    changes: [
+      'Badge de feriado/fin de semana ahora aparece debajo del botón de Inversiones'
+    ]
+  },
+  {
+    version: '0.12.0',
+    date: '2026-04-03',
+    changes: [
+      'Fix: crash al navegar al mes actual en el dashboard (navegación limpia sin parámetro de mes)',
+      'Fix: ahorros ahora muestra el saldo acumulado, no solo los depósitos del mes',
+      'Nuevo: retirar ahorros desde el modal de Ahorros',
+      'Nuevo: traspasar ahorros a un portfolio de inversión directamente',
+      'Retiros de ahorro se muestran diferenciados en naranja en el listado'
+    ]
+  },
+  {
     version: '0.11.3',
     date: '2026-04-03',
     changes: [

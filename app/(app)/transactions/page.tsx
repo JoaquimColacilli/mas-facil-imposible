@@ -37,7 +37,7 @@ export default async function TransactionsPage({
 
   const { start, end, key } = getMonthRange(params.month)
 
-  const [txRes, portfolioRes] = await Promise.all([
+  const [txRes, portfolioRes, savingsTxRes] = await Promise.all([
     supabase
       .from('transactions')
       .select('*, category:categories(*)', { count: 'exact' })
@@ -50,15 +50,29 @@ export default async function TransactionsPage({
       .from('portfolios')
       .select('*')
       .eq('user_id', user.id),
+    supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('type', 'savings')
+      .lte('date', end)
+      .neq('status', 'cancelled'),
   ])
 
   const transactions = (txRes.data ?? []).map((row) => decryptRow(row) as Transaction)
   const portfolios = (portfolioRes.data ?? []) as Portfolio[]
 
+  const allSavingsTx = (savingsTxRes.data ?? []).map((row) => decryptRow(row) as Transaction)
+  const cumulativeSavings = { ARS: 0, USD: 0 }
+  for (const tx of allSavingsTx) {
+    cumulativeSavings[tx.currency] += tx.amount
+  }
+
   return (
     <TransactionsClient
       transactions={transactions}
       portfolios={portfolios}
+      cumulativeSavings={cumulativeSavings}
       month={key}
       totalCount={txRes.count ?? transactions.length}
     />

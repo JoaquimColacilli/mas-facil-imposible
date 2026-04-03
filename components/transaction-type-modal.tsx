@@ -12,9 +12,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
 import {
-  X, Plus, ArrowDownLeft, PiggyBank, TrendingUp,
+  X, Plus, ArrowDownLeft, PiggyBank, TrendingUp, ArrowDownToLine,
   ChevronDown, Search, Check, Pencil, Trash2,
 } from 'lucide-react'
+import type { Portfolio } from '@/lib/types'
 import useSWR from 'swr'
 import { cn } from '@/lib/utils'
 
@@ -328,18 +329,25 @@ export interface TransactionTypeModalProps {
   transactions: Transaction[]
   currency: Currency
   currentMonth: string
+  portfolios?: Portfolio[]
   onClose: () => void
   onChanged: (updated: Transaction[]) => void
 }
 
 export function TransactionTypeModal({
-  type, transactions: initialTxs, currency, currentMonth, onClose, onChanged,
+  type, transactions: initialTxs, currency, currentMonth, portfolios = [], onClose, onChanged,
 }: TransactionTypeModalProps) {
   const supabase = createClient()
   const cfg = TYPE_CFG[type]
   const [txs, setTxs] = useState<Transaction[]>(initialTxs)
   const [adding, setAdding] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+
+  // Withdraw state (savings only)
+  const [withdrawing, setWithdrawing] = useState(false)
+  const [withdrawAmount, setWithdrawAmount] = useState('')
+  const [withdrawToPortfolio, setWithdrawToPortfolio] = useState<string | null>(null)
+  const [withdrawSaving, setWithdrawSaving] = useState(false)
 
   const { data: categories = [] } = useSWR<Category[]>(
     `categories-${type}`,
@@ -377,6 +385,56 @@ export function TransactionTypeModal({
       return next
     })
     setEditingId(null)
+  }
+
+  async function handleWithdraw() {
+    const amt = parseMoneyInput(withdrawAmount)
+    if (!amt || amt <= 0) return
+    setWithdrawSaving(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setWithdrawSaving(false); return }
+
+    const today = new Date()
+    const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+
+    const isToPortfolio = withdrawToPortfolio && portfolios.length > 0
+    const port = isToPortfolio ? portfolios.find(p => p.id === withdrawToPortfolio) : null
+    const note = port ? `Traspaso a ${port.name}` : 'Retiro de ahorros'
+
+    // Create negative savings transaction
+    const { data: txData } = await supabase.from('transactions').insert({
+      user_id: user.id,
+      type: 'savings' as TransactionType,
+      amount: -amt,
+      currency: port?.currency ?? currency,
+      date: dateStr,
+      note,
+      category_id: null,
+      status: 'confirmed' as const,
+    }).select('*, category:categories(*)').single()
+
+    // If moving to portfolio, increase its balance
+    if (port) {
+      const newBalance = Number(port.balance) + amt
+      await supabase.from('portfolios').update({ balance: newBalance }).eq('id', port.id)
+      await supabase.from('portfolio_logs').insert({
+        portfolio_id: port.id,
+        date: dateStr,
+        percentage_change: Number(port.balance) > 0 ? ((newBalance / Number(port.balance)) - 1) * 100 : 0,
+        absolute_change: amt,
+        new_balance: newBalance,
+      })
+    }
+
+    if (txData) {
+      const next = [txData as Transaction, ...txs]
+      setTxs(next)
+      onChanged(next)
+    }
+    setWithdrawing(false)
+    setWithdrawAmount('')
+    setWithdrawToPortfolio(null)
+    setWithdrawSaving(false)
   }
 
   const sorted = [...txs].sort((a, b) => b.date.localeCompare(a.date))
@@ -438,19 +496,79 @@ export function TransactionTypeModal({
               type={type} currentMonth={currentMonth} categories={categories}
               currency={currency} cfg={cfg} onSaved={handleSaved} onCancel={() => setAdding(false)}
             />
-          ) : (
-            <button
-              onClick={() => { setAdding(true); setEditingId(null) }}
-              className={cn(
-                'flex items-center gap-2 w-full px-4 py-3 rounded-2xl border border-dashed text-[13px] font-semibold transition-all duration-150 group',
-                cfg.dashedBorder,
-              )}
-            >
-              <div className={cn('w-6 h-6 rounded-lg flex items-center justify-center transition-colors', cfg.bg)}>
-                <Plus className="w-3.5 h-3.5" />
+          ) : withdrawing ? (
+            /* Withdraw form (savings only) */
+            <div className="border border-orange-500/20 bg-orange-500/5 rounded-2xl p-4 flex flex-col gap-3">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-6 h-6 rounded-lg bg-orange-500/15 flex items-center justify-center">
+                  <ArrowDownToLine className="w-3.5 h-3.5 text-orange-400" />
+                </div>
+                <span className="text-[13px] font-semibold">Retirar ahorro</span>
               </div>
-              Agregar {cfg.singular}
-            </button>
+              <div>
+                <Label className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider mb-1.5 block">Monto</Label>
+                <MoneyInput
+                  autoFocus placeholder="0,00" value={withdrawAmount} onChange={setWithdrawAmount}
+                  className="h-9 rounded-xl text-[13px] font-mono"
+                />
+              </div>
+              {portfolios.length > 0 && (
+                <div>
+                  <Label className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider mb-1.5 block">
+                    Pasar a inversión (opcional)
+                  </Label>
+                  <Select value={withdrawToPortfolio ?? '_none'} onValueChange={v => setWithdrawToPortfolio(v === '_none' ? null : v)}>
+                    <SelectTrigger className="h-9 rounded-xl text-[13px]"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="_none">Solo retirar</SelectItem>
+                      {portfolios.map(p => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name} ({p.currency})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {withdrawToPortfolio && (
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Se reduce el ahorro y se suma al saldo del portfolio.
+                    </p>
+                  )}
+                </div>
+              )}
+              <div className="flex items-center justify-end gap-2 pt-1">
+                <Button variant="ghost" size="sm" onClick={() => { setWithdrawing(false); setWithdrawAmount(''); setWithdrawToPortfolio(null) }} className="h-8 rounded-xl text-[13px]">Cancelar</Button>
+                <Button size="sm" onClick={handleWithdraw} disabled={withdrawSaving || !withdrawAmount || parseMoneyInput(withdrawAmount) <= 0}
+                  className="h-8 rounded-xl text-[13px] text-white bg-orange-600 hover:bg-orange-500 gap-1.5">
+                  {withdrawSaving ? 'Retirando…' : withdrawToPortfolio ? 'Traspasar' : 'Retirar'}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setAdding(true); setEditingId(null); setWithdrawing(false) }}
+                className={cn(
+                  'flex items-center gap-2 flex-1 px-4 py-3 rounded-2xl border border-dashed text-[13px] font-semibold transition-all duration-150 group',
+                  cfg.dashedBorder,
+                )}
+              >
+                <div className={cn('w-6 h-6 rounded-lg flex items-center justify-center transition-colors', cfg.bg)}>
+                  <Plus className="w-3.5 h-3.5" />
+                </div>
+                Agregar {cfg.singular}
+              </button>
+              {type === 'savings' && (
+                <button
+                  onClick={() => { setWithdrawing(true); setAdding(false); setEditingId(null) }}
+                  className="flex items-center gap-2 px-4 py-3 rounded-2xl border border-dashed border-orange-500/40 text-orange-600 hover:bg-orange-500/5 hover:border-orange-500/70 text-[13px] font-semibold transition-all duration-150"
+                >
+                  <div className="w-6 h-6 rounded-lg bg-orange-500/15 flex items-center justify-center">
+                    <ArrowDownToLine className="w-3.5 h-3.5" />
+                  </div>
+                  Retirar
+                </button>
+              )}
+            </div>
           )}
 
           {sorted.length === 0 && !adding ? (
@@ -499,8 +617,8 @@ export function TransactionTypeModal({
                             {formatDate(tx.date)}
                           </p>
                         </div>
-                        <span className={cn('font-mono text-[14px] font-bold tabular-nums shrink-0', cfg.colorBold)}>
-                          +{formatCurrency(tx.amount, tx.currency)}
+                        <span className={cn('font-mono text-[14px] font-bold tabular-nums shrink-0', tx.amount < 0 ? 'text-orange-400' : cfg.colorBold)}>
+                          {tx.amount < 0 ? '-' : '+'}{formatCurrency(Math.abs(tx.amount), tx.currency)}
                         </span>
                         <button
                           onClick={() => { setEditingId(tx.id); setAdding(false) }}

@@ -283,7 +283,10 @@ export function AppTopbar({ user, profile, mfiMode, onToggleMfi }: AppTopbarProp
           <span className="hidden sm:inline">Modo MFI</span>
         </button>
 
-        <MfiPortfolioWidget profileCurrency={profile?.default_currency ?? 'ARS'} />
+        <div className="relative">
+          <MfiPortfolioWidget profileCurrency={profile?.default_currency ?? 'ARS'} />
+          <NonTradingBadge />
+        </div>
 
         {user.email?.toLowerCase().trim() === 'joaquimcolacilli9@gmail.com' && (
           <Link href="/admin/sugerencias" className={cn(btnClass, 'text-blue-500 hover:text-blue-400 hover:bg-blue-500/10')}>
@@ -337,8 +340,6 @@ export function AppTopbar({ user, profile, mfiMode, onToggleMfi }: AppTopbarProp
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        {/* Hanging non-trading badge — below the buttons group */}
-        <NonTradingBadge />
       </div>
     </header>
   )

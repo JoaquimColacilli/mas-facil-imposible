@@ -48,6 +48,7 @@ interface DashboardClientProps {
   loans: Loan[]
   debts: Debt[]
   portfolios: Portfolio[]
+  cumulativeSavings: { ARS: number; USD: number }
   userEmail: string
   userId: string
   currentMonth: string // "YYYY-MM"
@@ -84,7 +85,13 @@ function MonthNavigator({ currentMonth }: { currentMonth: string }) {
   const isNow = currentMonth === nowYM
 
   function go(delta: number) {
-    router.push(`/dashboard?month=${navigateMonth(currentMonth, delta)}`)
+    const target = navigateMonth(currentMonth, delta)
+    // Navigate to clean URL when target is current month to avoid server component issues
+    if (target === nowYM) {
+      router.push('/dashboard')
+    } else {
+      router.push(`/dashboard?month=${target}`)
+    }
   }
 
   return (
@@ -202,6 +209,7 @@ export function DashboardClient({
   loans,
   debts,
   portfolios,
+  cumulativeSavings,
   userEmail,
   userId,
   currentMonth,
@@ -261,8 +269,12 @@ export function DashboardClient({
 
   const incomeARS      = sumBy('income', 'ARS'),     incomeUSD      = sumBy('income', 'USD')
   const expensesARS    = sumBy('expense', 'ARS'),    expensesUSD    = sumBy('expense', 'USD')
-  const savingsARS     = sumBy('savings', 'ARS'),    savingsUSD     = sumBy('savings', 'USD')
+  const savingsTxARS   = sumBy('savings', 'ARS'),    savingsTxUSD   = sumBy('savings', 'USD')
   const investTxARS    = sumBy('investment', 'ARS'), investTxUSD    = sumBy('investment', 'USD')
+
+  // Ahorros: usar saldo acumulado (no depende del mes)
+  const savingsARS = cumulativeSavings.ARS > 0 ? cumulativeSavings.ARS : savingsTxARS
+  const savingsUSD = cumulativeSavings.USD > 0 ? cumulativeSavings.USD : savingsTxUSD
 
   // Inversiones: usar saldo acumulado de portfolios (no depende del mes)
   const portfolioARS = portfolios.filter(p => p.currency === 'ARS').reduce((s, p) => s + Number(p.balance), 0)
@@ -270,8 +282,9 @@ export function DashboardClient({
   const investmentsARS = portfolioARS > 0 ? portfolioARS : investTxARS
   const investmentsUSD = portfolioUSD > 0 ? portfolioUSD : investTxUSD
 
-  const balanceARS     = incomeARS - expensesARS - savingsARS - investTxARS
-  const balanceUSD     = incomeUSD - expensesUSD - savingsUSD - investTxUSD
+  // Balance mensual: usa flujos del mes (depósitos de ahorro/inversión del mes, no acumulados)
+  const balanceARS     = incomeARS - expensesARS - savingsTxARS - investTxARS
+  const balanceUSD     = incomeUSD - expensesUSD - savingsTxUSD - investTxUSD
 
   // Credit card pending totals
   const pendingCreditARS = transactions
@@ -925,6 +938,7 @@ export function DashboardClient({
           transactions={transactions.filter((t) => t.type === openTypeModal)}
           currency={currency as 'ARS' | 'USD'}
           currentMonth={currentMonth}
+          portfolios={portfolios}
           onClose={() => setOpenTypeModal(null)}
           onChanged={(updated) => {
             const type = openTypeModal
