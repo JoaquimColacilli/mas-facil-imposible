@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { TrendingUp, Plus, X, ArrowRight, BarChart2, List } from 'lucide-react'
+import { TrendingUp, Plus, X, ArrowRight, BarChart2, List, ArrowDownToLine } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -58,6 +58,11 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
 
   // Update state (keyed by portfolio id)
   const [updates, setUpdates] = useState<Record<string, { pct: string; final: string }>>({})
+
+  // Rescue state
+  const [rescuePortfolioId, setRescuePortfolioId] = useState<string | null>(null)
+  const [rescueAmount, setRescueAmount] = useState('')
+  const [rescueSaving, setRescueSaving] = useState(false)
 
   // Listen for external open event (from dashboard KPI card)
   useEffect(() => {
@@ -225,6 +230,46 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
       console.error(e)
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleRescue() {
+    if (!rescuePortfolioId) return
+    const port = portfolios.find(p => p.id === rescuePortfolioId)
+    if (!port) return
+
+    const amount = parseMoneyInput(rescueAmount)
+    if (!amount || amount <= 0 || amount > Number(port.balance)) return
+
+    setRescueSaving(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+
+      const oldBalance = Number(port.balance)
+      const newBalance = oldBalance - amount
+      const pct = oldBalance > 0 ? ((newBalance / oldBalance) - 1) * 100 : 0
+
+      // Create portfolio log for the rescue
+      await supabase.from('portfolio_logs').insert({
+        portfolio_id: port.id,
+        date: todayISO(),
+        percentage_change: pct,
+        absolute_change: -amount,
+        new_balance: newBalance,
+      })
+
+      // Update portfolio balance
+      await supabase.from('portfolios').update({ balance: newBalance }).eq('id', port.id)
+
+      // Reset and refresh
+      setRescuePortfolioId(null)
+      setRescueAmount('')
+      await fetchData()
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setRescueSaving(false)
     }
   }
 
@@ -402,40 +447,86 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
                               </span>
                             </div>
 
-                            <div className="flex items-center gap-2 relative">
-                              <div className="relative flex-1">
-                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-muted-foreground font-semibold pointer-events-none">%</span>
-                                <Input
-                                  type="number"
-                                  value={update.pct}
-                                  onChange={e => handleUpdateChange(p.id, 'pct', e.target.value)}
-                                  placeholder="Variación"
-                                  className={cn(
-                                    'h-10 rounded-xl bg-muted/30 text-[13px] font-mono font-semibold focus:bg-background pr-6 transition-colors',
-                                    isPositive && 'text-emerald-400 focus:text-emerald-400',
-                                    isNegative && 'text-rose-400 focus:text-rose-400',
+                            {rescuePortfolioId === p.id ? (
+                              /* Rescue form */
+                              <div className="space-y-3 relative">
+                                <div className="space-y-1.5">
+                                  <Label className="text-[11px] text-muted-foreground uppercase tracking-wider">Monto a rescatar ({p.currency === 'USD' ? 'U$S' : '$'})</Label>
+                                  <MoneyInput
+                                    value={rescueAmount}
+                                    onChange={setRescueAmount}
+                                    placeholder="0,00"
+                                    className="h-10 text-[13px] rounded-xl bg-muted/30 font-mono tabular-nums"
+                                  />
+                                  {rescueAmount && parseMoneyInput(rescueAmount) > Number(p.balance) && (
+                                    <p className="text-[11px] text-rose-400">No podés rescatar más del saldo actual.</p>
                                   )}
-                                />
+                                  <p className="text-[10px] text-muted-foreground">Se reduce el saldo del portfolio.</p>
+                                </div>
+                                <div className="flex gap-2 pt-1">
+                                  <Button
+                                    onClick={handleRescue}
+                                    disabled={rescueSaving || !rescueAmount || parseMoneyInput(rescueAmount) <= 0 || parseMoneyInput(rescueAmount) > Number(p.balance)}
+                                    className="flex-1 h-9 rounded-xl text-[12px]"
+                                  >
+                                    {rescueSaving ? 'Rescatando…' : 'Confirmar rescate'}
+                                  </Button>
+                                  <Button
+                                    onClick={() => { setRescuePortfolioId(null); setRescueAmount('') }}
+                                    variant="outline"
+                                    className="h-9 rounded-xl text-[12px]"
+                                  >
+                                    Cancelar
+                                  </Button>
+                                </div>
                               </div>
+                            ) : (
+                              /* Normal variation inputs + rescue button */
+                              <>
+                                <div className="flex items-center gap-2 relative">
+                                  <div className="relative flex-1">
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-muted-foreground font-semibold pointer-events-none">%</span>
+                                    <Input
+                                      type="number"
+                                      value={update.pct}
+                                      onChange={e => handleUpdateChange(p.id, 'pct', e.target.value)}
+                                      placeholder="Variación"
+                                      className={cn(
+                                        'h-10 rounded-xl bg-muted/30 text-[13px] font-mono font-semibold focus:bg-background pr-6 transition-colors',
+                                        isPositive && 'text-emerald-400 focus:text-emerald-400',
+                                        isNegative && 'text-rose-400 focus:text-rose-400',
+                                      )}
+                                    />
+                                  </div>
 
-                              <ArrowRight className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
+                                  <ArrowRight className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />
 
-                              <div className="relative flex-[1.5]">
-                                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px] text-muted-foreground font-semibold pointer-events-none">
-                                  {p.currency === 'USD' ? 'U$S' : '$'}
-                                </span>
-                                <Input
-                                  type="number"
-                                  value={update.final}
-                                  onChange={e => handleUpdateChange(p.id, 'final', e.target.value)}
-                                  placeholder="Saldo de Hoy"
-                                  className={cn(
-                                    'h-10 rounded-xl bg-muted/30 text-[13px] font-mono font-semibold focus:bg-background transition-colors',
-                                    p.currency === 'USD' ? 'pl-11' : 'pl-8'
-                                  )}
-                                />
-                              </div>
-                            </div>
+                                  <div className="relative flex-[1.5]">
+                                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[12px] text-muted-foreground font-semibold pointer-events-none">
+                                      {p.currency === 'USD' ? 'U$S' : '$'}
+                                    </span>
+                                    <Input
+                                      type="number"
+                                      value={update.final}
+                                      onChange={e => handleUpdateChange(p.id, 'final', e.target.value)}
+                                      placeholder="Saldo de Hoy"
+                                      className={cn(
+                                        'h-10 rounded-xl bg-muted/30 text-[13px] font-mono font-semibold focus:bg-background transition-colors',
+                                        p.currency === 'USD' ? 'pl-11' : 'pl-8'
+                                      )}
+                                    />
+                                  </div>
+                                </div>
+
+                                <button
+                                  onClick={() => setRescuePortfolioId(p.id)}
+                                  className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground hover:text-orange-400 transition-colors relative"
+                                >
+                                  <ArrowDownToLine className="w-3 h-3" />
+                                  Rescatar
+                                </button>
+                              </>
+                            )}
                           </div>
                         )
                       })}
@@ -454,6 +545,8 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
                       {portfolioLogs.map(log => {
                         const isPos = log.percentage_change > 0
                         const isNeg = log.percentage_change < 0
+                        // Detect rescue: large negative change (> -5%) likely a withdrawal, not market movement
+                        const isRescue = log.percentage_change < -5 && log.absolute_change < 0
                         const pctStr = (isPos ? '+' : '') + log.percentage_change.toFixed(2) + '%'
                         const curr = log.portfolio.currency
                         const absSign = isPos ? '+' : ''
@@ -463,22 +556,35 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
 
                         return (
                           <div key={log.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-muted/30 transition-colors">
-                            <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 bg-violet-500/10">
-                              <span className="text-violet-400 font-bold text-[12px]">
-                                {log.portfolio.name.charAt(0).toUpperCase()}
-                              </span>
+                            <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center shrink-0', isRescue ? 'bg-orange-500/10' : 'bg-violet-500/10')}>
+                              {isRescue ? (
+                                <ArrowDownToLine className="w-3.5 h-3.5 text-orange-400" />
+                              ) : (
+                                <span className="text-violet-400 font-bold text-[12px]">
+                                  {log.portfolio.name.charAt(0).toUpperCase()}
+                                </span>
+                              )}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-[13px] font-semibold truncate">{log.portfolio.name}</p>
+                              <div className="flex items-center gap-1.5">
+                                <p className="text-[13px] font-semibold truncate">{log.portfolio.name}</p>
+                                {isRescue && (
+                                  <span className="text-[9px] font-bold text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded-full shrink-0">
+                                    RESCATE
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-[11px] text-muted-foreground">{dateStr} · {newBalStr}</p>
                             </div>
                             <div className="text-right shrink-0">
-                              <p className={cn('text-[13px] font-mono font-bold', isPos && 'text-emerald-400', isNeg && 'text-rose-400', !isPos && !isNeg && 'text-muted-foreground')}>
-                                {pctStr}
+                              <p className={cn('text-[13px] font-mono font-bold', isRescue && 'text-orange-400', !isRescue && isPos && 'text-emerald-400', !isRescue && isNeg && 'text-rose-400', !isPos && !isNeg && !isRescue && 'text-muted-foreground')}>
+                                {isRescue ? `-${(curr === 'USD' ? 'U$S' : '$')} ${Math.abs(log.absolute_change).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : pctStr}
                               </p>
-                              <p className={cn('text-[11px] font-mono', isPos && 'text-emerald-400/70', isNeg && 'text-rose-400/70', !isPos && !isNeg && 'text-muted-foreground')}>
-                                {absStr}
-                              </p>
+                              {!isRescue && (
+                                <p className={cn('text-[11px] font-mono', isPos && 'text-emerald-400/70', isNeg && 'text-rose-400/70', !isPos && !isNeg && 'text-muted-foreground')}>
+                                  {absStr}
+                                </p>
+                              )}
                             </div>
                           </div>
                         )

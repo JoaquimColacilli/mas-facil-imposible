@@ -3,7 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { decryptRow } from '@/lib/crypto'
 import { DashboardClient } from './dashboard-client'
-import type { Transaction, Goal, Profile, Loan, Debt } from '@/lib/types'
+import type { Transaction, Goal, Profile, Loan, Debt, Portfolio } from '@/lib/types'
 
 export default async function DashboardPage({
   searchParams,
@@ -41,7 +41,7 @@ export default async function DashboardPage({
   const endOfMonth      = new Date(year, month + 1, 0).toISOString().split('T')[0]
   const currentMonthParam = `${year}-${String(month + 1).padStart(2, '0')}`
 
-  const [profileRes, txRes, goalsRes, loansRes, debtsRes] = await Promise.all([
+  const [profileRes, txRes, goalsRes, loansRes, debtsRes, portfolioRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', user.id).single(),
     supabase
       .from('transactions')
@@ -67,12 +67,17 @@ export default async function DashboardPage({
       .select('*')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false }),
+    supabase
+      .from('portfolios')
+      .select('*')
+      .eq('user_id', user.id),
   ])
 
   const transactions = (txRes.data ?? []).map((r) => decryptRow(r) as Transaction)
   const goals        = (goalsRes.data ?? []).map((r) => decryptRow(r) as Goal)
   const loans        = (loansRes.data ?? []).map((r) => decryptRow(r) as Loan)
   const debts        = (debtsRes.data ?? []).map((r) => decryptRow(r) as Debt)
+  const portfolios   = (portfolioRes.data ?? []) as Portfolio[]
 
   return (
     <DashboardClient
@@ -81,6 +86,7 @@ export default async function DashboardPage({
       goals={goals}
       loans={loans}
       debts={debts}
+      portfolios={portfolios}
       userEmail={user.email ?? ''}
       userId={user.id}
       currentMonth={currentMonthParam}

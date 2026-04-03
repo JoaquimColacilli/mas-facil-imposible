@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { decryptRow } from '@/lib/crypto'
-import type { Transaction } from '@/lib/types'
+import type { Transaction, Portfolio } from '@/lib/types'
 import { TransactionsClient } from './transactions-client'
 
 function getMonthRange(month?: string) {
@@ -37,22 +37,30 @@ export default async function TransactionsPage({
 
   const { start, end, key } = getMonthRange(params.month)
 
-  const { data, count } = await supabase
-    .from('transactions')
-    .select('*, category:categories(*)', { count: 'exact' })
-    .eq('user_id', user.id)
-    .gte('date', start)
-    .lte('date', end)
-    .order('date', { ascending: false })
-    .order('created_at', { ascending: false })
+  const [txRes, portfolioRes] = await Promise.all([
+    supabase
+      .from('transactions')
+      .select('*, category:categories(*)', { count: 'exact' })
+      .eq('user_id', user.id)
+      .gte('date', start)
+      .lte('date', end)
+      .order('date', { ascending: false })
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('portfolios')
+      .select('*')
+      .eq('user_id', user.id),
+  ])
 
-  const transactions = (data ?? []).map((row) => decryptRow(row) as Transaction)
+  const transactions = (txRes.data ?? []).map((row) => decryptRow(row) as Transaction)
+  const portfolios = (portfolioRes.data ?? []) as Portfolio[]
 
   return (
     <TransactionsClient
       transactions={transactions}
+      portfolios={portfolios}
       month={key}
-      totalCount={count ?? transactions.length}
+      totalCount={txRes.count ?? transactions.length}
     />
   )
 }

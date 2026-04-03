@@ -8,6 +8,7 @@ import {
   ArrowLeftRight,
   Target,
   BarChart3,
+  TrendingUp,
   Settings,
   Bell,
   Plus,
@@ -21,7 +22,8 @@ export const navItems = [
   { href: '/dashboard',    label: 'Inicio',      icon: LayoutDashboard },
   { href: '/transactions', label: 'Movimientos', icon: ArrowLeftRight  },
   { href: '/goals',        label: 'Metas',       icon: Target          },
-  { href: '/analytics',   label: 'Análisis',     icon: BarChart3       },
+  { href: '/analytics',    label: 'Análisis',     icon: BarChart3       },
+  { href: '/investments',  label: 'Inversiones',  icon: TrendingUp      },
 ]
 
 export function DesktopSidebar() {

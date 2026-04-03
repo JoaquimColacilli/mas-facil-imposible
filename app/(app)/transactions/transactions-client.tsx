@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import type { Transaction, TransactionType, Currency } from '@/lib/types'
+import type { Transaction, TransactionType, Currency, Portfolio } from '@/lib/types'
 import { formatCurrency, formatDate, TRANSACTION_TYPE_LABELS } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -39,6 +39,7 @@ import { createClient } from '@/lib/supabase/client'
 
 interface TransactionsClientProps {
   transactions: Transaction[]
+  portfolios: Portfolio[]
   month: string // YYYY-MM
   totalCount: number
 }
@@ -82,7 +83,7 @@ function shiftMonth(month: string, delta: number) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
-export function TransactionsClient({ transactions: initial, month, totalCount }: TransactionsClientProps) {
+export function TransactionsClient({ transactions: initial, portfolios, month, totalCount }: TransactionsClientProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
@@ -167,8 +168,13 @@ export function TransactionsClient({ transactions: initial, month, totalCount }:
       if (tx.status === 'cancelled') continue
       s[tx.type][tx.currency] += tx.amount
     }
+    // Inversiones: usar saldo acumulado de portfolios (no depende del mes)
+    const portfolioARS = portfolios.filter(p => p.currency === 'ARS').reduce((sum, p) => sum + Number(p.balance), 0)
+    const portfolioUSD = portfolios.filter(p => p.currency === 'USD').reduce((sum, p) => sum + Number(p.balance), 0)
+    if (portfolioARS > 0) s.investment.ARS = portfolioARS
+    if (portfolioUSD > 0) s.investment.USD = portfolioUSD
     return s
-  }, [transactions])
+  }, [transactions, portfolios])
 
   // Pagination
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))

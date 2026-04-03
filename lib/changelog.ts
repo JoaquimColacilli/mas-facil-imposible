@@ -6,6 +6,37 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.11.1',
+    date: '2026-04-03',
+    changes: [
+      'Fix: doble símbolo \'+\' en rendimiento de portfolios',
+      'Simplificado rescate: siempre reduce el saldo del portfolio sin crear movimiento',
+      'Acciones de /investments ahora son modales con tooltips explicativos en vez de botones inline'
+    ]
+  },
+  {
+    version: '0.11.0',
+    date: '2026-04-03',
+    changes: [
+      'Fix: inversiones ya no muestra /usr/bin/bash en meses sin movimientos — usa saldo acumulado de portfolios',
+      'Nuevo: rescate de inversiones desde el modal de portfolios (ingreso en cuenta o solo retirar)',
+      'Nuevo: pantalla /investments ahora permite crear portfolios, cargar variación diaria y rescatar',
+      'Rescates se muestran diferenciados con badge naranja en la tab de movimientos'
+    ]
+  },
+  {
+    version: '0.10.0',
+    date: '2026-04-03',
+    changes: [
+      'Nueva pantalla dedicada de Inversiones en el sidebar',
+      'Gráfico de evolución del portfolio con selector de período (1S, 1M, 3M, 6M, YTD, 1A, Máx)',
+      'KPIs de valor total y rendimiento del período con colores semánticos',
+      'Tabla de holdings con selección de portfolio individual para filtrar el gráfico',
+      'Donut de composición por portfolio (visible con 2+ portfolios)',
+      'Heatmap de rendimientos mensuales por año con colores de intensidad'
+    ]
+  },
+  {
     version: '0.9.9',
     date: '2026-04-03',
     changes: [

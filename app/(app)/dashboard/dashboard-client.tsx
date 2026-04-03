@@ -4,7 +4,7 @@
 import Link from 'next/link'
 import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import type { Transaction, Goal, Profile, Debt } from '@/lib/types'
+import type { Transaction, Goal, Profile, Debt, Portfolio } from '@/lib/types'
 import { formatCurrency, formatDate, TRANSACTION_TYPE_LABELS } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import {
@@ -47,6 +47,7 @@ interface DashboardClientProps {
   goals: Goal[]
   loans: Loan[]
   debts: Debt[]
+  portfolios: Portfolio[]
   userEmail: string
   userId: string
   currentMonth: string // "YYYY-MM"
@@ -200,6 +201,7 @@ export function DashboardClient({
   goals,
   loans,
   debts,
+  portfolios,
   userEmail,
   userId,
   currentMonth,
@@ -260,9 +262,16 @@ export function DashboardClient({
   const incomeARS      = sumBy('income', 'ARS'),     incomeUSD      = sumBy('income', 'USD')
   const expensesARS    = sumBy('expense', 'ARS'),    expensesUSD    = sumBy('expense', 'USD')
   const savingsARS     = sumBy('savings', 'ARS'),    savingsUSD     = sumBy('savings', 'USD')
-  const investmentsARS = sumBy('investment', 'ARS'), investmentsUSD = sumBy('investment', 'USD')
-  const balanceARS     = incomeARS - expensesARS - savingsARS - investmentsARS
-  const balanceUSD     = incomeUSD - expensesUSD - savingsUSD - investmentsUSD
+  const investTxARS    = sumBy('investment', 'ARS'), investTxUSD    = sumBy('investment', 'USD')
+
+  // Inversiones: usar saldo acumulado de portfolios (no depende del mes)
+  const portfolioARS = portfolios.filter(p => p.currency === 'ARS').reduce((s, p) => s + Number(p.balance), 0)
+  const portfolioUSD = portfolios.filter(p => p.currency === 'USD').reduce((s, p) => s + Number(p.balance), 0)
+  const investmentsARS = portfolioARS > 0 ? portfolioARS : investTxARS
+  const investmentsUSD = portfolioUSD > 0 ? portfolioUSD : investTxUSD
+
+  const balanceARS     = incomeARS - expensesARS - savingsARS - investTxARS
+  const balanceUSD     = incomeUSD - expensesUSD - savingsUSD - investTxUSD
 
   // Credit card pending totals
   const pendingCreditARS = transactions
