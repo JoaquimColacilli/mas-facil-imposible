@@ -2,7 +2,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useEffect, useMemo, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Transaction, Goal, Profile, Debt, Portfolio } from '@/lib/types'
 import { formatCurrency, formatDate, TRANSACTION_TYPE_LABELS } from '@/lib/types'
@@ -28,6 +28,8 @@ import {
   X,
   CreditCard,
   CheckCircle2,
+  CalendarDays,
+  Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { QuickAddTransaction } from '@/components/quick-add-transaction'
@@ -35,6 +37,7 @@ import { EditTransactionModal } from '@/components/edit-transaction-modal'
 import { CategoryManagerButton } from '@/components/category-manager'
 import { PendingLoans } from '@/components/pending-loans'
 import { PendingDebts } from '@/components/pending-debts'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { TransactionTypeModal } from '@/components/transaction-type-modal'
 import { MonthlySummaryBanner } from '@/components/monthly-summary-banner'
 import type { Loan } from '@/lib/types'
@@ -77,50 +80,129 @@ function navigateMonth(current: string, delta: number) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
-function MonthNavigator({ currentMonth }: { currentMonth: string }) {
-  const router = useRouter()
+const MONTH_NAMES_SHORT = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+
+function MonthNavigator({ currentMonth, isPending, onNavigate }: {
+  currentMonth: string
+  isPending: boolean
+  onNavigate: (month: string) => void
+}) {
   const { label, isCurrentMonth } = formatMonthLabel(currentMonth)
   const now = new Date()
   const nowYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const isNow = currentMonth === nowYM
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [pickerYear, setPickerYear] = useState(() => Number(currentMonth.split('-')[0]))
 
   function go(delta: number) {
-    const target = navigateMonth(currentMonth, delta)
-    // Navigate to clean URL when target is current month to avoid server component issues
-    if (target === nowYM) {
-      router.push('/dashboard')
-    } else {
-      router.push(`/dashboard?month=${target}`)
-    }
+    onNavigate(navigateMonth(currentMonth, delta))
+  }
+
+  function goToMonth(ym: string) {
+    setPickerOpen(false)
+    onNavigate(ym)
   }
 
   return (
-    <div className="flex items-center gap-0 bg-muted rounded-xl overflow-hidden border border-border h-9">
-      <button
-        onClick={() => go(-1)}
-        className="h-9 w-8 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-border/60 transition-colors duration-100"
-        aria-label="Mes anterior"
-      >
-        <ChevronLeft className="w-3.5 h-3.5" />
-      </button>
-      <button
-        onDoubleClick={() => router.push('/dashboard')}
-        className={cn(
-          'h-9 px-3 text-[12px] font-semibold transition-colors duration-100 whitespace-nowrap',
-          isNow ? 'text-primary' : 'text-foreground',
-        )}
-        title="Doble clic para volver al mes actual"
-      >
-        {isCurrentMonth ? 'Este mes' : label}
-      </button>
-      <button
-        onClick={() => go(+1)}
-        disabled={isNow}
-        className="h-9 w-8 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-border/60 transition-colors duration-100 disabled:opacity-25 disabled:pointer-events-none"
-        aria-label="Mes siguiente"
-      >
-        <ChevronRight className="w-3.5 h-3.5" />
-      </button>
+    <div className="flex items-center gap-1.5">
+      {/* Month picker */}
+      <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+        <PopoverTrigger asChild>
+          <button
+            className={cn(
+              'h-9 w-9 rounded-xl flex items-center justify-center transition-all duration-150 border',
+              pickerOpen
+                ? 'bg-foreground text-background border-foreground shadow-sm'
+                : 'bg-muted border-border text-muted-foreground hover:text-foreground hover:bg-muted/80',
+            )}
+            title="Elegir mes"
+          >
+            <CalendarDays className="w-3.5 h-3.5" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[220px] p-3 rounded-2xl border-border/60 shadow-2xl" align="start" sideOffset={8}>
+          {/* Year nav */}
+          <div className="flex items-center justify-between mb-2">
+            <button
+              onClick={() => setPickerYear(y => y - 1)}
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+            <span className="text-[13px] font-semibold text-foreground">{pickerYear}</span>
+            <button
+              onClick={() => setPickerYear(y => y + 1)}
+              disabled={pickerYear >= now.getFullYear()}
+              className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-25 disabled:pointer-events-none"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          {/* Month grid */}
+          <div className="grid grid-cols-3 gap-1">
+            {MONTH_NAMES_SHORT.map((name, i) => {
+              const ym = `${pickerYear}-${String(i + 1).padStart(2, '0')}`
+              const isCurrent = ym === currentMonth
+              const isFuture = ym > nowYM
+              return (
+                <button
+                  key={ym}
+                  disabled={isFuture}
+                  onClick={() => goToMonth(ym)}
+                  className={cn(
+                    'py-1.5 rounded-lg text-[11px] font-semibold transition-all duration-100',
+                    isCurrent
+                      ? 'bg-foreground text-background shadow-sm'
+                      : isFuture
+                        ? 'text-muted-foreground/30 cursor-not-allowed'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground',
+                  )}
+                >
+                  {name}
+                </button>
+              )
+            })}
+          </div>
+          {/* Today shortcut */}
+          <button
+            onClick={() => goToMonth(nowYM)}
+            className="w-full mt-2 py-1.5 rounded-lg text-[11px] font-semibold text-center bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+          >
+            Mes actual
+          </button>
+        </PopoverContent>
+      </Popover>
+
+      {/* Month arrows */}
+      <div className="flex items-center gap-0 bg-muted rounded-xl overflow-hidden border border-border h-9">
+        <button
+          onClick={() => go(-1)}
+          disabled={isPending}
+          className="h-9 w-8 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-border/60 transition-colors duration-100 disabled:opacity-50"
+          aria-label="Mes anterior"
+        >
+          <ChevronLeft className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onDoubleClick={() => onNavigate(nowYM)}
+          className={cn(
+            'h-9 px-3 text-[12px] font-semibold transition-colors duration-100 whitespace-nowrap flex items-center gap-1.5',
+            isNow ? 'text-primary' : 'text-foreground',
+          )}
+          title="Doble clic para volver al mes actual"
+        >
+          {isPending && <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />}
+          {isCurrentMonth ? 'Este mes' : label}
+        </button>
+        <button
+          onClick={() => go(+1)}
+          disabled={isNow || isPending}
+          className="h-9 w-8 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-border/60 transition-colors duration-100 disabled:opacity-25 disabled:pointer-events-none"
+          aria-label="Mes siguiente"
+        >
+          <ChevronRight className="w-3.5 h-3.5" />
+        </button>
+      </div>
     </div>
   )
 }
@@ -133,6 +215,7 @@ function buildChartData(transactions: Transaction[], ym: string) {
   for (let d = 1; d <= daysInMonth; d++) map[d] = { income: 0, expenses: 0, expensesUSD: 0 }
   for (const tx of transactions) {
     const day = new Date(tx.date + 'T00:00:00').getDate()
+    if (!map[day]) continue
     if (tx.type === 'income')  map[day].income += tx.amount
     if (tx.type === 'expense') {
       if (tx.currency === 'USD') map[day].expensesUSD += tx.amount
@@ -215,6 +298,20 @@ export function DashboardClient({
   currentMonth,
 }: DashboardClientProps) {
   const router = useRouter()
+  const [isNavigating, startTransition] = useTransition()
+
+  function navigateToMonth(ym: string) {
+    const now = new Date()
+    const nowYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    startTransition(() => {
+      if (ym === nowYM) {
+        router.push('/dashboard')
+      } else {
+        router.push(`/dashboard?month=${ym}`)
+      }
+    })
+  }
+
   const [showQuickAdd, setShowQuickAdd] = useState(false)
   const [quickAddType, setQuickAddType] = useState<string | undefined>(undefined)
   const [greeting, setGreeting] = useState('')
@@ -368,7 +465,7 @@ export function DashboardClient({
         </div>
         <div className="flex items-center gap-2 mt-1 flex-wrap">
           <MonthlySummaryBanner userId={userId} />
-          <MonthNavigator currentMonth={currentMonth} />
+          <MonthNavigator currentMonth={currentMonth} isPending={isNavigating} onNavigate={navigateToMonth} />
           <Button
             onClick={() => openQuickAdd()}
             size="sm"
@@ -381,7 +478,10 @@ export function DashboardClient({
       </div>
 
       {/* ── 3-zone layout ──────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_260px] gap-5 items-start">
+      <div className={cn(
+        'grid grid-cols-1 xl:grid-cols-[1fr_260px] gap-5 items-start transition-opacity duration-200',
+        isNavigating && 'opacity-40 pointer-events-none',
+      )}>
 
         {/* ── CENTER ─────────────────────────────────────────────── */}
         <div className="flex flex-col gap-5 min-w-0 min-h-0">

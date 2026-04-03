@@ -6,6 +6,15 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.12.2',
+    date: '2026-04-03',
+    changes: [
+      'Agregado estado de carga visual al navegar entre meses en dashboard, movimientos y MFI',
+      'Agregado selector de mes (date picker) en el dashboard para elegir mes directamente',
+      'Corregido crash en gráfico cuando transacciones tienen fecha fuera de rango del mes'
+    ]
+  },
+  {
     version: '0.12.1',
     date: '2026-04-03',
     changes: [

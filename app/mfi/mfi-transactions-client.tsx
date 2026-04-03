@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useMemo, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { X, Plus, ChevronLeft, ChevronRight, ChevronDown, Search, LayoutGrid, List } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -1171,28 +1171,28 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
 
 // ─── Month Navigator ─────────────────────────────────────────────────────────
 
-function MonthNavigator({ currentMonth }: { currentMonth: string }) {
-  const router = useRouter()
+function MonthNavigator({ currentMonth, isPending, onNavigate }: { currentMonth: string; isPending: boolean; onNavigate: (ym: string) => void }) {
   const { label, isCurrentMonth } = formatMonthLabel(currentMonth)
   const now = new Date()
   const nowYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const isNow = currentMonth === nowYM
 
   function go(delta: number) {
-    router.push(`/mfi?month=${navigateMonth(currentMonth, delta)}`)
+    onNavigate(navigateMonth(currentMonth, delta))
   }
 
   return (
     <div className="flex items-center gap-0 bg-muted rounded-xl overflow-hidden border border-border h-8">
       <button
         onClick={() => go(-1)}
-        className="h-8 w-7 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-border/60 transition-colors"
+        disabled={isPending}
+        className="h-8 w-7 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-border/60 transition-colors disabled:opacity-50"
         aria-label="Mes anterior"
       >
         <ChevronLeft className="w-3.5 h-3.5" />
       </button>
       <button
-        onDoubleClick={() => router.push('/mfi')}
+        onDoubleClick={() => onNavigate(nowYM)}
         className={cn(
           'h-8 px-2.5 text-[12px] font-semibold transition-colors whitespace-nowrap',
           isNow ? 'text-primary' : 'text-foreground',
@@ -1203,7 +1203,7 @@ function MonthNavigator({ currentMonth }: { currentMonth: string }) {
       </button>
       <button
         onClick={() => go(+1)}
-        disabled={isNow}
+        disabled={isNow || isPending}
         className="h-8 w-7 flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-border/60 transition-colors disabled:opacity-25 disabled:pointer-events-none"
         aria-label="Mes siguiente"
       >
@@ -1223,6 +1223,8 @@ export function MFITransactionsClient({
   currentMonth,
   userId,
 }: Props) {
+  const router = useRouter()
+  const [isNavigating, startTransition] = useTransition()
   const supabase = createClient()
   const [txs, setTxs] = useState<Transaction[]>(initialTransactions)
   const [sheets, setSheets] = useState<MfiSheet[]>(initialSheets)
@@ -1390,7 +1392,7 @@ export function MFITransactionsClient({
   }
 
   return (
-    <div className="flex flex-col gap-4 w-full max-w-5xl mx-auto">
+    <div className={cn('flex flex-col gap-4 w-full max-w-5xl mx-auto transition-opacity duration-200', isNavigating && 'opacity-40 pointer-events-none')}>
       {/* ── Page header ────────────────────────────────────────── */}
       <div className="flex items-center justify-between">
         <h1 className="font-serif text-[22px] font-bold tracking-tight">Transacciones</h1>
@@ -1411,7 +1413,14 @@ export function MFITransactionsClient({
               <LayoutGrid className="w-3.5 h-3.5" />
             </button>
           </div>
-          <MonthNavigator currentMonth={currentMonth} />
+          <MonthNavigator currentMonth={currentMonth} isPending={isNavigating} onNavigate={(ym) => {
+            const now = new Date()
+            const nowYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+            startTransition(() => {
+              if (ym === nowYM) router.push('/mfi')
+              else router.push(`/mfi?month=${ym}`)
+            })
+          }} />
         </div>
       </div>
 

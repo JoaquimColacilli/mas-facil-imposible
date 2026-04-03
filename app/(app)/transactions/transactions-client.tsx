@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useTransition } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import type { Transaction, TransactionType, Currency, Portfolio } from '@/lib/types'
 import { formatCurrency, formatDate, TRANSACTION_TYPE_LABELS } from '@/lib/types'
@@ -28,6 +28,7 @@ import {
   CreditCard,
   Banknote,
   Smartphone,
+  Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Calendar } from '@/components/ui/calendar'
@@ -88,6 +89,7 @@ export function TransactionsClient({ transactions: initial, portfolios, cumulati
   const router = useRouter()
   const searchParams = useSearchParams()
   const supabase = createClient()
+  const [isNavigating, startTransition] = useTransition()
 
   const [transactions, setTransactions] = useState<Transaction[]>(initial)
 
@@ -120,7 +122,9 @@ export function TransactionsClient({ transactions: initial, portfolios, cumulati
     } else {
       params.set('month', m)
     }
-    router.push(`/transactions${params.toString() ? '?' + params.toString() : ''}`)
+    startTransition(() => {
+      router.push(`/transactions${params.toString() ? '?' + params.toString() : ''}`)
+    })
   }
 
   // Navigate to a specific date (jumps to that month + filters to that day)
@@ -138,7 +142,9 @@ export function TransactionsClient({ transactions: initial, portfolios, cumulati
       } else {
         params.set('month', m)
       }
-      router.push(`/transactions${params.toString() ? '?' + params.toString() : ''}`)
+      startTransition(() => {
+        router.push(`/transactions${params.toString() ? '?' + params.toString() : ''}`)
+      })
     }
   }
 
@@ -230,6 +236,7 @@ export function TransactionsClient({ transactions: initial, portfolios, cumulati
     <div className={cn(
       'flex flex-col gap-5 transition-all duration-300',
       isPastMonth && 'relative',
+      isNavigating && 'opacity-40 pointer-events-none',
     )}>
       {/* Past month indicator */}
       {isPastMonth && (
@@ -269,7 +276,8 @@ export function TransactionsClient({ transactions: initial, portfolios, cumulati
       <div className="flex items-center justify-between bg-card border border-border rounded-2xl px-4 py-3">
         <button
           onClick={() => goToMonth(shiftMonth(month, -1))}
-          className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          disabled={isNavigating}
+          className="w-8 h-8 rounded-xl flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
         >
           <ChevronLeft className="w-4 h-4" />
         </button>
@@ -284,7 +292,7 @@ export function TransactionsClient({ transactions: initial, portfolios, cumulati
                 : 'text-foreground hover:bg-muted/50 cursor-pointer'
             )}
           >
-            <CalendarDays className="w-4 h-4 text-muted-foreground" />
+            {isNavigating ? <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" /> : <CalendarDays className="w-4 h-4 text-muted-foreground" />}
             {filterDate
               ? new Date(filterDate + 'T00:00:00').toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' })
               : formatMonthLabel(month)
@@ -365,10 +373,10 @@ export function TransactionsClient({ transactions: initial, portfolios, cumulati
 
         <button
           onClick={() => goToMonth(shiftMonth(month, 1))}
-          disabled={isFutureMonth}
+          disabled={isFutureMonth || isNavigating}
           className={cn(
             'w-8 h-8 rounded-xl flex items-center justify-center transition-colors',
-            isFutureMonth
+            (isFutureMonth || isNavigating)
               ? 'text-muted-foreground/30 cursor-not-allowed'
               : 'text-muted-foreground hover:text-foreground hover:bg-muted'
           )}
