@@ -46,6 +46,8 @@ export interface Transaction {
   status: TransactionStatus
   payment_method: PaymentMethod | null
   sheet_id: string | null
+  is_recurring: boolean
+  recurring_source_id: string | null
   created_at: string
   updated_at: string
   // joined

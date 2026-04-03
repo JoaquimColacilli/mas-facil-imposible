@@ -27,9 +27,9 @@ import {
   Search,
   X,
   CreditCard,
-  CheckCircle2,
   CalendarDays,
   Loader2,
+  Repeat,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { QuickAddTransaction } from '@/components/quick-add-transaction'
@@ -37,6 +37,7 @@ import { EditTransactionModal } from '@/components/edit-transaction-modal'
 import { CategoryManagerButton } from '@/components/category-manager'
 import { PendingLoans } from '@/components/pending-loans'
 import { PendingDebts } from '@/components/pending-debts'
+import { PendingTransactionsBar } from '@/components/pending-transactions-bar'
 import { MarketCard } from '@/components/market-card'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { TransactionTypeModal } from '@/components/transaction-type-modal'
@@ -384,21 +385,30 @@ export function DashboardClient({
   const balanceARS     = incomeARS - expensesARS - savingsTxARS - investTxARS
   const balanceUSD     = incomeUSD - expensesUSD - savingsTxUSD - investTxUSD
 
-  // Credit card pending totals
-  const pendingCreditARS = transactions
-    .filter(t => t.type === 'expense' && t.payment_method === 'credit' && t.status === 'pending' && t.currency === 'ARS')
-    .reduce((s, t) => s + t.amount, 0)
-  const pendingCreditUSD = transactions
-    .filter(t => t.type === 'expense' && t.payment_method === 'credit' && t.status === 'pending' && t.currency === 'USD')
-    .reduce((s, t) => s + t.amount, 0)
-  const hasPendingCredit = pendingCreditARS > 0 || pendingCreditUSD > 0
-  const [markingPaid, setMarkingPaid] = useState(false)
+  // Pending transaction handlers
+  async function handleConfirmOnePending(txId: string) {
+    const { updateTransaction } = await import('@/app/(app)/transactions/actions')
+    const tx = transactions.find((t) => t.id === txId)
+    if (!tx) return
+    await updateTransaction({
+      id: txId,
+      type: tx.type,
+      amount: tx.amount,
+      currency: tx.currency,
+      note: tx.note,
+      category_id: tx.category_id,
+      date: tx.date,
+      status: 'confirmed',
+      payment_method: tx.payment_method,
+      is_recurring: tx.is_recurring,
+    })
+    setTransactions((prev) => prev.map((t) => t.id === txId ? { ...t, status: 'confirmed' } : t))
+  }
 
-  async function handleMarkCreditPaid() {
-    setMarkingPaid(true)
-    const { markCreditCardPaid } = await import('@/app/(app)/transactions/actions')
-    await markCreditCardPaid(currentMonth)
-    router.refresh()
+  async function handleConfirmAllPending() {
+    const { confirmAllPending } = await import('@/app/(app)/transactions/actions')
+    await confirmAllPending(currentMonth)
+    setTransactions((prev) => prev.map((t) => t.status === 'pending' ? { ...t, status: 'confirmed' } : t))
   }
 
   const filteredTxs  = txFilter === 'all' ? transactions : transactions.filter((t) => t.type === txFilter)
@@ -552,36 +562,13 @@ export function DashboardClient({
             })}
           </div>
 
-          {/* Credit card pending banner */}
-          {hasPendingCredit && (
-            <div className="flex items-center justify-between bg-amber-500/8 dark:bg-amber-500/5 border border-amber-500/20 rounded-2xl px-4 py-3 animate-fade-in-up">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
-                  <CreditCard className="w-3.5 h-3.5 text-amber-500" />
-                </div>
-                <div>
-                  <p className="text-[12px] font-semibold text-foreground leading-none">
-                    Tarjeta pendiente
-                  </p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5 font-mono tabular-nums">
-                    {pendingCreditARS > 0 && formatCurrency(pendingCreditARS, 'ARS')}
-                    {pendingCreditARS > 0 && pendingCreditUSD > 0 && ' · '}
-                    {pendingCreditUSD > 0 && formatCurrency(pendingCreditUSD, 'USD')}
-                  </p>
-                </div>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleMarkCreditPaid}
-                disabled={markingPaid}
-                className="h-8 rounded-xl text-[11px] font-semibold gap-1.5 border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/50 transition-all duration-150"
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                {markingPaid ? 'Marcando...' : 'Marcar como pagado'}
-              </Button>
-            </div>
-          )}
+          {/* Pending transactions collapsible bar */}
+          <PendingTransactionsBar
+            transactions={transactions}
+            currentMonth={currentMonth}
+            onConfirmOne={handleConfirmOnePending}
+            onConfirmAll={handleConfirmAllPending}
+          />
 
           {/* Monthly Overview chart — BELOW the KPIs */}
           <div className="bg-card border border-border rounded-2xl p-5 overflow-hidden">
@@ -872,6 +859,9 @@ export function DashboardClient({
                           {formatDate(tx.date)}
                           {tx.payment_method === 'credit' && (
                             <CreditCard className="w-3 h-3 text-amber-500 inline-block ml-0.5" />
+                          )}
+                          {tx.is_recurring && (
+                            <Repeat className="w-3 h-3 text-amber-500 inline-block ml-0.5" />
                           )}
                           {tx.status !== 'confirmed' && (
                             <span className="text-[10px] font-semibold uppercase tracking-wide text-amber-500 ml-0.5">

@@ -1,7 +1,8 @@
-// v9 — month navigation + loans + debts
+// v10 — month navigation + loans + debts + recurring generation
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { decryptRow } from '@/lib/crypto'
+import { generateRecurringTransactions } from '@/app/(app)/transactions/actions'
 import { DashboardClient } from './dashboard-client'
 import type { Transaction, Goal, Profile, Loan, Debt, Portfolio } from '@/lib/types'
 
@@ -40,6 +41,12 @@ export default async function DashboardPage({
   const startOfMonth    = new Date(year, month, 1).toISOString().split('T')[0]
   const endOfMonth      = new Date(year, month + 1, 0).toISOString().split('T')[0]
   const currentMonthParam = `${year}-${String(month + 1).padStart(2, '0')}`
+
+  // Generate recurring transactions for the current month (idempotent, on-demand)
+  const isCurrentMonth = !params.month || currentMonthParam === `${argYear}-${String(argMonth).padStart(2, '0')}`
+  if (isCurrentMonth) {
+    await generateRecurringTransactions(currentMonthParam)
+  }
 
   const [profileRes, txRes, goalsRes, loansRes, debtsRes, portfolioRes, savingsTxRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', user.id).single(),

@@ -29,7 +29,9 @@ import {
   Banknote,
   Smartphone,
   Loader2,
+  Repeat,
 } from 'lucide-react'
+import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -222,6 +224,17 @@ export function TransactionsClient({ transactions: initial, portfolios, cumulati
   async function handleMarkConfirmed(txId: string) {
     await supabase.from('transactions').update({ status: 'confirmed', updated_at: new Date().toISOString() }).eq('id', txId)
     setTransactions((prev) => prev.map((t) => t.id === txId ? { ...t, status: 'confirmed' } : t))
+  }
+
+  const pendingCount = transactions.filter((t) => t.status === 'pending').length
+  const [confirmAllOpen, setConfirmAllOpen] = useState(false)
+
+  async function handleConfirmAllPending() {
+    setConfirmAllOpen(false)
+    const { confirmAllPending } = await import('./actions')
+    const { count } = await confirmAllPending(month)
+    setTransactions((prev) => prev.map((t) => t.status === 'pending' ? { ...t, status: 'confirmed' } : t))
+    toast.success(`${count} gasto${count !== 1 ? 's' : ''} marcado${count !== 1 ? 's' : ''} como pagado${count !== 1 ? 's' : ''}`)
   }
 
   // Format stat
@@ -532,14 +545,42 @@ export function TransactionsClient({ transactions: initial, portfolios, cumulati
         </div>
       </div>
 
-      {/* Results count */}
+      {/* Results count + confirm all */}
       <div className="flex items-center justify-between px-1">
-        <p className="text-[11px] text-muted-foreground">
-          {filtered.length === transactions.length
-            ? <>{transactions.length} movimiento{transactions.length !== 1 ? 's' : ''}</>
-            : <>{filtered.length} de {transactions.length} movimiento{transactions.length !== 1 ? 's' : ''}</>
-          }
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-[11px] text-muted-foreground">
+            {filtered.length === transactions.length
+              ? <>{transactions.length} movimiento{transactions.length !== 1 ? 's' : ''}</>
+              : <>{filtered.length} de {transactions.length} movimiento{transactions.length !== 1 ? 's' : ''}</>
+            }
+          </p>
+          {pendingCount > 0 && (
+            <Popover open={confirmAllOpen} onOpenChange={setConfirmAllOpen}>
+              <PopoverTrigger asChild>
+                <button className="flex items-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-500/10 hover:bg-amber-500/15 transition-colors">
+                  <CircleCheck className="w-3 h-3" />
+                  Confirmar {pendingCount} pendiente{pendingCount !== 1 ? 's' : ''}
+                </button>
+              </PopoverTrigger>
+              <PopoverContent className="w-64 p-4 rounded-xl" align="start">
+                <p className="text-[13px] font-semibold text-foreground mb-1">
+                  ¿Confirmar {pendingCount} gasto{pendingCount !== 1 ? 's' : ''} pendiente{pendingCount !== 1 ? 's' : ''}?
+                </p>
+                <p className="text-[11px] text-muted-foreground mb-3">
+                  Se marcarán como pagados.
+                </p>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setConfirmAllOpen(false)} className="flex-1 h-8 rounded-lg text-[11px]">
+                    Cancelar
+                  </Button>
+                  <Button size="sm" onClick={handleConfirmAllPending} className="flex-1 h-8 rounded-lg text-[11px] font-semibold">
+                    Confirmar todos
+                  </Button>
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
+        </div>
         {totalPages > 1 && (
           <p className="text-[11px] text-muted-foreground">
             Página {page} de {totalPages}
@@ -638,6 +679,12 @@ export function TransactionsClient({ transactions: initial, portfolios, cumulati
                         <>
                           <span className="text-[11px] text-muted-foreground">·</span>
                           <CreditCard className="w-3 h-3 text-amber-500" />
+                        </>
+                      )}
+                      {tx.is_recurring && (
+                        <>
+                          <span className="text-[11px] text-muted-foreground">·</span>
+                          <Repeat className="w-3 h-3 text-amber-500" />
                         </>
                       )}
                     </div>

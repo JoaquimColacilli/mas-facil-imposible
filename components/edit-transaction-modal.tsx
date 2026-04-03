@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { X, ChevronDown, Search, Check, Plus, Banknote, CreditCard, Smartphone } from 'lucide-react'
+import { X, ChevronDown, Search, Check, Plus, Banknote, CreditCard, Smartphone, Repeat } from 'lucide-react'
 import useSWR from 'swr'
 import { cn } from '@/lib/utils'
 
@@ -150,6 +150,7 @@ export function EditTransactionModal({ transaction, onClose, onSaved, onDeleted 
   const [date, setDate] = useState(transaction.date)
   const [status, setStatus] = useState(transaction.status)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(transaction.payment_method ?? null)
+  const [isRecurring, setIsRecurring] = useState(transaction.is_recurring ?? false)
   const [loading, setLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -179,6 +180,7 @@ export function EditTransactionModal({ transaction, onClose, onSaved, onDeleted 
       date,
       status,
       payment_method: type === 'expense' ? paymentMethod : null,
+      is_recurring: isRecurring,
     })
     setLoading(false)
     if (err) { setError(err); return }
@@ -273,6 +275,24 @@ export function EditTransactionModal({ transaction, onClose, onSaved, onDeleted 
                 </SelectContent>
               </Select>
             </div>
+          </div>
+
+          {/* Recurring toggle */}
+          <div>
+            <Label className="text-[11px] font-semibold text-muted-foreground mb-2 block tracking-wide uppercase">Repetir</Label>
+            <button
+              type="button"
+              onClick={() => setIsRecurring((v) => !v)}
+              className={cn(
+                'w-full flex items-center justify-center gap-2 text-[12px] font-semibold py-2.5 rounded-xl border transition-all duration-150',
+                isRecurring
+                  ? 'bg-amber-500 text-white border-amber-500'
+                  : 'bg-muted/50 text-muted-foreground border-border hover:border-foreground/30 hover:text-foreground',
+              )}
+            >
+              <Repeat className="w-3.5 h-3.5" />
+              {isRecurring ? 'Se repite cada mes' : 'No se repite'}
+            </button>
           </div>
 
           {/* Payment method — only for expenses */}

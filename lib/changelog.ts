@@ -6,6 +6,46 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.18.1',
+    date: '2026-04-03',
+    changes: [
+      'Agregado README.md profesional con documentacion completa del proyecto'
+    ]
+  },
+  {
+    version: '0.18.0',
+    date: '2026-04-03',
+    changes: [
+      'Rediseño de gastos pendientes: barra colapsable compacta en el dashboard',
+      'La barra resume N pendientes con monto total, expandible a lista detallada con confirmación individual',
+      'Botón \'Confirmar todos\' con popover de confirmación para acción masiva en dashboard y /transactions',
+      'Animaciones suaves: expand/collapse con height transition, fade-out de filas confirmadas',
+      'Si hay 0 pendientes la barra no se renderiza; con 1 pendiente muestra el nombre directo'
+    ]
+  },
+  {
+    version: '0.17.1',
+    date: '2026-04-03',
+    changes: [
+      'Agregado checkbox \'Agregar otro después de guardar\' en el modal de nuevo movimiento',
+      'El formulario se resetea parcialmente al guardar (mantiene categoría, método de pago y moneda)',
+      'Toast sutil de confirmación al guardar en modo encadenado',
+      'Estado del checkbox persistido en localStorage',
+      'Agregado Toaster de Sonner al layout de la app'
+    ]
+  },
+  {
+    version: '0.17.0',
+    date: '2026-04-03',
+    changes: [
+      'Agregado soporte para gastos recurrentes mensuales (toggle repetir)',
+      'Generación automática on-demand de movimientos recurrentes al abrir el dashboard',
+      'Movimientos auto-generados nacen como pendientes para confirmar manualmente',
+      'Indicador visual de recurrencia en listas de movimientos',
+      'Migración SQL para campos is_recurring y recurring_source_id'
+    ]
+  },
+  {
     version: '0.16.1',
     date: '2026-04-03',
     changes: [

@@ -15,9 +15,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { X, ChevronDown, Plus, Search, Check, Layers, Banknote, CreditCard, Smartphone } from 'lucide-react'
+import { X, ChevronDown, Plus, Search, Check, Layers, Banknote, CreditCard, Smartphone, Repeat } from 'lucide-react'
+import { toast } from 'sonner'
 import useSWR from 'swr'
 import { cn } from '@/lib/utils'
+
+const ADD_ANOTHER_KEY = 'mfi-add-another'
 
 interface QuickAddTransactionProps {
   onClose: () => void
@@ -274,8 +277,14 @@ export function QuickAddTransaction({ onClose, onSuccess }: QuickAddTransactionP
   const [categoryId, setCategoryId] = useState('')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null)
+  const [isRecurring, setIsRecurring] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [addAnother, setAddAnother] = useState(() => {
+    try { return localStorage.getItem(ADD_ANOTHER_KEY) === '1' } catch { return false }
+  })
+  const [formVisible, setFormVisible] = useState(true)
+  const amountRef = useRef<HTMLInputElement>(null)
 
   const { data: categories = [], mutate: mutateCategories } = useSWR<Category[]>('categories', async () => {
     const { data } = await supabase.from('categories').select('*').order('name')
@@ -304,10 +313,25 @@ export function QuickAddTransaction({ onClose, onSuccess }: QuickAddTransactionP
       category_id: categoryId || null,
       date,
       payment_method: type === 'expense' ? paymentMethod : null,
+      is_recurring: isRecurring,
     })
     if (insertError) {
       setError(insertError)
       setLoading(false)
+    } else if (addAnother) {
+      // Fade out, reset fields (keep category, payment method, currency), fade in
+      setLoading(false)
+      setFormVisible(false)
+      toast.success('Movimiento guardado')
+      setTimeout(() => {
+        setAmount('')
+        setNote('')
+        setDate(new Date().toISOString().split('T')[0])
+        setIsRecurring(false)
+        setError(null)
+        setFormVisible(true)
+        setTimeout(() => amountRef.current?.focus(), 50)
+      }, 150)
     } else {
       onSuccess()
     }
@@ -328,7 +352,7 @@ export function QuickAddTransaction({ onClose, onSuccess }: QuickAddTransactionP
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4 overflow-y-auto px-6 pb-6">
+        <form onSubmit={handleSubmit} className={cn('flex flex-col gap-4 overflow-y-auto px-6 pb-6 transition-opacity duration-150', !formVisible && 'opacity-0')}>
           {/* Type tabs */}
           <div>
             <Label className="text-[11px] font-semibold text-muted-foreground mb-2 block tracking-wide uppercase">Tipo</Label>
@@ -354,6 +378,7 @@ export function QuickAddTransaction({ onClose, onSuccess }: QuickAddTransactionP
             <div className="flex-1">
               <Label htmlFor="amount" className="text-[11px] font-semibold text-muted-foreground mb-2 block tracking-wide uppercase">Monto</Label>
               <MoneyInput
+                ref={amountRef}
                 id="amount"
                 placeholder="0,00"
                 value={amount}
@@ -414,6 +439,24 @@ export function QuickAddTransaction({ onClose, onSuccess }: QuickAddTransactionP
             />
           </div>
 
+          {/* Recurring toggle */}
+          <div>
+            <Label className="text-[11px] font-semibold text-muted-foreground mb-2 block tracking-wide uppercase">Repetir</Label>
+            <button
+              type="button"
+              onClick={() => setIsRecurring((v) => !v)}
+              className={cn(
+                'w-full flex items-center justify-center gap-2 text-[12px] font-semibold py-2.5 rounded-xl border transition-all duration-150',
+                isRecurring
+                  ? 'bg-amber-500 text-white border-amber-500'
+                  : 'bg-muted/50 text-muted-foreground border-border hover:border-foreground/30 hover:text-foreground',
+              )}
+            >
+              <Repeat className="w-3.5 h-3.5" />
+              {isRecurring ? 'Se repite cada mes' : 'No se repite'}
+            </button>
+          </div>
+
           {/* Payment method — only for expenses */}
           {type === 'expense' && (
             <div>
@@ -461,6 +504,21 @@ export function QuickAddTransaction({ onClose, onSuccess }: QuickAddTransactionP
           >
             {loading ? 'Guardando...' : 'Guardar movimiento'}
           </Button>
+
+          {/* Add another checkbox */}
+          <label className="flex items-center gap-2 cursor-pointer select-none -mt-1">
+            <input
+              type="checkbox"
+              checked={addAnother}
+              onChange={(e) => {
+                const v = e.target.checked
+                setAddAnother(v)
+                try { localStorage.setItem(ADD_ANOTHER_KEY, v ? '1' : '0') } catch {}
+              }}
+              className="w-3.5 h-3.5 rounded accent-primary"
+            />
+            <span className="text-[12px] text-muted-foreground">Agregar otro después de guardar</span>
+          </label>
         </form>
       </div>
     </div>

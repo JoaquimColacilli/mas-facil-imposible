@@ -45,15 +45,18 @@ interface MoneyInputProps extends Omit<React.ComponentProps<typeof Input>, 'onCh
  * Drop-in replacement for shadcn <Input> on amount fields.
  * Formats value as es-AR money on every keystroke.
  */
-export function MoneyInput({ value, onChange, className, ...props }: MoneyInputProps) {
-  return (
-    <Input
-      {...props}
-      type="text"
-      inputMode="decimal"
-      value={value}
-      onChange={(e) => onChange(liveFormatMoney(e.target.value))}
-      className={cn(className)}
-    />
-  )
-}
+export const MoneyInput = React.forwardRef<HTMLInputElement, MoneyInputProps>(
+  function MoneyInput({ value, onChange, className, ...props }, ref) {
+    return (
+      <Input
+        ref={ref}
+        {...props}
+        type="text"
+        inputMode="decimal"
+        value={value}
+        onChange={(e) => onChange(liveFormatMoney(e.target.value))}
+        className={cn(className)}
+      />
+    )
+  },
+)
