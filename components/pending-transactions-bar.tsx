@@ -77,11 +77,13 @@ export function PendingTransactionsBar({
 
   return (
     <div className="bg-amber-500/8 dark:bg-amber-500/5 border border-amber-500/20 rounded-2xl overflow-hidden animate-fade-in-up">
-      {/* Summary bar */}
-      <button
-        type="button"
+      {/* Summary bar — uses div instead of button to avoid nested <button> hydration error */}
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setExpanded((v) => !v)}
-        className="w-full flex items-center gap-3 px-4 py-3 text-left group transition-colors duration-100 hover:bg-amber-500/5"
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded((v) => !v) } }}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left group transition-colors duration-100 hover:bg-amber-500/5 cursor-pointer select-none"
       >
         <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center shrink-0">
           <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
@@ -153,7 +155,7 @@ export function PendingTransactionsBar({
             expanded && 'rotate-180',
           )}
         />
-      </button>
+      </div>
 
       {/* Expanded list */}
       <div

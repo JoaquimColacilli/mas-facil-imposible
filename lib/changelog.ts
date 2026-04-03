@@ -6,6 +6,14 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.18.2',
+    date: '2026-04-03',
+    changes: [
+      'Fix: error de hydration por botón anidado dentro de botón en barra de pendientes',
+      'Fix: proxy de mercado devolvía datos cacheados del CDN — todos los tickers mostraban el mismo precio en prod'
+    ]
+  },
+  {
     version: '0.18.1',
     date: '2026-04-03',
     changes: [
