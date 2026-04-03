@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import type { Transaction, TransactionType, Currency } from '@/lib/types'
 import { formatCurrency, formatDate, TRANSACTION_TYPE_LABELS } from '@/lib/types'
@@ -15,6 +15,7 @@ import {
   Plus,
   Search,
   Pencil,
+  CircleCheck,
   ArrowLeftRight,
   ChevronLeft,
   ChevronRight,
@@ -87,6 +88,10 @@ export function TransactionsClient({ transactions: initial, month, totalCount }:
   const supabase = createClient()
 
   const [transactions, setTransactions] = useState<Transaction[]>(initial)
+
+  // Sync local state when server props change (month navigation)
+  useEffect(() => { setTransactions(initial) }, [initial])
+
   const [showAdd, setShowAdd] = useState(false)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [search, setSearch] = useState('')
@@ -196,6 +201,11 @@ export function TransactionsClient({ transactions: initial, month, totalCount }:
     const { fetchTransactionsForMonth } = await import('./actions')
     const data = await fetchTransactionsForMonth(month)
     setTransactions(data)
+  }
+
+  async function handleMarkConfirmed(txId: string) {
+    await supabase.from('transactions').update({ status: 'confirmed', updated_at: new Date().toISOString() }).eq('id', txId)
+    setTransactions((prev) => prev.map((t) => t.id === txId ? { ...t, status: 'confirmed' } : t))
   }
 
   // Format stat
@@ -625,9 +635,18 @@ export function TransactionsClient({ transactions: initial, month, totalCount }:
                     )}>
                       {cfg.sign}{formatCurrency(tx.amount, tx.currency)}
                     </span>
+                    {tx.status === 'pending' && (
+                      <button
+                        onClick={() => handleMarkConfirmed(tx.id)}
+                        className="opacity-0 group-hover:opacity-100 w-7 h-7 rounded-lg flex items-center justify-center text-emerald-500 hover:text-emerald-400 hover:bg-emerald-500/10 transition-all duration-100 cursor-pointer"
+                        title="Marcar como pagado"
+                      >
+                        <CircleCheck className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     <button
                       onClick={() => setEditingTx(tx)}
-                      className="opacity-0 group-hover:opacity-100 w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-100"
+                      className="opacity-0 group-hover:opacity-100 w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-100 cursor-pointer"
                       title="Editar"
                     >
                       <Pencil className="w-3.5 h-3.5" />

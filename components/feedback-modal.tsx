@@ -87,10 +87,7 @@ export function FeedbackModal() {
       <button
         onClick={() => setIsOpen(true)}
         title="Enviar Sugerencia / Bug"
-        className={cn(
-          "flex items-center gap-1.5 h-9 px-3 rounded-xl text-[12px] font-bold transition-all duration-200",
-          "border border-border text-amber-500 hover:text-amber-600 hover:bg-amber-500/10 ml-1"
-        )}
+        className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-[12px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-150 shrink-0 cursor-pointer"
       >
         <Lightbulb className="w-3.5 h-3.5" />
         <span className="hidden sm:inline">Sugerencias</span>

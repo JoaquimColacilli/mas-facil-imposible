@@ -237,11 +237,11 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
     <>
       <button
         onClick={() => setIsOpen(true)}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[13px] font-medium transition-colors hover:bg-muted/50 text-muted-foreground hover:text-foreground relative group"
+        className="flex items-center gap-1.5 h-9 px-3 rounded-xl text-[12px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-150 cursor-pointer relative shrink-0"
         title="Actualizar Inversiones"
       >
-        <TrendingUp className="w-4 h-4" />
-        <span className="hidden xs:inline">Inversiones</span>
+        <TrendingUp className="w-3.5 h-3.5" />
+        <span className="hidden sm:inline">Inversiones</span>
 
         {needsUpdate && (
           <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)] animate-pulse" />

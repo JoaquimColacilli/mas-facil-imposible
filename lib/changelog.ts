@@ -6,6 +6,98 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.9.9',
+    date: '2026-04-03',
+    changes: [
+      'Badge de feriado ahora cuelga centrado debajo del grupo de botones del navbar',
+      'Agregado botón para marcar gasto pendiente como pagado en la lista de movimientos (check verde al hacer hover)'
+    ]
+  },
+  {
+    version: '0.9.8',
+    date: '2026-04-03',
+    changes: [
+      'Fix botón Inversiones sin texto: corregido breakpoint xs a sm',
+      'Alertas vuelve a ser ícono sin texto',
+      'Agregado cursor-pointer a todos los botones del navbar'
+    ]
+  },
+  {
+    version: '0.9.7',
+    date: '2026-04-03',
+    changes: [
+      'Badge de feriado/fin de semana ahora cuelga del navbar como ribbon medieval',
+      'Eliminado botón \'Modo rápido\' del navbar',
+      'Normalizados estilos de todos los botones del navbar: misma tipografía, tamaño y peso',
+      'Agregado chevron al avatar del usuario para indicar que es clickeable',
+      'Botones del navbar movidos a la derecha, agrupados cerca de notificaciones y avatar'
+    ]
+  },
+  {
+    version: '0.9.6',
+    date: '2026-04-03',
+    changes: [
+      'Fix movimientos no se actualizaban al cambiar de mes: sincronización de state local con props del servidor'
+    ]
+  },
+  {
+    version: '0.9.5',
+    date: '2026-04-03',
+    changes: [
+      'Agregados tooltips informativos (ℹ) en cada sección de Análisis explicando qué se visualiza',
+      'Fix computeSavingsRates: ahora usa filterByPeriod con normalización de fechas consistente'
+    ]
+  },
+  {
+    version: '0.9.4',
+    date: '2026-04-03',
+    changes: [
+      'Tasa de ahorro en modo Todas muestra dos líneas separadas: ARS (azul) y USD (verde) con promedios independientes'
+    ]
+  },
+  {
+    version: '0.9.3',
+    date: '2026-04-03',
+    changes: [
+      'Agregada opción \'Todas\' en el filtro de moneda de Análisis que muestra ARS y USD juntas, preseleccionada por defecto',
+      'KPI cards muestran ambas monedas cuando \'Todas\' está activo: ARS como valor principal, USD como secundario',
+      'Categorías de gastos se etiquetan con (USD) cuando se muestran ambas monedas para no mezclar totales'
+    ]
+  },
+  {
+    version: '0.9.2',
+    date: '2026-04-03',
+    changes: [
+      'Fix estado vacío en Análisis cuando hay movimientos en otra moneda: ahora muestra cuántos hay y botón para cambiar',
+      'Fix generación de PDF: autoTable se importa como función standalone en vez de extensión de prototipo'
+    ]
+  },
+  {
+    version: '0.9.1',
+    date: '2026-04-03',
+    changes: [
+      'Fix textos ilegibles en dark mode: tooltips y labels de charts ahora usan variables del theme',
+      'Fix gastos del mes anterior en $0: normalización de fechas con sufijo timestamp',
+      'Fix inversiones en $0: la KPI ahora muestra el saldo de portfolios para la moneda seleccionada',
+      'Fix color de tasa de ahorro: la línea ahora usa el color semántico de ahorros (azul) en vez de rojo/verde condicional',
+      'Agregado tooltip explicativo al toggle \'vs anterior\' con componente shadcn Tooltip',
+      'Agregada descarga de PDF con KPIs, categorías y top movimientos usando jsPDF + autoTable en dark theme',
+      'Agregados 4 tests nuevos para filterByPeriod y getPeriodRange'
+    ]
+  },
+  {
+    version: '0.9.0',
+    date: '2026-04-03',
+    changes: [
+      'Rediseño completo de la pantalla de Análisis con period selector, KPI cards con sparklines, chart de evolución con gradientes, breakdown de categorías con donut interactivo, top movimientos, y tasa de ahorro',
+      'Agregado selector de período con chips (Este mes, Mes anterior, 3/6/12 meses, Personalizado) y toggle de moneda ARS/USD',
+      'Agregado modo comparación vs período anterior con deltas en KPIs y líneas dashed en el chart',
+      'Creado lib/analytics-utils.ts con lógica pura para períodos, agrupaciones, deltas y savings rate',
+      'Server page ahora fetchea 25 meses de datos para cubrir todos los rangos y comparaciones',
+      'Agregados 27 tests unitarios para analytics-utils'
+    ]
+  },
+  {
     version: '0.8.0',
     date: '2026-04-03',
     changes: [

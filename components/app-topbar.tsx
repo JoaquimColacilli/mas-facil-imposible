@@ -16,7 +16,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Bell, LogOut, Settings, CheckCheck, Info, AlertTriangle, CheckCircle2, AlertCircle, ChevronRight, Zap, Table2, Shield, FileSpreadsheet, FileText, Loader2 } from 'lucide-react'
+import { Bell, LogOut, Settings, CheckCheck, Info, AlertTriangle, CheckCircle2, AlertCircle, ChevronRight, ChevronDown, Table2, Shield, FileSpreadsheet, FileText, Loader2 } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { MfiPortfolioWidget } from '@/components/mfi-portfolio-widget'
 import { FeedbackModal } from '@/components/feedback-modal'
@@ -99,7 +99,6 @@ function NotificationsPopover({ userId }: { userId: string }) {
     }
   }
 
-  // Close on outside click
   useEffect(() => {
     function handler(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
@@ -113,7 +112,7 @@ function NotificationsPopover({ userId }: { userId: string }) {
       <Button
         variant="ghost"
         size="icon"
-        className="h-9 w-9 relative"
+        className="h-9 w-9 relative cursor-pointer"
         aria-label="Notificaciones"
         onClick={() => setOpen((v) => !v)}
       >
@@ -125,7 +124,6 @@ function NotificationsPopover({ userId }: { userId: string }) {
 
       {open && (
         <div className="absolute right-0 top-[calc(100%+8px)] w-80 bg-popover border border-border rounded-2xl shadow-xl z-50 overflow-hidden animate-in fade-in-0 slide-in-from-top-2 duration-150">
-          {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-border">
             <div className="flex items-center gap-2">
               <p className="text-[13px] font-semibold text-foreground">Notificaciones</p>
@@ -146,7 +144,6 @@ function NotificationsPopover({ userId }: { userId: string }) {
             )}
           </div>
 
-          {/* List */}
           <div className="max-h-[340px] overflow-y-auto overscroll-contain">
             {notifications.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
@@ -207,11 +204,9 @@ function NotificationsPopover({ userId }: { userId: string }) {
                   </div>
                 )
               })
-
             )}
           </div>
 
-          {/* Footer */}
           <div className="border-t border-border px-4 py-2.5">
             <Link
               href="/notifications"
@@ -235,10 +230,14 @@ function NonTradingBadge() {
   const message = getNonTradingMessage(today, holidayName)
 
   return (
-    <span className="inline-flex items-center gap-1 h-7 px-2.5 rounded-lg bg-muted/60 text-[11px] font-medium text-muted-foreground whitespace-nowrap select-none animate-in fade-in-0 slide-in-from-left-2 duration-300 shrink-0">
-      <span className="w-1.5 h-1.5 rounded-full bg-amber-500/80 shrink-0" />
-      {message}
-    </span>
+    <div className="absolute top-full left-1/2 -translate-x-1/2 z-30 pointer-events-none mt-px">
+      <div className="relative bg-amber-950/60 backdrop-blur-sm border border-amber-500/15 border-t-0 text-[10px] font-medium text-amber-300/90 px-3 py-1 rounded-b-lg shadow-lg pointer-events-auto select-none whitespace-nowrap">
+        <span className="absolute -top-px left-2.5 w-1 h-1 rounded-full bg-amber-500/40" />
+        <span className="absolute -top-px right-2.5 w-1 h-1 rounded-full bg-amber-500/40" />
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-500/70 inline-block mr-1.5 align-middle" />
+        {message}
+      </div>
+    </div>
   )
 }
 
@@ -259,57 +258,35 @@ export function AppTopbar({ user, profile, mfiMode, onToggleMfi }: AppTopbarProp
     router.push('/mfi')
   }
 
+  const btnClass = 'flex items-center gap-1.5 h-9 px-3 rounded-xl text-[12px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-all duration-150 shrink-0 cursor-pointer'
+
   return (
-    <header className="h-14 border-b border-border bg-background/90 backdrop-blur-sm sticky top-0 z-40 flex items-center justify-between px-4 md:px-6 shrink-0 overflow-x-clip overflow-y-visible">
+    <header className="h-14 border-b border-border bg-background/90 backdrop-blur-sm sticky top-0 z-40 flex items-center px-4 md:px-6 shrink-0 overflow-x-clip overflow-y-visible relative">
+      {/* Mobile logo */}
       <div className="md:hidden flex items-baseline gap-1.5 select-none shrink-0">
         <span className="font-serif text-[17px] font-semibold tracking-tight text-foreground leading-none">MFI</span>
         <span className="text-[9px] font-sans font-medium uppercase tracking-[0.15em] text-foreground/35 leading-none">Fin</span>
       </div>
-      <div className="hidden md:block" aria-hidden />
 
-      <div className="flex items-center gap-1 overflow-x-auto scrollbar-none ml-2">
-        {/* MFI Mode toggle */}
-        <button
-          onClick={onToggleMfi}
-          title={mfiMode ? 'Desactivar modo rápido' : 'Activar modo rápido'}
-          className={cn(
-            'flex items-center gap-1.5 h-9 px-3 rounded-xl text-[12px] font-bold transition-all duration-200 shrink-0',
-            mfiMode
-              ? 'bg-primary text-primary-foreground shadow-sm shadow-primary/30'
-              : 'text-muted-foreground hover:text-foreground hover:bg-muted',
-          )}
-        >
-          <Zap className={cn('w-3.5 h-3.5', mfiMode && 'fill-current')} />
-          <span className="hidden sm:inline">Modo rápido</span>
-        </button>
+      {/* Spacer pushes everything right */}
+      <div className="flex-1" />
 
+      {/* All actions grouped right */}
+      <div className="flex items-center gap-0.5 shrink-0 relative">
         {/* Switch to MFI mode */}
         <button
           onClick={handleSwitchToMfi}
           disabled={switchingToMfi}
-          title="Ir a Modo MFI"
-          className={cn(
-            'flex items-center gap-1.5 h-9 px-3 rounded-xl text-[12px] font-bold transition-all duration-200 shrink-0',
-            'border border-border text-muted-foreground hover:text-foreground hover:bg-muted',
-            switchingToMfi && 'opacity-60 cursor-wait',
-          )}
+          className={cn(btnClass, switchingToMfi && 'opacity-60 cursor-wait')}
         >
           <Table2 className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Modo MFI</span>
         </button>
 
-        <NonTradingBadge />
         <MfiPortfolioWidget profileCurrency={profile?.default_currency ?? 'ARS'} />
-        
+
         {user.email?.toLowerCase().trim() === 'joaquimcolacilli9@gmail.com' && (
-          <Link
-            href="/admin/sugerencias"
-            title="Panel de Administrador"
-            className={cn(
-              'flex items-center gap-1.5 h-9 px-3 rounded-xl text-[12px] font-bold transition-all duration-200 ml-1',
-              'bg-blue-500/10 text-blue-500 hover:bg-blue-500/20'
-            )}
-          >
+          <Link href="/admin/sugerencias" className={cn(btnClass, 'text-blue-500 hover:text-blue-400 hover:bg-blue-500/10')}>
             <Shield className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Admin</span>
           </Link>
@@ -317,23 +294,23 @@ export function AppTopbar({ user, profile, mfiMode, onToggleMfi }: AppTopbarProp
 
         <FeedbackModal />
         <ThemeToggle />
-      </div>
-
-      {/* Items with dropdowns — outside overflow container so popover/dropdown renders correctly */}
-      <div className="flex items-center gap-1 shrink-0">
         <NotificationsPopover userId={user.id} />
 
+        {/* User avatar with chevron */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              className="w-8 h-8 rounded-full overflow-hidden bg-primary text-primary-foreground flex items-center justify-center text-[11px] font-bold hover:opacity-85 transition-opacity ml-1 shrink-0"
+              className="flex items-center gap-1 h-9 pl-1.5 pr-2 rounded-xl hover:bg-muted transition-all duration-150 ml-0.5 shrink-0 cursor-pointer"
               aria-label="Menú de usuario"
             >
-              {profile?.avatar_url ? (
-                <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
-              ) : (
-                initials
-              )}
+              <div className="w-7 h-7 rounded-full overflow-hidden bg-primary text-primary-foreground flex items-center justify-center text-[10px] font-bold shrink-0">
+                {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  initials
+                )}
+              </div>
+              <ChevronDown className="w-3 h-3 text-muted-foreground" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-52">
@@ -360,6 +337,8 @@ export function AppTopbar({ user, profile, mfiMode, onToggleMfi }: AppTopbarProp
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        {/* Hanging non-trading badge — below the buttons group */}
+        <NonTradingBadge />
       </div>
     </header>
   )
