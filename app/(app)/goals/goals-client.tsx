@@ -509,6 +509,7 @@ export function GoalsClient({ goals: initial }: GoalsClientProps) {
     })
     if (error) {
       setError(error)
+      toast.error('No se pudo crear. Intentá de nuevo.', { duration: 5000 })
     } else if (data) {
       setGoals((prev) => [data, ...prev])
       setShowAdd(false)
@@ -521,10 +522,9 @@ export function GoalsClient({ goals: initial }: GoalsClientProps) {
   async function handleDelete(id: string) {
     const { deleteGoal } = await import('./actions')
     const { error } = await deleteGoal(id)
-    if (!error) {
-      setGoals((prev) => prev.filter((g) => g.id !== id))
-      toast.success('Meta eliminada')
-    }
+    if (error) { toast.error('No se pudo eliminar. Intentá de nuevo.', { duration: 5000 }); return }
+    setGoals((prev) => prev.filter((g) => g.id !== id))
+    toast.success('Meta eliminada')
   }
 
   async function handleDeposit(goal: Goal, amount: number) {
@@ -538,12 +538,13 @@ export function GoalsClient({ goals: initial }: GoalsClientProps) {
       new_current_amount: newAmount,
       status,
     })
-    if (!error && data) {
+    if (error) { toast.error('No se pudo depositar. Intentá de nuevo.', { duration: 5000 }); return }
+    if (data) {
       setGoals((prev) => prev.map((g) => (g.id === goal.id ? data : g)))
       if (status === 'completed') {
         toast.success(`Meta "${goal.name}" completada`)
       } else {
-        toast.success(`Depósito de ${formatCurrency(amount, goal.currency)} registrado`)
+        toast.success(`Depósito registrado en ${goal.name}`)
       }
     }
   }
@@ -554,10 +555,9 @@ export function GoalsClient({ goals: initial }: GoalsClientProps) {
       .from('goals')
       .update({ status, updated_at: new Date().toISOString() })
       .eq('id', id)
-    if (!error) {
-      setGoals((prev) => prev.map((g) => g.id === id ? { ...g, status } : g))
-      toast.success(`Meta ${STATUS_LABELS[status].toLowerCase()}`)
-    }
+    if (error) { toast.error('No se pudo actualizar. Intentá de nuevo.', { duration: 5000 }); return }
+    setGoals((prev) => prev.map((g) => g.id === id ? { ...g, status } : g))
+    toast.success(`Meta ${STATUS_LABELS[status].toLowerCase()}`)
   }
 
   function renderGrid(list: Goal[], startIndex = 0) {

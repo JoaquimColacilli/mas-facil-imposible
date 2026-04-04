@@ -317,12 +317,13 @@ export function QuickAddTransaction({ onClose, onSuccess }: QuickAddTransactionP
     })
     if (insertError) {
       setError(insertError)
+      toast.error('No se pudo guardar. Intentá de nuevo.', { duration: 5000 })
       setLoading(false)
     } else if (addAnother) {
       // Fade out, reset fields (keep category, payment method, currency), fade in
       setLoading(false)
       setFormVisible(false)
-      toast.success('Movimiento guardado')
+      toast.success('Movimiento agregado')
       setTimeout(() => {
         setAmount('')
         setNote('')
@@ -333,6 +334,7 @@ export function QuickAddTransaction({ onClose, onSuccess }: QuickAddTransactionP
         setTimeout(() => amountRef.current?.focus(), 50)
       }, 150)
     } else {
+      toast.success('Movimiento agregado')
       onSuccess()
     }
   }

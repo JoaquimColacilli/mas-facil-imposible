@@ -6,6 +6,33 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.20.0',
+    date: '2026-04-04',
+    changes: [
+      'Movimientos cancelados excluidos de todos los cálculos de balance, KPIs y gráficos',
+      'Balance confirmado visible en la card de Balance Total cuando hay gastos pendientes',
+      'Tooltip con detalle de gastos pendientes en la card de Balance Total',
+      'Barra de pendientes muestra gastos de todos los meses, agrupados por mes'
+    ]
+  },
+  {
+    version: '0.19.2',
+    date: '2026-04-04',
+    changes: [
+      'Toasts estandarizados en toda la app: success verde, error rojo, posición top-right',
+      'Toasts de éxito y error en todas las mutaciones (movimientos, metas, deudas, cobros, categorías, inversiones, ajustes)',
+      'Toaster agregado al layout MFI',
+      'Duración de error toasts: 5 segundos'
+    ]
+  },
+  {
+    version: '0.19.1',
+    date: '2026-04-04',
+    changes: [
+      'Agregadas notificaciones toast en todas las mutaciones de Supabase en MFI transacciones'
+    ]
+  },
+  {
     version: '0.19.0',
     date: '2026-04-04',
     changes: [

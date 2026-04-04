@@ -104,7 +104,7 @@ export function filterByPeriod(txs: Transaction[], startDate: string, endDate: s
 }
 
 export function sumByType(txs: Transaction[], type: TransactionType): number {
-  return txs.filter((t) => t.type === type).reduce((s, t) => s + t.amount, 0)
+  return txs.filter((t) => t.type === type && t.status !== 'cancelled').reduce((s, t) => s + t.amount, 0)
 }
 
 export function groupByInterval(
@@ -146,6 +146,7 @@ export function groupByInterval(
   }
 
   for (const tx of txs) {
+    if (tx.status === 'cancelled') continue
     if (tx.type !== 'income' && tx.type !== 'expense') continue
     const txDate = new Date(tx.date + 'T00:00:00')
     let key: string
@@ -178,7 +179,7 @@ export function buildSparklineData(
   startDate: string,
   endDate: string,
 ): SparklinePoint[] {
-  const filtered = txs.filter((t) => t.type === type)
+  const filtered = txs.filter((t) => t.type === type && t.status !== 'cancelled')
   const start = new Date(startDate + 'T00:00:00')
   const end = new Date(endDate + 'T00:00:00')
   const totalDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / 86_400_000))
@@ -219,7 +220,7 @@ export function computeSavingsRates(txs: Transaction[], months = 12): SavingsRat
 }
 
 export function computeExpenseByCategory(txs: Transaction[]): CategoryBreakdown[] {
-  const expenses = txs.filter((t) => t.type === 'expense')
+  const expenses = txs.filter((t) => t.type === 'expense' && t.status !== 'cancelled')
   const total = expenses.reduce((s, t) => s + t.amount, 0)
   if (total === 0) return []
 

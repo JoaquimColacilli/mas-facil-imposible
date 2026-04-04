@@ -10,6 +10,7 @@ import {
   ArrowDownLeft, ArrowUpRight, PiggyBank, TrendingUp,
   Check, ChevronDown, X,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 // ─── Type config ──────────────────────────────────────────────────────────────
 
@@ -130,11 +131,14 @@ export function MFIQuickEntry({ defaultCurrency = 'ARS', onEntryAdded }: MFIQuic
       setFlash(tx)
       setRecent(prev => [tx, ...prev].slice(0, 8))
       onEntryAdded?.(tx)
+      toast.success('Movimiento agregado')
       setTimeout(() => setFlash(null), 2000)
       // Reset (keep type + currency + date)
       setAmount('')
       setDesc('')
       amountRef.current?.focus()
+    } else {
+      toast.error('No se pudo guardar. Intentá de nuevo.', { duration: 5000 })
     }
     setSaving(false)
   }, [amount, type, currency, date, desc, supabase, onEntryAdded])

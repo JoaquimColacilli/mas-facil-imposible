@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import type { Transaction } from '@/lib/types'
 import { formatCurrency, formatDate } from '@/lib/types'
 import { Button } from '@/components/ui/button'
@@ -11,7 +11,10 @@ import { cn } from '@/lib/utils'
 
 const EXPANDED_KEY = 'mfi-pending-expanded'
 
+const MONTH_NAMES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+
 interface PendingTransactionsBarProps {
+  /** Already filtered: only status === 'pending', all months */
   transactions: Transaction[]
   currentMonth: string
   onConfirmOne: (id: string) => void
@@ -19,13 +22,11 @@ interface PendingTransactionsBarProps {
 }
 
 export function PendingTransactionsBar({
-  transactions,
+  transactions: pending,
   currentMonth,
   onConfirmOne,
   onConfirmAll,
 }: PendingTransactionsBarProps) {
-  const pending = transactions.filter((t) => t.status === 'pending')
-
   const [expanded, setExpanded] = useState(() => {
     try { return localStorage.getItem(EXPANDED_KEY) === '1' } catch { return false }
   })
@@ -43,6 +44,20 @@ export function PendingTransactionsBar({
       setContentHeight(contentRef.current.scrollHeight)
     }
   }, [pending.length, expanded])
+
+  // Group by month (YYYY-MM) for display
+  const grouped = useMemo(() => {
+    const map = new Map<string, Transaction[]>()
+    for (const tx of pending) {
+      const ym = tx.date.slice(0, 7)
+      if (!map.has(ym)) map.set(ym, [])
+      map.get(ym)!.push(tx)
+    }
+    // Sort months descending (newest first)
+    return [...map.entries()].sort((a, b) => b[0].localeCompare(a[0]))
+  }, [pending])
+
+  const hasMultipleMonths = grouped.length > 1
 
   if (pending.length === 0) return null
 
@@ -69,15 +84,20 @@ export function PendingTransactionsBar({
   function handleConfirmAll() {
     setConfirmAllOpen(false)
     onConfirmAll()
-    toast.success(`${pending.length} gasto${pending.length !== 1 ? 's' : ''} marcado${pending.length !== 1 ? 's' : ''} como pagado${pending.length !== 1 ? 's' : ''}`)
+    toast.success(`${pending.length} gasto${pending.length !== 1 ? 's' : ''} confirmado${pending.length !== 1 ? 's' : ''}`)
   }
 
   const isSingle = pending.length === 1
   const single = isSingle ? pending[0] : null
 
+  function monthLabel(ym: string) {
+    const [y, m] = ym.split('-').map(Number)
+    return `${MONTH_NAMES[m - 1]} ${y}`
+  }
+
   return (
     <div className="bg-amber-500/8 dark:bg-amber-500/5 border border-amber-500/20 rounded-2xl overflow-hidden animate-fade-in-up">
-      {/* Summary bar — uses div instead of button to avoid nested <button> hydration error */}
+      {/* Summary bar */}
       <div
         role="button"
         tabIndex={0}
@@ -126,7 +146,7 @@ export function PendingTransactionsBar({
                   ¿Confirmar {pending.length} gastos pendientes?
                 </p>
                 <p className="text-[11px] text-muted-foreground mb-3">
-                  Se marcarán como pagados.
+                  Se marcarán como pagados{hasMultipleMonths ? ' (de todos los meses)' : ''}.
                 </p>
                 <div className="flex gap-2">
                   <Button
@@ -163,33 +183,44 @@ export function PendingTransactionsBar({
         className="transition-[height] duration-300 ease-in-out overflow-hidden"
       >
         <div ref={contentRef} className="border-t border-amber-500/15">
-          {pending.map((tx) => (
-            <div
-              key={tx.id}
-              className={cn(
-                'flex items-center gap-3 px-4 py-2.5 transition-all duration-300 hover:bg-amber-500/5 group/row',
-                fadingOut.has(tx.id) && 'opacity-0 h-0 py-0 overflow-hidden',
+          {grouped.map(([ym, txs]) => (
+            <div key={ym}>
+              {hasMultipleMonths && (
+                <div className="px-4 py-1.5 bg-amber-500/5 border-b border-amber-500/10">
+                  <p className="text-[10px] font-bold text-amber-600/70 dark:text-amber-400/70 uppercase tracking-[0.1em]">
+                    {monthLabel(ym)}
+                  </p>
+                </div>
               )}
-            >
-              <div className="flex-1 min-w-0">
-                <p className="text-[12px] font-medium text-foreground truncate leading-none">
-                  {tx.note ?? tx.category?.name ?? 'Sin descripción'}
-                </p>
-                <p className="text-[10px] text-muted-foreground mt-0.5 leading-none">
-                  {tx.category?.name && tx.note ? `${tx.category.name} · ` : ''}
-                  {formatDate(tx.date)}
-                </p>
-              </div>
-              <span className="text-[12px] font-bold tabular-nums font-mono text-rose-500 shrink-0">
-                −{formatCurrency(tx.amount, tx.currency)}
-              </span>
-              <button
-                onClick={() => handleConfirmOne(tx)}
-                className="w-6 h-6 rounded-md flex items-center justify-center text-amber-500 hover:text-emerald-500 hover:bg-emerald-500/10 transition-all duration-100 shrink-0"
-                title="Confirmar"
-              >
-                <Check className="w-3.5 h-3.5" />
-              </button>
+              {txs.map((tx) => (
+                <div
+                  key={tx.id}
+                  className={cn(
+                    'flex items-center gap-3 px-4 py-2.5 transition-all duration-300 hover:bg-amber-500/5 group/row',
+                    fadingOut.has(tx.id) && 'opacity-0 h-0 py-0 overflow-hidden',
+                  )}
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[12px] font-medium text-foreground truncate leading-none">
+                      {tx.note ?? tx.category?.name ?? 'Sin descripción'}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5 leading-none">
+                      {tx.category?.name && tx.note ? `${tx.category.name} · ` : ''}
+                      {formatDate(tx.date)}
+                    </p>
+                  </div>
+                  <span className="text-[12px] font-bold tabular-nums font-mono text-rose-500 shrink-0">
+                    −{formatCurrency(tx.amount, tx.currency)}
+                  </span>
+                  <button
+                    onClick={() => handleConfirmOne(tx)}
+                    className="w-6 h-6 rounded-md flex items-center justify-center text-amber-500 hover:text-emerald-500 hover:bg-emerald-500/10 transition-all duration-100 shrink-0"
+                    title="Confirmar"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
             </div>
           ))}
         </div>

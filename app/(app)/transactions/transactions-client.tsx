@@ -222,8 +222,10 @@ export function TransactionsClient({ transactions: initial, portfolios, cumulati
   }
 
   async function handleMarkConfirmed(txId: string) {
-    await supabase.from('transactions').update({ status: 'confirmed', updated_at: new Date().toISOString() }).eq('id', txId)
+    const { error } = await supabase.from('transactions').update({ status: 'confirmed', updated_at: new Date().toISOString() }).eq('id', txId)
+    if (error) { toast.error('No se pudo confirmar. Intentá de nuevo.', { duration: 5000 }); return }
     setTransactions((prev) => prev.map((t) => t.id === txId ? { ...t, status: 'confirmed' } : t))
+    toast.success('Marcado como pagado')
   }
 
   const pendingCount = transactions.filter((t) => t.status === 'pending').length

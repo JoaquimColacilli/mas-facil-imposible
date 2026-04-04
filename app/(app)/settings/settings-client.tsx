@@ -20,6 +20,7 @@ import { AvatarUpload } from '@/components/avatar-upload'
 import { MoodPicker } from '@/components/mood-picker'
 import { LogOut, Save, Lock, Eye, EyeOff, CheckCircle2, Mail, User, AtSign } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 interface SettingsClientProps {
   profile: Profile | null
@@ -71,8 +72,10 @@ export function SettingsClient({ profile, userEmail, userId }: SettingsClientPro
 
     if (error) {
       setError(error.message)
+      toast.error('No se pudo guardar. Intentá de nuevo.', { duration: 5000 })
     } else {
       setSaved(true)
+      toast.success('Perfil actualizado')
       setTimeout(() => setSaved(false), 2000)
     }
     setSaving(false)
@@ -95,8 +98,10 @@ export function SettingsClient({ profile, userEmail, userId }: SettingsClientPro
     const { error } = await supabase.auth.updateUser({ password: newPassword })
     if (error) {
       setPwError(error.message)
+      toast.error('No se pudo cambiar. Intentá de nuevo.', { duration: 5000 })
     } else {
       setPwSaved(true)
+      toast.success('Contraseña actualizada')
       setNewPassword('')
       setConfirmPassword('')
       setTimeout(() => setPwSaved(false), 3000)

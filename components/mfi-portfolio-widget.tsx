@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { TrendingUp, Plus, X, ArrowRight, BarChart2, List, ArrowDownToLine } from 'lucide-react'
+import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -159,6 +160,9 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
       setNewName('')
       setNewBalance('')
       setNewCurrency(profileCurrency as 'ARS' | 'USD')
+      toast.success('Portfolio creado')
+    } else if (error) {
+      toast.error('No se pudo crear el portfolio. Intentá de nuevo', { duration: 5000 })
     }
     setSaving(false)
   }
@@ -216,10 +220,15 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
       }
 
       if (logsToInsert.length > 0) {
-        await supabase.from('portfolio_logs').insert(logsToInsert)
+        const { error: logsError } = await supabase.from('portfolio_logs').insert(logsToInsert)
+        if (logsError) {
+          toast.error('No se pudo registrar la variación. Intentá de nuevo', { duration: 5000 })
+          return
+        }
         for (const log of logsToInsert) {
           await supabase.from('portfolios').update({ balance: log.new_balance }).eq('id', log.portfolio_id)
         }
+        toast.success('Variación registrada')
       }
 
       setNeedsUpdate(false)
@@ -228,6 +237,7 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
       setIsOpen(false)
     } catch (e) {
       console.error(e)
+      toast.error('No se pudo registrar la variación. Intentá de nuevo', { duration: 5000 })
     } finally {
       setSaving(false)
     }
@@ -251,7 +261,7 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
       const pct = oldBalance > 0 ? ((newBalance / oldBalance) - 1) * 100 : 0
 
       // Create portfolio log for the rescue
-      await supabase.from('portfolio_logs').insert({
+      const { error: rescueLogError } = await supabase.from('portfolio_logs').insert({
         portfolio_id: port.id,
         date: todayISO(),
         percentage_change: pct,
@@ -259,8 +269,20 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
         new_balance: newBalance,
       })
 
+      if (rescueLogError) {
+        toast.error('No se pudo registrar el rescate. Intentá de nuevo', { duration: 5000 })
+        return
+      }
+
       // Update portfolio balance
-      await supabase.from('portfolios').update({ balance: newBalance }).eq('id', port.id)
+      const { error: rescueUpdateError } = await supabase.from('portfolios').update({ balance: newBalance }).eq('id', port.id)
+
+      if (rescueUpdateError) {
+        toast.error('No se pudo registrar el rescate. Intentá de nuevo', { duration: 5000 })
+        return
+      }
+
+      toast.success('Rescate registrado')
 
       // Reset and refresh
       setRescuePortfolioId(null)
@@ -268,6 +290,7 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
       await fetchData()
     } catch (e) {
       console.error(e)
+      toast.error('No se pudo registrar el rescate. Intentá de nuevo', { duration: 5000 })
     } finally {
       setRescueSaving(false)
     }

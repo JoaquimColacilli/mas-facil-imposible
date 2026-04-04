@@ -68,8 +68,8 @@ function AddLoanForm({
     })
 
     setSaving(false)
-    if (err) { setError(err); return }
-    if (data) onSave(data)
+    if (err) { setError(err); toast.error('No se pudo registrar. Intentá de nuevo.', { duration: 5000 }); return }
+    if (data) { toast.success('Cobro registrado'); onSave(data) }
   }
 
   const inputCls = 'w-full bg-muted/50 border border-border rounded-lg px-2.5 py-1.5 text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/60 transition-shadow'
@@ -253,7 +253,7 @@ export function PendingLoans({ initialLoans, currency, onResolved }: PendingLoan
     if (data) {
       setLoans((prev) => prev.map((l) => l.id === id ? data : l))
       if (loan) {
-        toast.success(`Cobro registrado como ingreso · +${formatCurrency(loan.amount, loan.currency)}`)
+        toast.success('Cobro registrado como ingreso')
       }
       onResolved?.()
     }
@@ -262,8 +262,10 @@ export function PendingLoans({ initialLoans, currency, onResolved }: PendingLoan
   async function handleDelete(id: string) {
     const loan = loans.find((l) => l.id === id)
     const { deleteLoan } = await import('@/app/(app)/dashboard/actions')
-    await deleteLoan(id)
+    const { error } = await deleteLoan(id)
+    if (error) { toast.error('No se pudo eliminar. Intentá de nuevo.', { duration: 5000 }); return }
     setLoans((prev) => prev.filter((l) => l.id !== id))
+    toast.success('Cobro eliminado')
     if (loan?.paid) onResolved?.()
   }
 
@@ -447,7 +449,7 @@ function EditLoanInline({
       date,
     })
     setSaving(false)
-    if (data) onSave(data)
+    if (data) { toast.success('Cobro actualizado'); onSave(data) }
   }
 
   const inputCls = 'w-full bg-muted/50 border border-border rounded-lg px-2.5 py-1.5 text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/60 transition-shadow'

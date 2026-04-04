@@ -18,6 +18,7 @@ import {
 import { X, ChevronDown, Search, Check, Plus, Banknote, CreditCard, Smartphone, Repeat } from 'lucide-react'
 import useSWR from 'swr'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 interface EditTransactionModalProps {
   transaction: Transaction
@@ -183,15 +184,17 @@ export function EditTransactionModal({ transaction, onClose, onSaved, onDeleted 
       is_recurring: isRecurring,
     })
     setLoading(false)
-    if (err) { setError(err); return }
-    if (data) onSaved(data)
+    if (err) { setError(err); toast.error('No se pudo actualizar. Intentá de nuevo.', { duration: 5000 }); return }
+    if (data) { toast.success('Movimiento actualizado'); onSaved(data) }
   }
 
   async function handleDelete() {
     if (!confirmDelete) { setConfirmDelete(true); return }
     setDeleting(true)
     const { deleteTransaction } = await import('@/app/(app)/transactions/actions')
-    await deleteTransaction(transaction.id)
+    const { error } = await deleteTransaction(transaction.id)
+    if (error) { toast.error('No se pudo eliminar. Intentá de nuevo.', { duration: 5000 }); setDeleting(false); return }
+    toast.success('Movimiento eliminado')
     onDeleted(transaction.id)
   }
 

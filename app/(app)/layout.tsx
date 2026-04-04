@@ -29,7 +29,7 @@ export default async function AppLayout({
     <AppShell user={user} profile={profile as Profile | null}>
       {children}
       <WhatsNewModal lastSeenVersion={profile?.last_seen_version ?? null} />
-      <Toaster position="bottom-center" duration={2000} />
+      <Toaster position="top-right" duration={3000} />
     </AppShell>
   )
 }

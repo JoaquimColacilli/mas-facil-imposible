@@ -14,6 +14,7 @@ import {
 import { TrendingUp, Info, Briefcase, Plus, ArrowRight, ArrowDownToLine, X, Download } from 'lucide-react'
 import { Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 import { MarketCard } from '@/components/market-card'
 import {
   type InvestmentPeriod,
@@ -319,11 +320,11 @@ export function InvestmentsClient({ portfolios: initialPortfolios, logs: initial
       balance: parseMoneyInput(newBalance),
     })
 
-    if (!error) {
-      setNewName(''); setNewBalance(''); setNewCurrency('USD')
-      setActionPanel(null)
-      await refreshData()
-    }
+    if (error) { toast.error('No se pudo crear. Intentá de nuevo.', { duration: 5000 }); setSaving(false); return }
+    setNewName(''); setNewBalance(''); setNewCurrency('USD')
+    setActionPanel(null)
+    toast.success('Portfolio creado')
+    await refreshData()
     setSaving(false)
   }
 
@@ -368,8 +369,9 @@ export function InvestmentsClient({ portfolios: initialPortfolios, logs: initial
       }
       setUpdates({})
       setActionPanel(null)
+      toast.success('Variación registrada')
       await refreshData()
-    } catch (e) { console.error(e) }
+    } catch (e) { console.error(e); toast.error('No se pudo registrar. Intentá de nuevo.', { duration: 5000 }) }
     finally { setSaving(false) }
   }
 
@@ -398,8 +400,9 @@ export function InvestmentsClient({ portfolios: initialPortfolios, logs: initial
 
       setRescuePortfolioId(null); setRescueAmount('')
       setActionPanel(null)
+      toast.success('Rescate registrado')
       await refreshData()
-    } catch (e) { console.error(e) }
+    } catch (e) { console.error(e); toast.error('No se pudo registrar. Intentá de nuevo.', { duration: 5000 }) }
     finally { setSaving(false) }
   }
 

@@ -18,6 +18,7 @@ import {
 import type { Portfolio } from '@/lib/types'
 import useSWR from 'swr'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 // ─── Type config ──────────────────────────────────────────────────────────────
 
@@ -223,13 +224,15 @@ function TxForm({ type, initialTx, currentMonth, categories, currency, onSaved, 
       status: 'confirmed' as const,
     }
     if (initialTx) {
-      const { data } = await supabase.from('transactions')
+      const { data, error } = await supabase.from('transactions')
         .update(payload).eq('id', initialTx.id).select('*, category:categories(*)').single()
-      if (data) onSaved(data as Transaction)
+      if (error) { toast.error('No se pudo actualizar. Intentá de nuevo.', { duration: 5000 }); setSaving(false); return }
+      if (data) { toast.success('Movimiento actualizado'); onSaved(data as Transaction) }
     } else {
-      const { data } = await supabase.from('transactions')
+      const { data, error } = await supabase.from('transactions')
         .insert(payload).select('*, category:categories(*)').single()
-      if (data) onSaved(data as Transaction)
+      if (error) { toast.error('No se pudo guardar. Intentá de nuevo.', { duration: 5000 }); setSaving(false); return }
+      if (data) { toast.success('Movimiento agregado'); onSaved(data as Transaction) }
     }
     setSaving(false)
   }
@@ -237,7 +240,9 @@ function TxForm({ type, initialTx, currentMonth, categories, currency, onSaved, 
   async function handleDelete() {
     if (!initialTx || !onDeleted) return
     setDeleting(true)
-    await supabase.from('transactions').delete().eq('id', initialTx.id)
+    const { error } = await supabase.from('transactions').delete().eq('id', initialTx.id)
+    if (error) { toast.error('No se pudo eliminar. Intentá de nuevo.', { duration: 5000 }); setDeleting(false); return }
+    toast.success('Movimiento eliminado')
     onDeleted(initialTx.id)
     setDeleting(false)
   }
@@ -359,8 +364,8 @@ export function TransactionTypeModal({
     },
   )
 
-  const totalARS = txs.filter(t => t.currency !== 'USD').reduce((s, t) => s + t.amount, 0)
-  const totalUSD = txs.filter(t => t.currency === 'USD').reduce((s, t) => s + t.amount, 0)
+  const totalARS = txs.filter(t => t.currency !== 'USD' && t.status !== 'cancelled').reduce((s, t) => s + t.amount, 0)
+  const totalUSD = txs.filter(t => t.currency === 'USD' && t.status !== 'cancelled').reduce((s, t) => s + t.amount, 0)
 
   const [y, m] = currentMonth.split('-').map(Number)
   const monthLabel = new Date(y, m - 1, 1)
@@ -430,6 +435,7 @@ export function TransactionTypeModal({
       const next = [txData as Transaction, ...txs]
       setTxs(next)
       onChanged(next)
+      toast.success(withdrawToPortfolio ? 'Traspaso registrado' : 'Retiro registrado')
     }
     setWithdrawing(false)
     setWithdrawAmount('')

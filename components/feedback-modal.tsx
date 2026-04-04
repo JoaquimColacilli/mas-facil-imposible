@@ -6,6 +6,7 @@ import { Lightbulb, Image as ImageIcon, X, Loader2, CheckCircle2 } from 'lucide-
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 export function FeedbackModal() {
   const supabase = createClient()
@@ -67,6 +68,7 @@ export function FeedbackModal() {
       })
 
       setSuccess(true)
+      toast.success('Sugerencia enviada')
       setTimeout(() => {
         setIsOpen(false)
         setSuccess(false)
@@ -76,7 +78,7 @@ export function FeedbackModal() {
 
     } catch (err) {
       console.error(err)
-      alert("Hubo un error al enviar tu sugerencia.")
+      toast.error('No se pudo enviar. Intentá de nuevo.', { duration: 5000 })
     } finally {
       setLoading(false)
     }

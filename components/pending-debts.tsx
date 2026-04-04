@@ -67,8 +67,8 @@ function AddDebtForm({
     })
 
     setSaving(false)
-    if (err) { setError(err); return }
-    if (data) onSave(data)
+    if (err) { setError(err); toast.error('No se pudo registrar. Intentá de nuevo.', { duration: 5000 }); return }
+    if (data) { toast.success('Deuda registrada'); onSave(data) }
   }
 
   const inputCls = 'w-full bg-muted/50 border border-border rounded-lg px-2.5 py-1.5 text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/60 transition-shadow'
@@ -252,7 +252,7 @@ export function PendingDebts({ initialDebts, currency, onResolved }: PendingDebt
     if (data) {
       setDebts((prev) => prev.map((d) => d.id === id ? data : d))
       if (debt) {
-        toast.success(`Deuda registrada como gasto · -${formatCurrency(debt.amount, debt.currency)}`)
+        toast.success('Deuda pagada · Gasto registrado')
       }
       onResolved?.()
     }
@@ -261,8 +261,10 @@ export function PendingDebts({ initialDebts, currency, onResolved }: PendingDebt
   async function handleDelete(id: string) {
     const debt = debts.find((d) => d.id === id)
     const { deleteDebt } = await import('@/app/(app)/dashboard/actions')
-    await deleteDebt(id)
+    const { error } = await deleteDebt(id)
+    if (error) { toast.error('No se pudo eliminar. Intentá de nuevo.', { duration: 5000 }); return }
     setDebts((prev) => prev.filter((d) => d.id !== id))
+    toast.success('Deuda eliminada')
     if (debt?.paid) onResolved?.()
   }
 
@@ -446,7 +448,7 @@ function EditDebtInline({
       date,
     })
     setSaving(false)
-    if (data) onSave(data)
+    if (data) { toast.success('Deuda actualizada'); onSave(data) }
   }
 
   const inputCls = 'w-full bg-muted/50 border border-border rounded-lg px-2.5 py-1.5 text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/60 transition-shadow'

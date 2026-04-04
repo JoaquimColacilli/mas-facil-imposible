@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { X, Plus, Pencil, Trash2, Check, LayoutGrid } from 'lucide-react'
 import useSWR from 'swr'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
 
 const TABS: { type: TransactionType; label: string }[] = [
   { type: 'expense',    label: 'Gastos' },
@@ -91,11 +92,12 @@ export function CategoryManager({ onClose }: CategoryManagerProps) {
         .from('categories')
         .update({ name: editing.name.trim(), color: editing.color })
         .eq('id', editing.id)
-      if (err) { setError(err.message); setSaving(false); return }
+      if (err) { setError(err.message); toast.error('No se pudo actualizar. Intentá de nuevo.', { duration: 5000 }); setSaving(false); return }
       mutate(categories.map((c) => c.id === editing.id
         ? { ...c, name: editing.name.trim(), color: editing.color }
         : c
       ), false)
+      toast.success('Categoría actualizada')
     } else {
       // create
       const { data: { user } } = await supabase.auth.getUser()
@@ -105,8 +107,9 @@ export function CategoryManager({ onClose }: CategoryManagerProps) {
         .insert({ user_id: user.id, name: editing.name.trim(), color: editing.color, type: activeTab, icon: 'circle' })
         .select()
         .single()
-      if (err) { setError(err.message); setSaving(false); return }
+      if (err) { setError(err.message); toast.error('No se pudo crear. Intentá de nuevo.', { duration: 5000 }); setSaving(false); return }
       mutate([...categories, data as Category], false)
+      toast.success('Categoría creada')
     }
 
     setSaving(false)
@@ -116,9 +119,9 @@ export function CategoryManager({ onClose }: CategoryManagerProps) {
   async function handleDelete(id: string) {
     if (deletingId !== id) { setDeletingId(id); return }
     const { error: err } = await supabase.from('categories').delete().eq('id', id)
-    if (!err) {
-      mutate(categories.filter((c) => c.id !== id), false)
-    }
+    if (err) { toast.error('No se pudo eliminar. Intentá de nuevo.', { duration: 5000 }); setDeletingId(null); return }
+    mutate(categories.filter((c) => c.id !== id), false)
+    toast.success('Categoría eliminada')
     setDeletingId(null)
   }
 

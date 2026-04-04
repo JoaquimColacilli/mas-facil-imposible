@@ -9,6 +9,7 @@ import { liveFormatMoney, parseMoneyInput, formatMoneyInput } from '@/components
 import { formatCurrency } from '@/lib/types'
 import type { Transaction, Category, Profile, Currency, TransactionType, MfiSheet } from '@/lib/types'
 import { Popover, PopoverContent, PopoverTrigger, PopoverAnchor } from '@/components/ui/popover'
+import { toast } from 'sonner'
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -317,7 +318,9 @@ function CellDetailsPopoverContent({
   }
 
   async function deleteSub(id: string) {
-    await supabase.from('transactions').delete().eq('id', id)
+    const { error } = await supabase.from('transactions').delete().eq('id', id)
+    if (error) { toast.error('No se pudo eliminar. Intentá de nuevo.', { duration: 5000 }); return }
+    toast.success('Movimiento eliminado')
     onTxsChange((prev) => prev.filter((t) => t.id !== id))
   }
 
@@ -459,7 +462,9 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
       .select()
       .single()
     setCreatingCol(false)
-    if (!error && data) {
+    if (error) { toast.error('No se pudo crear. Intentá de nuevo.', { duration: 5000 }); return }
+    if (data) {
+      toast.success('Categoría creada')
       setExtraCats((prev) => [...prev, data as Category])
       persistCols([data.id, ...(sheetCols ?? [])])
       setNewColName('')
@@ -484,7 +489,9 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
   async function handleRenameCategory(catId: string, name: string) {
     if (!name.trim() || !savingIncome) { /* using savingIncome randomly wasn't needed, but I'll skip it */ }
     if (!name.trim()) { setRenamingCatId(null); return }
-    await supabase.from('categories').update({ name: name.trim() }).eq('id', catId)
+    const { error } = await supabase.from('categories').update({ name: name.trim() }).eq('id', catId)
+    if (error) { toast.error('No se pudo actualizar. Intentá de nuevo.', { duration: 5000 }); setRenamingCatId(null); return }
+    toast.success('Categoría actualizada')
     setExtraCats((prev) => {
       const exists = prev.find(p => p.id === catId)
       if (exists) return prev.map(c => c.id === catId ? { ...c, name: name.trim() } : c)
@@ -564,7 +571,9 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
     if (!amount || amount <= 0) {
       if (existing.length > 0) {
         const ids = existing.map((t) => t.id)
-        await supabase.from('transactions').delete().in('id', ids)
+        const { error } = await supabase.from('transactions').delete().in('id', ids)
+        if (error) { toast.error('No se pudo eliminar. Intentá de nuevo.', { duration: 5000 }); return }
+        toast.success(ids.length > 1 ? 'Movimientos eliminados' : 'Movimiento eliminado')
         onTxsChange((prev) => prev.filter((t) => !ids.includes(t.id)))
       }
       return
@@ -614,7 +623,9 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
     if (!amount || amount <= 0) {
       if (existing.length > 0) {
         const ids = existing.map((t) => t.id)
-        await supabase.from('transactions').delete().in('id', ids)
+        const { error } = await supabase.from('transactions').delete().in('id', ids)
+        if (error) { toast.error('No se pudo eliminar. Intentá de nuevo.', { duration: 5000 }); return }
+        toast.success(ids.length > 1 ? 'Movimientos eliminados' : 'Movimiento eliminado')
         onTxsChange((prev) => prev.filter((t) => !ids.includes(t.id)))
       }
       return
@@ -661,7 +672,9 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
       }
     }
     if (ids.length === 0) return
-    await supabase.from('transactions').delete().in('id', ids)
+    const { error } = await supabase.from('transactions').delete().in('id', ids)
+    if (error) { toast.error('No se pudo eliminar. Intentá de nuevo.', { duration: 5000 }); return }
+    toast.success(ids.length > 1 ? 'Movimientos eliminados' : 'Movimiento eliminado')
     onTxsChange((prev) => prev.filter((t) => !ids.includes(t.id)))
     clearSelection()
   }
@@ -728,7 +741,9 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
         const existing = lookup[`${day}-${catId}`] ?? []
         if (existing.length > 0) {
           const ids = existing.map((t) => t.id)
-          supabase.from('transactions').delete().in('id', ids).then(() => {
+          supabase.from('transactions').delete().in('id', ids).then(({ error }) => {
+            if (error) { toast.error('No se pudo eliminar. Intentá de nuevo.', { duration: 5000 }); return }
+            toast.success(ids.length > 1 ? 'Movimientos eliminados' : 'Movimiento eliminado')
             onTxsChange((prev) => prev.filter((t) => !ids.includes(t.id)))
           })
         }
@@ -777,8 +792,8 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
     transactions.filter((t) => t.type === 'income').sort((a, b) => a.date.localeCompare(b.date)),
     [transactions]
   )
-  const incomeTotalARS = incomeTxs.filter((t) => t.currency === 'ARS').reduce((s, t) => s + t.amount, 0)
-  const incomeTotalUSD = incomeTxs.filter((t) => t.currency === 'USD').reduce((s, t) => s + t.amount, 0)
+  const incomeTotalARS = incomeTxs.filter((t) => t.currency === 'ARS' && t.status !== 'cancelled').reduce((s, t) => s + t.amount, 0)
+  const incomeTotalUSD = incomeTxs.filter((t) => t.currency === 'USD' && t.status !== 'cancelled').reduce((s, t) => s + t.amount, 0)
 
   async function saveIncome() {
     const amount = parseMoneyInput(incomeAmount)
@@ -805,7 +820,9 @@ function GridView({ transactions, categories, currentMonth, userId, activeSheetI
   }
 
   async function deleteIncomeTx(id: string) {
-    await supabase.from('transactions').delete().eq('id', id)
+    const { error } = await supabase.from('transactions').delete().eq('id', id)
+    if (error) { toast.error('No se pudo eliminar. Intentá de nuevo.', { duration: 5000 }); return }
+    toast.success('Movimiento eliminado')
     onTxsChange((prev) => prev.filter((t) => t.id !== id))
   }
 
@@ -1324,6 +1341,7 @@ export function MFITransactionsClient({
   // Totals for footer based ONLY on the active sheet
   const totals = sheetTransactions.reduce(
     (acc, t) => {
+      if (t.status === 'cancelled') return acc
       if (t.type === 'income') {
         if (t.currency === 'USD') acc.incomeUSD += t.amount
         else acc.incomeARS += t.amount
@@ -1349,7 +1367,9 @@ export function MFITransactionsClient({
       .select()
       .single()
 
-    if (!error && data) {
+    if (error) { toast.error('No se pudo crear. Intentá de nuevo.', { duration: 5000 }); setSavingSheet(false); return }
+    if (data) {
+      toast.success('Hoja creada')
       setSheets([...sheets, data as MfiSheet])
       setActiveSheetId(data.id)
       setIsCreatingSheet(false)
@@ -1360,15 +1380,20 @@ export function MFITransactionsClient({
 
   async function handleRenameSheet(id: string, name: string) {
     if (!name.trim()) { setRenamingSheetId(null); return }
-    await supabase.from('mfi_sheets').update({ name: name.trim() }).eq('id', id)
+    const { error } = await supabase.from('mfi_sheets').update({ name: name.trim() }).eq('id', id)
+    if (error) { toast.error('No se pudo renombrar. Intentá de nuevo.', { duration: 5000 }); setRenamingSheetId(null); return }
+    toast.success('Hoja renombrada')
     setSheets((prev) => prev.map((s) => s.id === id ? { ...s, name: name.trim() } : s))
     setRenamingSheetId(null)
   }
 
   async function handleDeleteSheet(id: string) {
     // Move transactions to General (null sheet_id) before deleting
-    await supabase.from('transactions').update({ sheet_id: null }).eq('sheet_id', id)
-    await supabase.from('mfi_sheets').delete().eq('id', id)
+    const { error: moveError } = await supabase.from('transactions').update({ sheet_id: null }).eq('sheet_id', id)
+    if (moveError) { toast.error('No se pudo eliminar. Intentá de nuevo.', { duration: 5000 }); return }
+    const { error: deleteError } = await supabase.from('mfi_sheets').delete().eq('id', id)
+    if (deleteError) { toast.error('No se pudo eliminar. Intentá de nuevo.', { duration: 5000 }); return }
+    toast.success('Hoja eliminada')
     setSheets((prev) => prev.filter((s) => s.id !== id))
     setTxs((prev) => prev.map((t) => t.sheet_id === id ? { ...t, sheet_id: null } : t))
     if (activeSheetId === id) setActiveSheetId(null)
@@ -1376,7 +1401,9 @@ export function MFITransactionsClient({
   }
 
   async function handleDelete(id: string) {
-    await supabase.from('transactions').delete().eq('id', id)
+    const { error } = await supabase.from('transactions').delete().eq('id', id)
+    if (error) { toast.error('No se pudo eliminar. Intentá de nuevo.', { duration: 5000 }); return }
+    toast.success('Movimiento eliminado')
     setTxs((prev) => prev.filter((t) => t.id !== id))
     setEditingId(null)
   }

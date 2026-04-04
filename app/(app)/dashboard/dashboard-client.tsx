@@ -30,6 +30,7 @@ import {
   CalendarDays,
   Loader2,
   Repeat,
+  Info,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { QuickAddTransaction } from '@/components/quick-add-transaction'
@@ -40,6 +41,7 @@ import { PendingDebts } from '@/components/pending-debts'
 import { PendingTransactionsBar } from '@/components/pending-transactions-bar'
 import { MarketCard } from '@/components/market-card'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { TransactionTypeModal } from '@/components/transaction-type-modal'
 import { MonthlySummaryBanner } from '@/components/monthly-summary-banner'
 import type { Loan } from '@/lib/types'
@@ -54,6 +56,7 @@ interface DashboardClientProps {
   debts: Debt[]
   portfolios: Portfolio[]
   cumulativeSavings: { ARS: number; USD: number }
+  allPending: Transaction[]
   userEmail: string
   userId: string
   currentMonth: string // "YYYY-MM"
@@ -216,6 +219,7 @@ function buildChartData(transactions: Transaction[], ym: string) {
   const map: Record<number, { income: number; expenses: number; expensesUSD: number }> = {}
   for (let d = 1; d <= daysInMonth; d++) map[d] = { income: 0, expenses: 0, expensesUSD: 0 }
   for (const tx of transactions) {
+    if (tx.status === 'cancelled') continue
     const day = new Date(tx.date + 'T00:00:00').getDate()
     if (!map[day]) continue
     if (tx.type === 'income')  map[day].income += tx.amount
@@ -295,6 +299,7 @@ export function DashboardClient({
   debts,
   portfolios,
   cumulativeSavings,
+  allPending: initialAllPending,
   userEmail,
   userId,
   currentMonth,
@@ -318,6 +323,7 @@ export function DashboardClient({
   const [quickAddType, setQuickAddType] = useState<string | undefined>(undefined)
   const [greeting, setGreeting] = useState('')
   const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions)
+  const [allPending, setAllPending] = useState<Transaction[]>(initialAllPending)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [mounted, setMounted] = useState(false)
   const [openTypeModal, setOpenTypeModal] = useState<ModalType | null>(null)
@@ -365,7 +371,7 @@ export function DashboardClient({
   const currency  = profile?.default_currency ?? 'ARS'
 
   const sumBy = (type: string, cur: 'ARS' | 'USD') =>
-    transactions.filter((t) => t.type === type && t.currency === cur).reduce((s, t) => s + t.amount, 0)
+    transactions.filter((t) => t.type === type && t.currency === cur && t.status !== 'cancelled').reduce((s, t) => s + t.amount, 0)
 
   const incomeARS      = sumBy('income', 'ARS'),     incomeUSD      = sumBy('income', 'USD')
   const expensesARS    = sumBy('expense', 'ARS'),    expensesUSD    = sumBy('expense', 'USD')
@@ -386,6 +392,18 @@ export function DashboardClient({
   const balanceARS     = incomeARS - expensesARS - savingsTxARS - investTxARS
   const balanceUSD     = incomeUSD - expensesUSD - savingsTxUSD - investTxUSD
 
+  // Balance confirmado: solo movimientos con status 'confirmed'
+  const sumByConfirmed = (type: string, cur: 'ARS' | 'USD') =>
+    transactions.filter((t) => t.type === type && t.currency === cur && t.status === 'confirmed').reduce((s, t) => s + t.amount, 0)
+  const confirmedBalanceARS = sumByConfirmed('income', 'ARS') - sumByConfirmed('expense', 'ARS') - sumByConfirmed('savings', 'ARS') - sumByConfirmed('investment', 'ARS')
+  const confirmedBalanceUSD = sumByConfirmed('income', 'USD') - sumByConfirmed('expense', 'USD') - sumByConfirmed('savings', 'USD') - sumByConfirmed('investment', 'USD')
+
+  // Gastos pendientes (para el tooltip)
+  const pendingExpenses = transactions.filter((t) => t.type === 'expense' && t.status === 'pending')
+  const pendingExpenseARS = pendingExpenses.filter((t) => t.currency === 'ARS').reduce((s, t) => s + t.amount, 0)
+  const pendingExpenseUSD = pendingExpenses.filter((t) => t.currency === 'USD').reduce((s, t) => s + t.amount, 0)
+  const hasPending = pendingExpenses.length > 0
+
   function handleLoanResolved() {
     setPulseKpis(new Set(['Balance total', 'Ingresos']))
     router.refresh()
@@ -401,7 +419,7 @@ export function DashboardClient({
   // Pending transaction handlers
   async function handleConfirmOnePending(txId: string) {
     const { updateTransaction } = await import('@/app/(app)/transactions/actions')
-    const tx = transactions.find((t) => t.id === txId)
+    const tx = transactions.find((t) => t.id === txId) ?? allPending.find((t) => t.id === txId)
     if (!tx) return
     await updateTransaction({
       id: txId,
@@ -416,12 +434,18 @@ export function DashboardClient({
       is_recurring: tx.is_recurring,
     })
     setTransactions((prev) => prev.map((t) => t.id === txId ? { ...t, status: 'confirmed' } : t))
+    setAllPending((prev) => prev.filter((t) => t.id !== txId))
   }
 
   async function handleConfirmAllPending() {
     const { confirmAllPending } = await import('@/app/(app)/transactions/actions')
-    await confirmAllPending(currentMonth)
+    // Confirm all pending across all months
+    const pendingIds = new Set(allPending.map((t) => t.id))
+    // confirmAllPending only handles one month — call for each unique month
+    const months = [...new Set(allPending.map((t) => t.date.slice(0, 7)))]
+    await Promise.all(months.map((m) => confirmAllPending(m)))
     setTransactions((prev) => prev.map((t) => t.status === 'pending' ? { ...t, status: 'confirmed' } : t))
+    setAllPending([])
   }
 
   const filteredTxs  = txFilter === 'all' ? transactions : transactions.filter((t) => t.type === txFilter)
@@ -577,8 +601,26 @@ export function DashboardClient({
                   </div>
                   <div>
                     <KpiAmounts ars={ars} usd={usd} />
-                    <p className="text-[10px] text-muted-foreground font-semibold mt-1.5 uppercase tracking-wider leading-none">
+                    {label === 'Balance total' && hasPending && (
+                      <p className="text-[10px] text-muted-foreground font-mono tabular-nums mt-1 leading-none">
+                        Sin pendientes: {formatCurrency(confirmedBalanceARS, 'ARS')}
+                        {confirmedBalanceUSD !== 0 && ` · ${formatCurrency(confirmedBalanceUSD, 'USD')}`}
+                      </p>
+                    )}
+                    <p className="text-[10px] text-muted-foreground font-semibold mt-1.5 uppercase tracking-wider leading-none flex items-center gap-1">
                       {label}
+                      {label === 'Balance total' && hasPending && (
+                        <TooltipProvider delayDuration={200}>
+                          <UiTooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="w-3 h-3 text-muted-foreground/60 cursor-help" />
+                            </TooltipTrigger>
+                            <TooltipContent side="bottom" className="max-w-[260px] text-xs leading-relaxed">
+                              Incluye {pendingExpenses.length} gasto{pendingExpenses.length !== 1 ? 's' : ''} pendiente{pendingExpenses.length !== 1 ? 's' : ''} por {formatCurrency(pendingExpenseARS, 'ARS')}{pendingExpenseUSD > 0 ? ` + ${formatCurrency(pendingExpenseUSD, 'USD')}` : ''} que aún no fueron confirmados. El balance sin pendientes es {formatCurrency(confirmedBalanceARS, 'ARS')}{confirmedBalanceUSD !== 0 ? ` · ${formatCurrency(confirmedBalanceUSD, 'USD')}` : ''}.
+                            </TooltipContent>
+                          </UiTooltip>
+                        </TooltipProvider>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -588,7 +630,7 @@ export function DashboardClient({
 
           {/* Pending transactions collapsible bar */}
           <PendingTransactionsBar
-            transactions={transactions}
+            transactions={allPending}
             currentMonth={currentMonth}
             onConfirmOne={handleConfirmOnePending}
             onConfirmAll={handleConfirmAllPending}

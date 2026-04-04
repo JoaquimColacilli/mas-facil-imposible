@@ -48,7 +48,7 @@ export default async function DashboardPage({
     await generateRecurringTransactions(currentMonthParam)
   }
 
-  const [profileRes, txRes, goalsRes, loansRes, debtsRes, portfolioRes, savingsTxRes] = await Promise.all([
+  const [profileRes, txRes, goalsRes, loansRes, debtsRes, portfolioRes, savingsTxRes, allPendingRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', user.id).single(),
     supabase
       .from('transactions')
@@ -86,13 +86,21 @@ export default async function DashboardPage({
       .eq('type', 'savings')
       .lte('date', endOfMonth)
       .neq('status', 'cancelled'),
+    // All pending transactions (no month filter) for the collapsible bar
+    supabase
+      .from('transactions')
+      .select('*, category:categories(*)')
+      .eq('user_id', user.id)
+      .eq('status', 'pending')
+      .order('date', { ascending: false }),
   ])
 
-  const transactions = (txRes.data ?? []).map((r) => decryptRow(r) as Transaction)
-  const goals        = (goalsRes.data ?? []).map((r) => decryptRow(r) as Goal)
-  const loans        = (loansRes.data ?? []).map((r) => decryptRow(r) as Loan)
-  const debts        = (debtsRes.data ?? []).map((r) => decryptRow(r) as Debt)
-  const portfolios   = (portfolioRes.data ?? []) as Portfolio[]
+  const transactions  = (txRes.data ?? []).map((r) => decryptRow(r) as Transaction)
+  const goals         = (goalsRes.data ?? []).map((r) => decryptRow(r) as Goal)
+  const loans         = (loansRes.data ?? []).map((r) => decryptRow(r) as Loan)
+  const debts         = (debtsRes.data ?? []).map((r) => decryptRow(r) as Debt)
+  const portfolios    = (portfolioRes.data ?? []) as Portfolio[]
+  const allPending    = (allPendingRes.data ?? []).map((r) => decryptRow(r) as Transaction)
 
   // Cumulative savings balance (sum of all savings transactions up to end of month)
   const allSavingsTx = (savingsTxRes.data ?? []).map((r) => decryptRow(r) as Transaction)
@@ -110,6 +118,7 @@ export default async function DashboardPage({
       debts={debts}
       portfolios={portfolios}
       cumulativeSavings={cumulativeSavings}
+      allPending={allPending}
       userEmail={user.email ?? ''}
       userId={user.id}
       currentMonth={currentMonthParam}

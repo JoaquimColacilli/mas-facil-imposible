@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Camera, Loader2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { toast } from 'sonner'
 
 interface AvatarUploadProps {
   userId: string
@@ -83,6 +84,7 @@ export function AvatarUpload({ userId, currentUrl, fallbackInitials, onUploaded 
 
       if (uploadError) {
         console.error('Upload error:', uploadError.message)
+        toast.error('No se pudo subir. Intentá de nuevo.', { duration: 5000 })
         return
       }
 
@@ -95,9 +97,11 @@ export function AvatarUpload({ userId, currentUrl, fallbackInitials, onUploaded 
         .eq('id', userId)
 
       onUploaded(avatarUrl)
+      toast.success('Avatar actualizado')
       setImageSrc(null)
     } catch (err) {
       console.error('Crop/upload error:', err)
+      toast.error('No se pudo subir. Intentá de nuevo.', { duration: 5000 })
     } finally {
       setUploading(false)
     }
