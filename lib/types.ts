@@ -79,6 +79,7 @@ export interface Loan {
   date: string
   paid: boolean
   paid_at: string | null
+  resolved_transaction_id: string | null
   created_at: string
   updated_at: string
 }
@@ -93,6 +94,7 @@ export interface Debt {
   date: string
   paid: boolean
   paid_at: string | null
+  resolved_transaction_id: string | null
   created_at: string
   updated_at: string
 }

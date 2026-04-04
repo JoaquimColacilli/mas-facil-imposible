@@ -6,6 +6,54 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.19.0',
+    date: '2026-04-04',
+    changes: [
+      'Rediseño completo de la pantalla de Metas: grid responsive de cards con progress rings SVG animados',
+      'Agregado resumen global (hero) con total ahorrado, objetivo y progreso general por moneda',
+      'Cards de metas con dot de color, ring de progreso animado, barra lineal y menú contextual (pausar, reactivar, completar, eliminar)',
+      'Secciones colapsables para Activas, Pausadas y Completadas con headers de sección',
+      'Modal de depósito mejorado con saldo actual, cuánto falta y detección automática de meta completada con felicitación',
+      'Estado vacío premium centrado con CTA de crear meta',
+      'Indicador de deadline: warning amber si vence en menos de 30 días, rojo si ya venció'
+    ]
+  },
+  {
+    version: '0.18.6',
+    date: '2026-04-04',
+    changes: [
+      'Cooldown de refresh en Mercado y Dólar MEP ahora muestra contador regresivo en tiempo real (ej: Esperá 25s)'
+    ]
+  },
+  {
+    version: '0.18.5',
+    date: '2026-04-04',
+    changes: [
+      'Cobros y deudas: solo se muestran pendientes en la vista principal, los resueltos se ocultan',
+      'Agregado botón \'Ver todos\' con modal de historial completo de cobros y deudas',
+      'Agregado spinner de carga al marcar un cobro como cobrado o una deuda como pagada'
+    ]
+  },
+  {
+    version: '0.18.4',
+    date: '2026-04-04',
+    changes: [
+      'Al eliminar un cobro/deuda resuelto, se elimina también el movimiento asociado',
+      'Corregido: el dashboard ahora se refresca automáticamente al marcar cobro/deuda como resuelto',
+      'Agregada animación de pulso en las cards de KPI al resolver un cobro o deuda'
+    ]
+  },
+  {
+    version: '0.18.3',
+    date: '2026-04-04',
+    changes: [
+      'Cobros y deudas ahora crean movimientos al resolverse (ingreso/gasto)',
+      'Idempotencia con resolved_transaction_id para evitar duplicados',
+      'Toasts de confirmación al marcar cobro como cobrado o deuda como pagada',
+      'Categorías Cobros y Deudas se crean automáticamente si no existen'
+    ]
+  },
+  {
     version: '0.18.2',
     date: '2026-04-03',
     changes: [

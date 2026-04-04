@@ -400,7 +400,7 @@ export function MarketCard({ defaultExpanded = false, chartHeight = 32 }: Market
               <RefreshCw className="w-3.5 h-3.5" style={{ transform: spinning ? 'rotate(360deg)' : 'rotate(0deg)', transition: spinning ? 'transform 0.5s ease-out' : 'none' }} />
             </button>
           </TooltipTrigger>
-          <TooltipContent>{activePolling.onCooldown ? 'Esperá 30s' : 'Actualizar ahora'}</TooltipContent>
+          <TooltipContent>{activePolling.onCooldown ? `Esperá ${activePolling.cooldownRemaining}s` : 'Actualizar ahora'}</TooltipContent>
         </Tooltip>
       </div>
 

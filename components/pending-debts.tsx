@@ -8,6 +8,12 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { liveFormatMoney, parseMoneyInput, formatMoneyInput } from '@/components/money-input'
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
   CreditCard,
   Plus,
   Check,
@@ -15,11 +21,15 @@ import {
   Trash2,
   X,
   Clock,
+  Loader2,
+  History,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface PendingDebtsProps {
   initialDebts: Debt[]
   currency: 'ARS' | 'USD'
+  onResolved?: () => void
 }
 
 function AddDebtForm({
@@ -130,31 +140,42 @@ function DebtRow({
   onMarkPaid,
   onEdit,
   onDelete,
+  loadingId,
 }: {
   debt: Debt
   onMarkPaid: (id: string) => void
   onEdit: (debt: Debt) => void
   onDelete: (id: string) => void
+  loadingId: string | null
 }) {
   const [confirming, setConfirming] = useState(false)
+  const isLoading = loadingId === debt.id
 
   return (
     <div className={cn(
       'group flex items-center gap-2.5 px-3 py-2.5 border-b border-border last:border-0 transition-colors duration-100 hover:bg-muted/20',
       debt.paid && 'opacity-50',
+      isLoading && 'opacity-60 pointer-events-none',
     )}>
-      {/* Status dot */}
+      {/* Status dot / loading */}
       <button
-        onClick={() => !debt.paid && onMarkPaid(debt.id)}
+        onClick={() => !debt.paid && !isLoading && onMarkPaid(debt.id)}
         title={debt.paid ? 'Pagada' : 'Marcar como pagada'}
+        disabled={isLoading}
         className={cn(
           'w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all duration-150',
-          debt.paid
-            ? 'bg-emerald-500 border-emerald-500 text-white'
-            : 'border-border hover:border-emerald-500 hover:bg-emerald-500/10',
+          isLoading
+            ? 'border-rose-500/50 bg-rose-500/10'
+            : debt.paid
+              ? 'bg-emerald-500 border-emerald-500 text-white'
+              : 'border-border hover:border-emerald-500 hover:bg-emerald-500/10',
         )}
       >
-        {debt.paid && <Check className="w-3 h-3" />}
+        {isLoading ? (
+          <Loader2 className="w-3 h-3 animate-spin text-rose-500" />
+        ) : debt.paid ? (
+          <Check className="w-3 h-3" />
+        ) : null}
       </button>
 
       <div className="flex-1 min-w-0">
@@ -172,62 +193,77 @@ function DebtRow({
       </span>
 
       {/* Actions — visible on hover */}
-      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-100 shrink-0">
-        {!debt.paid && (
-          <button
-            onClick={() => onEdit(debt)}
-            className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-          >
-            <Pencil className="w-2.5 h-2.5" />
-          </button>
-        )}
-        {confirming ? (
-          <>
+      {!isLoading && (
+        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-100 shrink-0">
+          {!debt.paid && (
             <button
-              onClick={() => { onDelete(debt.id); setConfirming(false) }}
-              className="w-5 h-5 rounded flex items-center justify-center text-rose-500 hover:bg-rose-500/10 transition-colors"
+              onClick={() => onEdit(debt)}
+              className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             >
-              <Check className="w-2.5 h-2.5" />
+              <Pencil className="w-2.5 h-2.5" />
             </button>
+          )}
+          {confirming ? (
+            <>
+              <button
+                onClick={() => { onDelete(debt.id); setConfirming(false) }}
+                className="w-5 h-5 rounded flex items-center justify-center text-rose-500 hover:bg-rose-500/10 transition-colors"
+              >
+                <Check className="w-2.5 h-2.5" />
+              </button>
+              <button
+                onClick={() => setConfirming(false)}
+                className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground hover:bg-muted transition-colors"
+              >
+                <X className="w-2.5 h-2.5" />
+              </button>
+            </>
+          ) : (
             <button
-              onClick={() => setConfirming(false)}
-              className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground hover:bg-muted transition-colors"
+              onClick={() => setConfirming(true)}
+              className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
             >
-              <X className="w-2.5 h-2.5" />
+              <Trash2 className="w-2.5 h-2.5" />
             </button>
-          </>
-        ) : (
-          <button
-            onClick={() => setConfirming(true)}
-            className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
-          >
-            <Trash2 className="w-2.5 h-2.5" />
-          </button>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
 
-export function PendingDebts({ initialDebts, currency }: PendingDebtsProps) {
+export function PendingDebts({ initialDebts, currency, onResolved }: PendingDebtsProps) {
   const [debts, setDebts] = useState<Debt[]>(initialDebts)
   const [showAdd, setShowAdd] = useState(false)
   const [editingDebt, setEditingDebt] = useState<Debt | null>(null)
+  const [loadingId, setLoadingId] = useState<string | null>(null)
+  const [showHistory, setShowHistory] = useState(false)
 
   const pending = debts.filter((d) => !d.paid)
   const paid    = debts.filter((d) => d.paid)
   const totalPending = pending.reduce((s, d) => d.currency === currency ? s + d.amount : s, 0)
 
   async function handleMarkPaid(id: string) {
+    const debt = debts.find((d) => d.id === id)
+    setLoadingId(id)
     const { markDebtPaid } = await import('@/app/(app)/dashboard/actions')
     const { data } = await markDebtPaid(id)
-    if (data) setDebts((prev) => prev.map((d) => d.id === id ? data : d))
+    setLoadingId(null)
+    if (data) {
+      setDebts((prev) => prev.map((d) => d.id === id ? data : d))
+      if (debt) {
+        toast.success(`Deuda registrada como gasto · -${formatCurrency(debt.amount, debt.currency)}`)
+      }
+      onResolved?.()
+    }
   }
 
   async function handleDelete(id: string) {
+    const debt = debts.find((d) => d.id === id)
     const { deleteDebt } = await import('@/app/(app)/dashboard/actions')
     await deleteDebt(id)
     setDebts((prev) => prev.filter((d) => d.id !== id))
+    if (debt?.paid) onResolved?.()
   }
 
   function handleAdded(debt: Debt) {
@@ -241,45 +277,45 @@ export function PendingDebts({ initialDebts, currency }: PendingDebtsProps) {
   }
 
   return (
-    <div className="bg-card border border-border rounded-2xl overflow-hidden animate-fade-in-up flex flex-col" style={{ animationDelay: '120ms', animationFillMode: 'both' }}>
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-        <div className="flex items-center gap-2">
-          <CreditCard className="w-3.5 h-3.5 text-rose-500" />
-          <h2 className="text-[11px] font-bold text-muted-foreground tracking-[0.1em] uppercase">Deudas pendientes</h2>
-        </div>
-        <button
-          onClick={() => { setShowAdd(true); setEditingDebt(null) }}
-          className="w-6 h-6 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all duration-100"
-          title="Agregar deuda"
-        >
-          <Plus className="w-3.5 h-3.5" />
-        </button>
-      </div>
-
-      {/* Total */}
-      {pending.length > 0 && (
-        <div className="px-4 py-2 bg-rose-500/5 border-b border-rose-500/15 flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-[11px] text-rose-500/80">
-            <Clock className="w-3 h-3" />
-            <span>{pending.length} pendiente{pending.length !== 1 ? 's' : ''}</span>
+    <>
+      <div className="bg-card border border-border rounded-2xl overflow-hidden animate-fade-in-up flex flex-col" style={{ animationDelay: '120ms', animationFillMode: 'both' }}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+          <div className="flex items-center gap-2">
+            <CreditCard className="w-3.5 h-3.5 text-rose-500" />
+            <h2 className="text-[11px] font-bold text-muted-foreground tracking-[0.1em] uppercase">Deudas pendientes</h2>
           </div>
-          <span className="text-[12px] font-bold font-mono tabular-nums text-rose-500">
-            {formatCurrency(totalPending, currency)}
-          </span>
+          <button
+            onClick={() => { setShowAdd(true); setEditingDebt(null) }}
+            className="w-6 h-6 rounded-lg flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-primary/10 transition-all duration-100"
+            title="Agregar deuda"
+          >
+            <Plus className="w-3.5 h-3.5" />
+          </button>
         </div>
-      )}
 
-      {/* Rows */}
-      <div className="flex flex-col overflow-y-auto max-h-[220px]">
-        {debts.length === 0 && !showAdd ? (
-          <div className="flex flex-col items-center gap-2 py-6 text-center px-4">
-            <CreditCard className="w-7 h-7 text-muted-foreground/30" />
-            <p className="text-[12px] text-muted-foreground">Sin deudas registradas</p>
+        {/* Total */}
+        {pending.length > 0 && (
+          <div className="px-4 py-2 bg-rose-500/5 border-b border-rose-500/15 flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-[11px] text-rose-500/80">
+              <Clock className="w-3 h-3" />
+              <span>{pending.length} pendiente{pending.length !== 1 ? 's' : ''}</span>
+            </div>
+            <span className="text-[12px] font-bold font-mono tabular-nums text-rose-500">
+              {formatCurrency(totalPending, currency)}
+            </span>
           </div>
-        ) : (
-          <>
-            {pending.map((d) =>
+        )}
+
+        {/* Rows — only pending */}
+        <div className="flex flex-col overflow-y-auto max-h-[220px]">
+          {pending.length === 0 && !showAdd ? (
+            <div className="flex flex-col items-center gap-2 py-6 text-center px-4">
+              <CreditCard className="w-7 h-7 text-muted-foreground/30" />
+              <p className="text-[12px] text-muted-foreground">Sin deudas pendientes</p>
+            </div>
+          ) : (
+            pending.map((d) =>
               editingDebt?.id === d.id ? (
                 <EditDebtInline
                   key={d.id}
@@ -294,12 +330,66 @@ export function PendingDebts({ initialDebts, currency }: PendingDebtsProps) {
                   onMarkPaid={handleMarkPaid}
                   onEdit={setEditingDebt}
                   onDelete={handleDelete}
+                  loadingId={loadingId}
                 />
               ),
+            )
+          )}
+        </div>
+
+        {/* Ver todos button */}
+        {paid.length > 0 && (
+          <button
+            onClick={() => setShowHistory(true)}
+            className="flex items-center justify-center gap-1.5 px-4 py-2 border-t border-border text-[11px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors"
+          >
+            <History className="w-3 h-3" />
+            Ver todos ({paid.length} pagada{paid.length !== 1 ? 's' : ''})
+          </button>
+        )}
+
+        {/* Add form */}
+        {showAdd && (
+          <AddDebtForm
+            currency={currency}
+            onSave={handleAdded}
+            onCancel={() => setShowAdd(false)}
+          />
+        )}
+      </div>
+
+      {/* History modal */}
+      <Dialog open={showHistory} onOpenChange={setShowHistory}>
+        <DialogContent className="max-w-md max-h-[80vh] flex flex-col gap-0 p-0">
+          <DialogHeader className="px-5 pt-5 pb-3">
+            <DialogTitle className="text-[14px] font-semibold flex items-center gap-2">
+              <CreditCard className="w-4 h-4 text-rose-500" />
+              Historial de deudas
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col overflow-y-auto border-t border-border">
+            {/* Pending section */}
+            {pending.length > 0 && (
+              <>
+                <div className="px-4 py-2 text-[10px] font-semibold text-rose-500/80 uppercase tracking-wider bg-rose-500/5">
+                  Pendientes ({pending.length})
+                </div>
+                {pending.map((d) => (
+                  <DebtRow
+                    key={d.id}
+                    debt={d}
+                    onMarkPaid={handleMarkPaid}
+                    onEdit={(debt) => { setEditingDebt(debt); setShowHistory(false) }}
+                    onDelete={handleDelete}
+                    loadingId={loadingId}
+                  />
+                ))}
+              </>
             )}
+            {/* Paid section */}
             {paid.length > 0 && (
               <>
-                <div className="px-3 py-1.5 text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wider bg-muted/20">
+                <div className="px-4 py-2 text-[10px] font-semibold text-emerald-500/80 uppercase tracking-wider bg-emerald-500/5">
                   Pagadas ({paid.length})
                 </div>
                 {paid.map((d) => (
@@ -309,23 +399,21 @@ export function PendingDebts({ initialDebts, currency }: PendingDebtsProps) {
                     onMarkPaid={handleMarkPaid}
                     onEdit={setEditingDebt}
                     onDelete={handleDelete}
+                    loadingId={loadingId}
                   />
                 ))}
               </>
             )}
-          </>
-        )}
-      </div>
-
-      {/* Add form */}
-      {showAdd && (
-        <AddDebtForm
-          currency={currency}
-          onSave={handleAdded}
-          onCancel={() => setShowAdd(false)}
-        />
-      )}
-    </div>
+            {debts.length === 0 && (
+              <div className="flex flex-col items-center gap-2 py-8 text-center px-4">
+                <CreditCard className="w-7 h-7 text-muted-foreground/30" />
+                <p className="text-[12px] text-muted-foreground">Sin deudas registradas</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   )
 }
 

@@ -42,7 +42,7 @@ function spreadPct(quote: DolarQuote) {
 }
 
 export function UsdCotizacionWidget() {
-  const { data, isStale, lastUpdated, refetch, onCooldown } = usePolling<DolarPollData>({
+  const { data, isStale, lastUpdated, refetch, onCooldown, cooldownRemaining } = usePolling<DolarPollData>({
     key: 'mfi-usd-rates',
     fetcher: fetchDolarDataRaw,
     intervalMs: 5 * 60 * 1000,
@@ -196,7 +196,7 @@ export function UsdCotizacionWidget() {
           </button>
         </TooltipTrigger>
         <TooltipContent>
-          {onCooldown ? 'Espera 30s' : 'Actualizar ahora'}
+          {onCooldown ? `Esperá ${cooldownRemaining}s` : 'Actualizar ahora'}
         </TooltipContent>
       </Tooltip>
     </div>

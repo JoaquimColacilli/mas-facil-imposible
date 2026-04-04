@@ -23,8 +23,10 @@ interface UsePollingResult<T> {
   lastUpdated: Date | null
   /** Manual refetch — returns a promise. Respects cooldown. */
   refetch: () => Promise<void>
-  /** True if manual refresh is on cooldown (30s) */
+  /** True if manual refresh is on cooldown */
   onCooldown: boolean
+  /** Seconds remaining on cooldown (0 when not on cooldown) */
+  cooldownRemaining: number
 }
 
 const COOLDOWN_MS = 30_000
@@ -55,9 +57,10 @@ export function usePolling<T>({
   cacheTtlMs,
 }: UsePollingOptions<T>): UsePollingResult<T> {
   const ttl = cacheTtlMs ?? intervalMs
-  const [onCooldown, setOnCooldown] = useState(false)
+  const [cooldownEnd, setCooldownEnd] = useState<number>(0)
+  const [cooldownRemaining, setCooldownRemaining] = useState(0)
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
-  const cooldownTimer = useRef<ReturnType<typeof setTimeout>>()
+  const tickTimer = useRef<ReturnType<typeof setInterval>>(null)
 
   // Wrapped fetcher: try network, fallback to sessionStorage
   const wrappedFetcher = useCallback(async () => {
@@ -94,18 +97,31 @@ export function usePolling<T>({
 
   const isStale = !!(data && !isValidating && lastUpdated && Date.now() - lastUpdated.getTime() > ttl)
 
-  const refetch = useCallback(async () => {
-    if (onCooldown) return
-    setOnCooldown(true)
-    cooldownTimer.current = setTimeout(() => setOnCooldown(false), COOLDOWN_MS)
-    await mutate()
-  }, [onCooldown, mutate])
+  const onCooldown = cooldownRemaining > 0
 
+  const refetch = useCallback(async () => {
+    if (cooldownEnd > Date.now()) return
+    const end = Date.now() + COOLDOWN_MS
+    setCooldownEnd(end)
+    setCooldownRemaining(Math.ceil(COOLDOWN_MS / 1000))
+    await mutate()
+  }, [cooldownEnd, mutate])
+
+  // Tick the countdown every second while on cooldown
   useEffect(() => {
-    return () => {
-      if (cooldownTimer.current) clearTimeout(cooldownTimer.current)
-    }
-  }, [])
+    if (cooldownEnd <= Date.now()) return
+    tickTimer.current = setInterval(() => {
+      const remaining = Math.ceil((cooldownEnd - Date.now()) / 1000)
+      if (remaining <= 0) {
+        setCooldownRemaining(0)
+        setCooldownEnd(0)
+        if (tickTimer.current) clearInterval(tickTimer.current)
+      } else {
+        setCooldownRemaining(remaining)
+      }
+    }, 1000)
+    return () => { if (tickTimer.current) clearInterval(tickTimer.current) }
+  }, [cooldownEnd])
 
   return {
     data: data ?? null,
@@ -114,5 +130,6 @@ export function usePolling<T>({
     lastUpdated,
     refetch,
     onCooldown,
+    cooldownRemaining,
   }
 }

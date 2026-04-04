@@ -323,6 +323,7 @@ export function DashboardClient({
   const [openTypeModal, setOpenTypeModal] = useState<ModalType | null>(null)
   const [txFilter, setTxFilter] = useState<'all' | 'income' | 'expense' | 'savings' | 'investment'>('all')
   const [txPage, setTxPage] = useState(0)
+  const [pulseKpis, setPulseKpis] = useState<Set<string>>(new Set())
   const TX_PAGE_SIZE = 8
   const [txSearch, setTxSearch] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
@@ -384,6 +385,18 @@ export function DashboardClient({
   // Balance mensual: usa flujos del mes (depósitos de ahorro/inversión del mes, no acumulados)
   const balanceARS     = incomeARS - expensesARS - savingsTxARS - investTxARS
   const balanceUSD     = incomeUSD - expensesUSD - savingsTxUSD - investTxUSD
+
+  function handleLoanResolved() {
+    setPulseKpis(new Set(['Balance total', 'Ingresos']))
+    router.refresh()
+    setTimeout(() => setPulseKpis(new Set()), 1500)
+  }
+
+  function handleDebtResolved() {
+    setPulseKpis(new Set(['Balance total', 'Gastos']))
+    router.refresh()
+    setTimeout(() => setPulseKpis(new Set()), 1500)
+  }
 
   // Pending transaction handlers
   async function handleConfirmOnePending(txId: string) {
@@ -514,6 +527,11 @@ export function DashboardClient({
 
               const isInvestment = label === 'Inversiones'
               const isClickable = !!modalType || isInvestment
+              const isPulsing = pulseKpis.has(label)
+              const pulseRing =
+                isPulsing && label === 'Ingresos'       ? 'ring-2 ring-emerald-500/50' :
+                isPulsing && label === 'Gastos'          ? 'ring-2 ring-rose-500/50'    :
+                isPulsing && label === 'Balance total'   ? 'ring-2 ring-primary/50'     : ''
 
               return isClickable ? (
                 <button
@@ -528,6 +546,8 @@ export function DashboardClient({
                   className={cn(
                     'group flex flex-col gap-3 rounded-2xl border bg-card p-4 transition-all duration-200 hover:shadow-md hover:-translate-y-[2px] animate-fade-in-up text-left cursor-pointer',
                     activeBorder, borderHover,
+                    isPulsing && 'animate-kpi-pulse',
+                    pulseRing,
                   )}
                   style={{ animationDelay: `${idx * 60}ms`, animationFillMode: 'both' }}
                 >
@@ -545,7 +565,11 @@ export function DashboardClient({
               ) : (
                 <div
                   key={label}
-                  className="group flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 transition-all duration-200 hover:shadow-md hover:-translate-y-[2px] animate-fade-in-up"
+                  className={cn(
+                    'group flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 transition-all duration-200 hover:shadow-md hover:-translate-y-[2px] animate-fade-in-up',
+                    isPulsing && 'animate-kpi-pulse',
+                    pulseRing,
+                  )}
                   style={{ animationDelay: `${idx * 60}ms`, animationFillMode: 'both' }}
                 >
                   <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110', bg)}>
@@ -988,10 +1012,10 @@ export function DashboardClient({
           </div>
 
           {/* Deudas pendientes */}
-          <PendingDebts initialDebts={debts} currency={currency as 'ARS' | 'USD'} />
+          <PendingDebts initialDebts={debts} currency={currency as 'ARS' | 'USD'} onResolved={handleDebtResolved} />
 
           {/* Cobros pendientes */}
-          <PendingLoans initialLoans={loans} currency={currency as 'ARS' | 'USD'} />
+          <PendingLoans initialLoans={loans} currency={currency as 'ARS' | 'USD'} onResolved={handleLoanResolved} />
 
           {/* Mercado argentino */}
           <MarketCard />
