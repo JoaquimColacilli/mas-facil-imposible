@@ -45,6 +45,13 @@ export function PendingTransactionsBar({
     }
   }, [pending.length, expanded])
 
+  // Listen for external expand requests (from month-alerts-banner)
+  useEffect(() => {
+    function handleExpand() { setExpanded(true) }
+    window.addEventListener('expand-pending-bar', handleExpand)
+    return () => window.removeEventListener('expand-pending-bar', handleExpand)
+  }, [])
+
   // Group by month (YYYY-MM) for display
   const grouped = useMemo(() => {
     const map = new Map<string, Transaction[]>()
@@ -96,7 +103,7 @@ export function PendingTransactionsBar({
   }
 
   return (
-    <div className="bg-amber-500/8 dark:bg-amber-500/5 border border-amber-500/20 rounded-2xl overflow-hidden animate-fade-in-up">
+    <div data-pending-bar className="bg-amber-500/8 dark:bg-amber-500/5 border border-amber-500/20 rounded-2xl overflow-hidden animate-fade-in-up">
       {/* Summary bar */}
       <div
         role="button"

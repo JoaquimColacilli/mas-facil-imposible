@@ -12,6 +12,7 @@ import {
   Settings,
   Bell,
   Plus,
+  Search,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -82,6 +83,20 @@ export function DesktopSidebar() {
           <Plus className="w-3.5 h-3.5 shrink-0" />
           Agregar movimiento
         </Link>
+      </div>
+
+      {/* Search trigger */}
+      <div className="px-3 pt-2">
+        <button
+          onClick={() => window.dispatchEvent(new CustomEvent('open-command-palette'))}
+          className="flex items-center gap-2 w-full px-3 py-2 rounded-xl border border-sidebar-border bg-sidebar-accent/30 text-[12px] text-sidebar-foreground/45 font-medium hover:text-sidebar-foreground hover:bg-sidebar-accent/60 transition-all duration-150"
+        >
+          <Search className="w-3.5 h-3.5 shrink-0" />
+          <span className="flex-1 text-left">Buscar...</span>
+          <kbd className="text-[10px] font-mono text-sidebar-foreground/30 bg-sidebar-accent/60 border border-sidebar-border rounded px-1.5 py-0.5">
+            Ctrl K
+          </kbd>
+        </button>
       </div>
 
       {/* Nav links */}

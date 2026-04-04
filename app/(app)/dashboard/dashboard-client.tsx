@@ -44,6 +44,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { TransactionTypeModal } from '@/components/transaction-type-modal'
 import { MonthlySummaryBanner } from '@/components/monthly-summary-banner'
+import { MonthAlertsBanner } from '@/components/month-alerts-banner'
 import type { Loan } from '@/lib/types'
 
 type ModalType = 'income' | 'savings'
@@ -439,13 +440,19 @@ export function DashboardClient({
 
   async function handleConfirmAllPending() {
     const { confirmAllPending } = await import('@/app/(app)/transactions/actions')
-    // Confirm all pending across all months
-    const pendingIds = new Set(allPending.map((t) => t.id))
     // confirmAllPending only handles one month — call for each unique month
     const months = [...new Set(allPending.map((t) => t.date.slice(0, 7)))]
     await Promise.all(months.map((m) => confirmAllPending(m)))
     setTransactions((prev) => prev.map((t) => t.status === 'pending' ? { ...t, status: 'confirmed' } : t))
     setAllPending([])
+  }
+
+  async function handleConfirmCarryover(months: string[]) {
+    const { confirmAllPending } = await import('@/app/(app)/transactions/actions')
+    const carryoverIds = new Set(allPending.filter((t) => months.includes(t.date.slice(0, 7))).map((t) => t.id))
+    await Promise.all(months.map((m) => confirmAllPending(m)))
+    setTransactions((prev) => prev.map((t) => carryoverIds.has(t.id) ? { ...t, status: 'confirmed' } : t))
+    setAllPending((prev) => prev.filter((t) => !carryoverIds.has(t.id)))
   }
 
   const filteredTxs  = txFilter === 'all' ? transactions : transactions.filter((t) => t.type === txFilter)
@@ -524,6 +531,13 @@ export function DashboardClient({
           </Button>
         </div>
       </div>
+
+      {/* ── Month alerts (closing / carryover) ─────────────────────── */}
+      <MonthAlertsBanner
+        allPending={allPending}
+        currentMonth={currentMonth}
+        onConfirmCarryover={handleConfirmCarryover}
+      />
 
       {/* ── 3-zone layout ──────────────────────────────────────────── */}
       <div className={cn(

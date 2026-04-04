@@ -6,6 +6,23 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.21.1',
+    date: '2026-04-04',
+    changes: [
+      'Alerta de cierre de mes cuando hay pendientes en los últimos 5 días',
+      'Alerta de pendientes arrastrados de meses anteriores en los primeros 5 días del mes',
+      'Botón Revisar pendientes hace scroll y expande la barra de pendientes'
+    ]
+  },
+  {
+    version: '0.21.0',
+    date: '2026-04-04',
+    changes: [
+      'Command Palette global con Ctrl+K: navegación, acciones rápidas y búsqueda de movimientos',
+      'Botón de búsqueda en el sidebar con hint de atajo Ctrl K'
+    ]
+  },
+  {
     version: '0.20.0',
     date: '2026-04-04',
     changes: [
