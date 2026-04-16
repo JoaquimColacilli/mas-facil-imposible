@@ -6,6 +6,50 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.21.6',
+    date: '2026-04-16',
+    changes: [
+      'Retiro de ahorro ahora pide moneda (ARS/USD) — evita retirar en una moneda que no tenés por error',
+      'El selector de moneda se autoajusta al portfolio cuando traspasás ahorro a inversión',
+      'El default de moneda al retirar es la moneda con mayor saldo positivo en ahorros',
+      'Debajo del monto se muestra el saldo disponible por moneda'
+    ]
+  },
+  {
+    version: '0.21.5',
+    date: '2026-04-16',
+    changes: [
+      'Modal de Inversiones: skeleton durante la carga al cambiar Mes/Año',
+      'Modal de Inversiones: cache por período — switchear entre Mes y Año es instantáneo la segunda vez'
+    ]
+  },
+  {
+    version: '0.21.4',
+    date: '2026-04-16',
+    changes: [
+      'Modal de Inversiones: fallback heurístico para logs sin campo type (pre-migración 009) — los colores y el neto del mes vuelven a funcionar',
+      'Modal de Ahorros ahora muestra el total acumulado (gran número) y el delta del mes en el subtítulo',
+      'Totales de ingresos/ahorros/inversiones muestran signo menos y color rojo cuando son negativos'
+    ]
+  },
+  {
+    version: '0.21.3',
+    date: '2026-04-16',
+    changes: [
+      'portfolio_logs ahora tiene campo type (yield/deposit/rescue) — detección exacta sin heurísticas',
+      'Aportes desde ahorros se muestran con badge APORTE y color celeste en Movimientos'
+    ]
+  },
+  {
+    version: '0.21.2',
+    date: '2026-04-16',
+    changes: [
+      'Modal de Inversiones: selector Mes/Año, neto del período al pie y altura máxima más compacta',
+      'Ahorros del dashboard ahora reflejan retiros al instante sin recargar',
+      'Corregido display de saldos negativos en tarjetas KPI (muestra signo menos)'
+    ]
+  },
+  {
     version: '0.21.1',
     date: '2026-04-04',
     changes: [

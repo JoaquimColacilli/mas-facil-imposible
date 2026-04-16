@@ -279,13 +279,13 @@ function KpiAmounts({ ars, usd }: { ars: number; usd: number }) {
   return (
     <div className="flex flex-col gap-0.5">
       {hasARS && (
-        <p className="font-mono tabular-nums font-bold text-[17px] leading-none tracking-tight text-foreground">
-          {formatCurrency(ars, 'ARS')}
+        <p className={cn('font-mono tabular-nums font-bold text-[17px] leading-none tracking-tight', ars < 0 ? 'text-rose-400' : 'text-foreground')}>
+          {ars < 0 ? '-' : ''}{formatCurrency(ars, 'ARS')}
         </p>
       )}
       {hasUSD && (
-        <p className={cn('font-mono tabular-nums font-bold leading-none tracking-tight text-foreground', hasARS ? 'text-[13px] text-muted-foreground' : 'text-[17px]')}>
-          {formatCurrency(usd, 'USD')}
+        <p className={cn('font-mono tabular-nums font-bold leading-none tracking-tight', hasARS ? 'text-[13px]' : 'text-[17px]', usd < 0 ? 'text-rose-400' : hasARS ? 'text-muted-foreground' : 'text-foreground')}>
+          {usd < 0 ? '-' : ''}{formatCurrency(usd, 'USD')}
         </p>
       )}
     </div>
@@ -324,6 +324,7 @@ export function DashboardClient({
   const [quickAddType, setQuickAddType] = useState<string | undefined>(undefined)
   const [greeting, setGreeting] = useState('')
   const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions)
+  const [cumSavings, setCumSavings] = useState(cumulativeSavings)
   const [allPending, setAllPending] = useState<Transaction[]>(initialAllPending)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [mounted, setMounted] = useState(false)
@@ -354,6 +355,10 @@ export function DashboardClient({
     setTransactions(initialTransactions)
   }, [initialTransactions])
 
+  useEffect(() => {
+    setCumSavings(cumulativeSavings)
+  }, [cumulativeSavings])
+
   useEffect(() => { setMounted(true) }, [])
 
   useEffect(() => {
@@ -379,9 +384,9 @@ export function DashboardClient({
   const savingsTxARS   = sumBy('savings', 'ARS'),    savingsTxUSD   = sumBy('savings', 'USD')
   const investTxARS    = sumBy('investment', 'ARS'), investTxUSD    = sumBy('investment', 'USD')
 
-  // Ahorros: usar saldo acumulado (no depende del mes)
-  const savingsARS = cumulativeSavings.ARS > 0 ? cumulativeSavings.ARS : savingsTxARS
-  const savingsUSD = cumulativeSavings.USD > 0 ? cumulativeSavings.USD : savingsTxUSD
+  // Ahorros: usar saldo acumulado real (puede ser negativo si hubo retiros sin depósitos)
+  const savingsARS = cumSavings.ARS
+  const savingsUSD = cumSavings.USD
 
   // Inversiones: usar saldo acumulado de portfolios (no depende del mes)
   const portfolioARS = portfolios.filter(p => p.currency === 'ARS').reduce((s, p) => s + Number(p.balance), 0)
@@ -1113,9 +1118,22 @@ export function DashboardClient({
           currency={currency as 'ARS' | 'USD'}
           currentMonth={currentMonth}
           portfolios={portfolios}
+          cumulative={openTypeModal === 'savings' ? cumSavings : undefined}
           onClose={() => setOpenTypeModal(null)}
           onChanged={(updated) => {
             const type = openTypeModal
+            if (type === 'savings') {
+              const oldList = transactions.filter((t) => t.type === 'savings' && t.status !== 'cancelled')
+              const oldARS = oldList.filter((t) => t.currency === 'ARS').reduce((s, t) => s + t.amount, 0)
+              const oldUSD = oldList.filter((t) => t.currency === 'USD').reduce((s, t) => s + t.amount, 0)
+              const newList = updated.filter((t) => t.status !== 'cancelled')
+              const newARS = newList.filter((t) => t.currency === 'ARS').reduce((s, t) => s + t.amount, 0)
+              const newUSD = newList.filter((t) => t.currency === 'USD').reduce((s, t) => s + t.amount, 0)
+              setCumSavings((prev) => ({
+                ARS: prev.ARS + (newARS - oldARS),
+                USD: prev.USD + (newUSD - oldUSD),
+              }))
+            }
             setTransactions((prev) => [
               ...prev.filter((t) => t.type !== type),
               ...updated,

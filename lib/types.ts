@@ -108,6 +108,8 @@ export interface Portfolio {
   created_at: string
 }
 
+export type PortfolioLogType = 'yield' | 'deposit' | 'rescue'
+
 export interface PortfolioLog {
   id: string
   portfolio_id: string
@@ -115,6 +117,8 @@ export interface PortfolioLog {
   percentage_change: number
   absolute_change: number
   new_balance: number
+  // Optional until migration 009 is applied; the reader falls back to a heuristic.
+  type: PortfolioLogType | null
   created_at: string
 }
 

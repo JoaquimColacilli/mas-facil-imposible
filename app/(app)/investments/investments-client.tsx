@@ -359,7 +359,7 @@ export function InvestmentsClient({ portfolios: initialPortfolios, logs: initial
         const newBal = Number(update.final)
         const oldBal = Number(p.balance)
         const pct = update.pct ? Number(update.pct) : (((newBal / oldBal) - 1) * 100)
-        logsToInsert.push({ portfolio_id: p.id, date: todayISO(), percentage_change: pct, absolute_change: newBal - oldBal, new_balance: newBal })
+        logsToInsert.push({ portfolio_id: p.id, date: todayISO(), percentage_change: pct, absolute_change: newBal - oldBal, new_balance: newBal, type: 'yield' as const })
       }
       if (logsToInsert.length > 0) {
         await supabase.from('portfolio_logs').insert(logsToInsert)
@@ -395,6 +395,7 @@ export function InvestmentsClient({ portfolios: initialPortfolios, logs: initial
       await supabase.from('portfolio_logs').insert({
         portfolio_id: port.id, date: todayISO(),
         percentage_change: pct, absolute_change: -amount, new_balance: newBalance,
+        type: 'rescue' as const,
       })
       await supabase.from('portfolios').update({ balance: newBalance }).eq('id', port.id)
 

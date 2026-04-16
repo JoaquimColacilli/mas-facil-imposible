@@ -335,12 +335,13 @@ export interface TransactionTypeModalProps {
   currency: Currency
   currentMonth: string
   portfolios?: Portfolio[]
+  cumulative?: { ARS: number; USD: number }
   onClose: () => void
   onChanged: (updated: Transaction[]) => void
 }
 
 export function TransactionTypeModal({
-  type, transactions: initialTxs, currency, currentMonth, portfolios = [], onClose, onChanged,
+  type, transactions: initialTxs, currency, currentMonth, portfolios = [], cumulative, onClose, onChanged,
 }: TransactionTypeModalProps) {
   const supabase = createClient()
   const cfg = TYPE_CFG[type]
@@ -351,8 +352,23 @@ export function TransactionTypeModal({
   // Withdraw state (savings only)
   const [withdrawing, setWithdrawing] = useState(false)
   const [withdrawAmount, setWithdrawAmount] = useState('')
+  const [withdrawCurrency, setWithdrawCurrency] = useState<Currency>(currency)
   const [withdrawToPortfolio, setWithdrawToPortfolio] = useState<string | null>(null)
   const [withdrawSaving, setWithdrawSaving] = useState(false)
+
+  // Smart default: when opening withdraw, pick the currency with more positive balance
+  useEffect(() => {
+    if (!withdrawing) return
+    if (!cumulative) { setWithdrawCurrency(currency); return }
+    const arsPos = cumulative.ARS > 0
+    const usdPos = cumulative.USD > 0
+    let best: Currency = currency
+    if (arsPos && !usdPos) best = 'ARS'
+    else if (usdPos && !arsPos) best = 'USD'
+    else if (cumulative.USD > cumulative.ARS) best = 'USD'
+    else if (cumulative.ARS > cumulative.USD) best = 'ARS'
+    setWithdrawCurrency(best)
+  }, [withdrawing, cumulative, currency])
 
   const { data: categories = [] } = useSWR<Category[]>(
     `categories-${type}`,
@@ -406,12 +422,14 @@ export function TransactionTypeModal({
     const port = isToPortfolio ? portfolios.find(p => p.id === withdrawToPortfolio) : null
     const note = port ? `Traspaso a ${port.name}` : 'Retiro de ahorros'
 
-    // Create negative savings transaction
+    // Create negative savings transaction — portfolio currency wins when traspasando,
+    // otherwise usa la moneda elegida explícitamente por el usuario.
+    const txCurrency: Currency = (port?.currency as Currency) ?? withdrawCurrency
     const { data: txData } = await supabase.from('transactions').insert({
       user_id: user.id,
       type: 'savings' as TransactionType,
       amount: -amt,
-      currency: port?.currency ?? currency,
+      currency: txCurrency,
       date: dateStr,
       note,
       category_id: null,
@@ -428,6 +446,7 @@ export function TransactionTypeModal({
         percentage_change: Number(port.balance) > 0 ? ((newBalance / Number(port.balance)) - 1) * 100 : 0,
         absolute_change: amt,
         new_balance: newBalance,
+        type: 'deposit' as const,
       })
     }
 
@@ -440,6 +459,7 @@ export function TransactionTypeModal({
     setWithdrawing(false)
     setWithdrawAmount('')
     setWithdrawToPortfolio(null)
+    setWithdrawCurrency(currency)
     setWithdrawSaving(false)
   }
 
@@ -472,19 +492,50 @@ export function TransactionTypeModal({
                 <h2 className="text-[18px] font-bold text-foreground tracking-tight">{cfg.label}</h2>
                 <span className="text-[13px] text-muted-foreground font-medium">— {monthLabel}</span>
               </div>
-              <div className="flex items-baseline gap-3 mt-2">
-                <span className={cn('font-mono text-[26px] font-bold leading-none tracking-tight', cfg.colorBold)}>
-                  {formatCurrency(totalARS, 'ARS')}
-                </span>
-                {totalUSD > 0 && (
-                  <span className={cn('font-mono text-[16px] font-semibold leading-none', cfg.colorSecondary)}>
-                    + {formatCurrency(totalUSD, 'USD')}
-                  </span>
-                )}
-              </div>
-              <p className="text-[12px] text-muted-foreground mt-1">
-                {txs.length} {txs.length === 1 ? cfg.singular : cfg.label.toLowerCase()} este mes
-              </p>
+              {cumulative ? (
+                <>
+                  <div className="flex items-baseline gap-3 mt-2">
+                    <span className={cn('font-mono text-[26px] font-bold leading-none tracking-tight', cumulative.ARS < 0 ? 'text-rose-400' : cfg.colorBold)}>
+                      {cumulative.ARS < 0 ? '-' : ''}{formatCurrency(cumulative.ARS, 'ARS')}
+                    </span>
+                    {cumulative.USD !== 0 && (
+                      <span className={cn('font-mono text-[16px] font-semibold leading-none', cumulative.USD < 0 ? 'text-rose-400/80' : cfg.colorSecondary)}>
+                        + {cumulative.USD < 0 ? '-' : ''}{formatCurrency(cumulative.USD, 'USD')}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center flex-wrap gap-x-3 gap-y-0.5 mt-1.5 text-[11px] text-muted-foreground">
+                    <span className="uppercase tracking-wider font-semibold">Total acumulado</span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="opacity-60">Este mes:</span>
+                      <span className={cn('font-mono', totalARS < 0 ? 'text-rose-400' : 'text-foreground')}>
+                        {totalARS < 0 ? '-' : '+'}{formatCurrency(totalARS, 'ARS')}
+                      </span>
+                      {totalUSD !== 0 && (
+                        <span className={cn('font-mono', totalUSD < 0 ? 'text-rose-400' : 'text-foreground')}>
+                          {totalUSD < 0 ? '-' : '+'}{formatCurrency(totalUSD, 'USD')}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-baseline gap-3 mt-2">
+                    <span className={cn('font-mono text-[26px] font-bold leading-none tracking-tight', totalARS < 0 ? 'text-rose-400' : cfg.colorBold)}>
+                      {totalARS < 0 ? '-' : ''}{formatCurrency(totalARS, 'ARS')}
+                    </span>
+                    {totalUSD !== 0 && (
+                      <span className={cn('font-mono text-[16px] font-semibold leading-none', totalUSD < 0 ? 'text-rose-400/80' : cfg.colorSecondary)}>
+                        + {totalUSD < 0 ? '-' : ''}{formatCurrency(totalUSD, 'USD')}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[12px] text-muted-foreground mt-1">
+                    {txs.length} {txs.length === 1 ? cfg.singular : cfg.label.toLowerCase()} este mes
+                  </p>
+                </>
+              )}
             </div>
             <button
               onClick={onClose}
@@ -511,19 +562,51 @@ export function TransactionTypeModal({
                 </div>
                 <span className="text-[13px] font-semibold">Retirar ahorro</span>
               </div>
-              <div>
-                <Label className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider mb-1.5 block">Monto</Label>
-                <MoneyInput
-                  autoFocus placeholder="0,00" value={withdrawAmount} onChange={setWithdrawAmount}
-                  className="h-9 rounded-xl text-[13px] font-mono"
-                />
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Label className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider mb-1.5 block">Monto</Label>
+                  <MoneyInput
+                    autoFocus placeholder="0,00" value={withdrawAmount} onChange={setWithdrawAmount}
+                    className="h-9 rounded-xl text-[13px] font-mono"
+                  />
+                </div>
+                <div className="w-24">
+                  <Label className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider mb-1.5 block">Moneda</Label>
+                  <Select
+                    value={withdrawCurrency}
+                    onValueChange={(v) => setWithdrawCurrency(v as Currency)}
+                    disabled={!!withdrawToPortfolio}
+                  >
+                    <SelectTrigger className="h-9 rounded-xl text-[13px]"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ARS">ARS</SelectItem>
+                      <SelectItem value="USD">USD</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
+              {cumulative && (
+                <p className="text-[10px] text-muted-foreground -mt-1">
+                  Disponible: <span className="font-mono font-semibold text-foreground">{cumulative.ARS < 0 ? '-' : ''}{formatCurrency(cumulative.ARS, 'ARS')}</span>
+                  {cumulative.USD !== 0 && <> · <span className="font-mono font-semibold text-foreground">{cumulative.USD < 0 ? '-' : ''}{formatCurrency(cumulative.USD, 'USD')}</span></>}
+                </p>
+              )}
               {portfolios.length > 0 && (
                 <div>
                   <Label className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider mb-1.5 block">
                     Pasar a inversión (opcional)
                   </Label>
-                  <Select value={withdrawToPortfolio ?? '_none'} onValueChange={v => setWithdrawToPortfolio(v === '_none' ? null : v)}>
+                  <Select
+                    value={withdrawToPortfolio ?? '_none'}
+                    onValueChange={v => {
+                      const id = v === '_none' ? null : v
+                      setWithdrawToPortfolio(id)
+                      if (id) {
+                        const p = portfolios.find(p => p.id === id)
+                        if (p) setWithdrawCurrency(p.currency as Currency)
+                      }
+                    }}
+                  >
                     <SelectTrigger className="h-9 rounded-xl text-[13px]"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="_none">Solo retirar</SelectItem>
@@ -536,13 +619,13 @@ export function TransactionTypeModal({
                   </Select>
                   {withdrawToPortfolio && (
                     <p className="text-[10px] text-muted-foreground mt-1">
-                      Se reduce el ahorro y se suma al saldo del portfolio.
+                      Se reduce el ahorro y se suma al saldo del portfolio ({withdrawCurrency}).
                     </p>
                   )}
                 </div>
               )}
               <div className="flex items-center justify-end gap-2 pt-1">
-                <Button variant="ghost" size="sm" onClick={() => { setWithdrawing(false); setWithdrawAmount(''); setWithdrawToPortfolio(null) }} className="h-8 rounded-xl text-[13px]">Cancelar</Button>
+                <Button variant="ghost" size="sm" onClick={() => { setWithdrawing(false); setWithdrawAmount(''); setWithdrawToPortfolio(null); setWithdrawCurrency(currency) }} className="h-8 rounded-xl text-[13px]">Cancelar</Button>
                 <Button size="sm" onClick={handleWithdraw} disabled={withdrawSaving || !withdrawAmount || parseMoneyInput(withdrawAmount) <= 0}
                   className="h-8 rounded-xl text-[13px] text-white bg-orange-600 hover:bg-orange-500 gap-1.5">
                   {withdrawSaving ? 'Retirando…' : withdrawToPortfolio ? 'Traspasar' : 'Retirar'}

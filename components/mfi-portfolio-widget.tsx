@@ -1,21 +1,31 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { TrendingUp, Plus, X, ArrowRight, BarChart2, List, ArrowDownToLine } from 'lucide-react'
+import { TrendingUp, Plus, X, ArrowRight, BarChart2, List, ArrowDownToLine, ArrowUpToLine } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { MoneyInput, parseMoneyInput } from '@/components/money-input'
 import { Label } from '@/components/ui/label'
+import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { isNonTradingDay } from '@/lib/ar-holidays'
 import { formatCurrency } from '@/lib/types'
-import type { Portfolio, PortfolioLog, Transaction } from '@/lib/types'
+import type { Portfolio, PortfolioLog, PortfolioLogType, Transaction } from '@/lib/types'
 
 type PortfolioLogWithPortfolio = PortfolioLog & {
   portfolio: { name: string; currency: string }
+}
+
+// Backwards-compat: rows inserted before the `type` column was added have type = null.
+// Fall back to the old heuristic so the UI stays correct until the migration runs.
+function resolveLogType(log: Pick<PortfolioLog, 'type' | 'percentage_change' | 'absolute_change'>): PortfolioLogType {
+  if (log.type) return log.type
+  if (log.percentage_change < -5 && log.absolute_change < 0) return 'rescue'
+  if (log.percentage_change > 8 && log.absolute_change > 0) return 'deposit'
+  return 'yield'
 }
 
 function todayISO() {
@@ -38,7 +48,16 @@ function endOfCurrentMonth() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(last).padStart(2, '0')}`
 }
 
+function getPeriodRange(period: 'month' | 'year') {
+  if (period === 'year') {
+    const y = new Date().getFullYear()
+    return { start: `${y}-01-01`, end: `${y}-12-31` }
+  }
+  return { start: startOfCurrentMonth(), end: endOfCurrentMonth() }
+}
+
 type Tab = 'portfolios' | 'movimientos'
+type Period = 'month' | 'year'
 
 export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: string }) {
   const supabase = createClient()
@@ -50,6 +69,13 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
   const [needsUpdate, setNeedsUpdate] = useState(false)
   const [saving, setSaving] = useState(false)
   const [tab, setTab] = useState<Tab>('portfolios')
+  const [period, setPeriod] = useState<Period>('month')
+  const [didInitialLoad, setDidInitialLoad] = useState(false)
+  const [loadingPeriod, setLoadingPeriod] = useState(false)
+  const periodCacheRef = useRef<Partial<Record<Period, {
+    logs: PortfolioLogWithPortfolio[]
+    investTx: Transaction[]
+  }>>>({})
 
   // Creation state
   const [isCreating, setIsCreating] = useState(false)
@@ -76,35 +102,54 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
     fetchData()
   }, [])
 
-  async function fetchData() {
-    setLoading(true)
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+  async function fetchPeriodData(ports: Portfolio[], currentPeriod: Period, opts: { useCache?: boolean } = {}) {
+    const useCache = opts.useCache !== false
+    const cached = periodCacheRef.current[currentPeriod]
+    if (useCache && cached) {
+      setInvestTx(cached.investTx)
+      setPortfolioLogs(cached.logs)
+      setLoadingPeriod(false)
+      return
+    }
 
+    setLoadingPeriod(true)
+    const { start, end } = getPeriodRange(currentPeriod)
     const { fetchInvestmentTransactions } = await import('@/app/(app)/transactions/actions')
+    const investTxData = await fetchInvestmentTransactions(start, end)
 
-    const [portfoliosRes, logsRes, investTxData] = await Promise.all([
-      supabase.from('portfolios').select('*').eq('user_id', user.id).order('created_at', { ascending: true }),
-      supabase.from('portfolio_logs').select('*', { count: 'exact', head: true }).eq('date', todayISO()),
-      fetchInvestmentTransactions(startOfCurrentMonth(), endOfCurrentMonth()),
-    ])
-
-    const ports = (portfoliosRes.data || []) as Portfolio[]
-    setPortfolios(ports)
-    setInvestTx(investTxData)
-
+    let logs: PortfolioLogWithPortfolio[] = []
     if (ports.length > 0) {
       const { data: logsData } = await supabase
         .from('portfolio_logs')
         .select('*, portfolio:portfolios(name, currency)')
         .in('portfolio_id', ports.map(p => p.id))
-        .gte('date', startOfCurrentMonth())
-        .lte('date', endOfCurrentMonth())
+        .gte('date', start)
+        .lte('date', end)
         .order('date', { ascending: false })
-      setPortfolioLogs((logsData || []) as PortfolioLogWithPortfolio[])
-    } else {
-      setPortfolioLogs([])
+      logs = (logsData || []) as PortfolioLogWithPortfolio[]
     }
+
+    periodCacheRef.current[currentPeriod] = { logs, investTx: investTxData }
+    setInvestTx(investTxData)
+    setPortfolioLogs(logs)
+    setLoadingPeriod(false)
+  }
+
+  async function fetchData() {
+    setLoading(true)
+    periodCacheRef.current = {}
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const [portfoliosRes, logsRes] = await Promise.all([
+      supabase.from('portfolios').select('*').eq('user_id', user.id).order('created_at', { ascending: true }),
+      supabase.from('portfolio_logs').select('*', { count: 'exact', head: true }).eq('date', todayISO()),
+    ])
+
+    const ports = (portfoliosRes.data || []) as Portfolio[]
+    setPortfolios(ports)
+
+    await fetchPeriodData(ports, period, { useCache: false })
 
     const nowLocal = new Date()
     const isPast17 = nowLocal.getHours() >= 17
@@ -134,8 +179,14 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
       setNeedsUpdate(false)
     }
 
+    setDidInitialLoad(true)
     setLoading(false)
   }
+
+  useEffect(() => {
+    if (!didInitialLoad) return
+    fetchPeriodData(portfolios, period)
+  }, [period])
 
   async function handleCreatePortfolio() {
     if (!newName.trim()) return
@@ -216,6 +267,7 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
           percentage_change: pct,
           absolute_change: absChange,
           new_balance: newBal,
+          type: 'yield' as const,
         })
       }
 
@@ -267,6 +319,7 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
         percentage_change: pct,
         absolute_change: -amount,
         new_balance: newBalance,
+        type: 'rescue' as const,
       })
 
       if (rescueLogError) {
@@ -300,6 +353,17 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
 
   const monthLabel = currentMonthLabel()
   const capitalizedMonth = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1)
+  const currentYear = new Date().getFullYear()
+  const periodLabel = period === 'year' ? `Año ${currentYear}` : capitalizedMonth
+  const periodLabelLower = period === 'year' ? 'año' : 'mes'
+
+  // Net rendimientos for the selected period (solo tipo yield, no aportes ni rescates)
+  const rendimientosByCurrency = portfolioLogs.reduce((acc, log) => {
+    if (resolveLogType(log) !== 'yield') return acc
+    const cur = log.portfolio.currency
+    acc[cur] = (acc[cur] || 0) + log.absolute_change
+    return acc
+  }, {} as Record<string, number>)
 
   return (
     <>
@@ -318,7 +382,7 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
 
       {isOpen && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-card border border-border/60 shadow-2xl shadow-primary/5 rounded-[2rem] p-6 relative flex flex-col max-h-[90vh]">
+          <div className="w-full max-w-md bg-card border border-border/60 shadow-2xl shadow-primary/5 rounded-[2rem] p-6 relative flex flex-col max-h-[85vh]">
             <div className="absolute inset-0 bg-gradient-to-br from-violet-500/5 via-transparent to-transparent opacity-60 pointer-events-none rounded-[2rem]" />
 
             <button
@@ -335,10 +399,10 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
                   <TrendingUp className="w-3.5 h-3.5 text-violet-500" />
                 </div>
                 Inversiones
-                <span className="text-[13px] font-normal text-muted-foreground ml-1">— {capitalizedMonth}</span>
+                <span className="text-[13px] font-normal text-muted-foreground ml-1">— {periodLabel}</span>
               </h2>
               <p className="text-[12px] text-muted-foreground mt-1">
-                Actualizá tus portfolios y revisá los movimientos del mes.
+                Actualizá tus portfolios y revisá los movimientos del {periodLabelLower}.
               </p>
             </div>
 
@@ -561,27 +625,74 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
               {/* ── TAB: MOVIMIENTOS ── */}
               {tab === 'movimientos' && (
                 <div className="space-y-4">
+                  {/* Period selector */}
+                  <div className="flex items-center justify-end gap-0.5 p-0.5 bg-muted/40 rounded-lg w-fit ml-auto">
+                    {(['month', 'year'] as const).map(p => (
+                      <button
+                        key={p}
+                        onClick={() => setPeriod(p)}
+                        className={cn(
+                          'px-2.5 py-1 rounded-md text-[10px] font-semibold transition-all duration-150',
+                          period === p
+                            ? 'bg-card text-foreground shadow-sm'
+                            : 'text-muted-foreground hover:text-foreground'
+                        )}
+                      >
+                        {p === 'month' ? 'Mes' : 'Año'}
+                      </button>
+                    ))}
+                  </div>
+
+                  {loadingPeriod && (
+                    <div className="space-y-1 animate-in fade-in duration-150">
+                      <Skeleton className="h-2.5 w-36 mx-1 mb-2" />
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="flex items-center gap-3 px-3 py-2.5">
+                          <Skeleton className="w-8 h-8 rounded-xl shrink-0" />
+                          <div className="flex-1 space-y-1.5 min-w-0">
+                            <Skeleton className="h-3 w-2/3" />
+                            <Skeleton className="h-2.5 w-1/3" />
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            <Skeleton className="h-3.5 w-16" />
+                            <Skeleton className="h-2.5 w-12" />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {/* Portfolio logs (daily % updates) */}
-                  {portfolioLogs.length > 0 && (
+                  {!loadingPeriod && portfolioLogs.length > 0 && (
                     <div className="space-y-1">
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-1">Rendimientos del mes</p>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-1">Rendimientos del {periodLabelLower}</p>
                       {portfolioLogs.map(log => {
+                        const logType = resolveLogType(log)
+                        const isRescue = logType === 'rescue'
+                        const isDeposit = logType === 'deposit'
+                        const isYield = logType === 'yield'
                         const isPos = log.percentage_change > 0
                         const isNeg = log.percentage_change < 0
-                        // Detect rescue: large negative change (> -5%) likely a withdrawal, not market movement
-                        const isRescue = log.percentage_change < -5 && log.absolute_change < 0
                         const pctStr = (isPos ? '+' : '') + log.percentage_change.toFixed(2) + '%'
                         const curr = log.portfolio.currency
-                        const absSign = isPos ? '+' : ''
-                        const absStr = absSign + (curr === 'USD' ? 'U$S' : '$') + ' ' + Math.abs(log.absolute_change).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                        const newBalStr = (curr === 'USD' ? 'U$S' : '$') + ' ' + Number(log.new_balance).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                        const sym = curr === 'USD' ? 'U$S' : '$'
+                        const absSign = log.absolute_change >= 0 ? '+' : '-'
+                        const absStr = absSign + sym + ' ' + Math.abs(log.absolute_change).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                        const newBalStr = sym + ' ' + Number(log.new_balance).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                         const dateStr = new Date(log.date + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
 
                         return (
                           <div key={log.id} className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-muted/30 transition-colors">
-                            <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center shrink-0', isRescue ? 'bg-orange-500/10' : 'bg-violet-500/10')}>
+                            <div className={cn(
+                              'w-8 h-8 rounded-xl flex items-center justify-center shrink-0',
+                              isRescue && 'bg-orange-500/10',
+                              isDeposit && 'bg-sky-500/10',
+                              isYield && 'bg-violet-500/10',
+                            )}>
                               {isRescue ? (
                                 <ArrowDownToLine className="w-3.5 h-3.5 text-orange-400" />
+                              ) : isDeposit ? (
+                                <ArrowUpToLine className="w-3.5 h-3.5 text-sky-400" />
                               ) : (
                                 <span className="text-violet-400 font-bold text-[12px]">
                                   {log.portfolio.name.charAt(0).toUpperCase()}
@@ -596,14 +707,26 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
                                     RESCATE
                                   </span>
                                 )}
+                                {isDeposit && (
+                                  <span className="text-[9px] font-bold text-sky-400 bg-sky-500/10 px-1.5 py-0.5 rounded-full shrink-0">
+                                    APORTE
+                                  </span>
+                                )}
                               </div>
                               <p className="text-[11px] text-muted-foreground">{dateStr} · {newBalStr}</p>
                             </div>
                             <div className="text-right shrink-0">
-                              <p className={cn('text-[13px] font-mono font-bold', isRescue && 'text-orange-400', !isRescue && isPos && 'text-emerald-400', !isRescue && isNeg && 'text-rose-400', !isPos && !isNeg && !isRescue && 'text-muted-foreground')}>
-                                {isRescue ? `-${(curr === 'USD' ? 'U$S' : '$')} ${Math.abs(log.absolute_change).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : pctStr}
+                              <p className={cn(
+                                'text-[13px] font-mono font-bold',
+                                isRescue && 'text-orange-400',
+                                isDeposit && 'text-sky-400',
+                                isYield && isPos && 'text-emerald-400',
+                                isYield && isNeg && 'text-rose-400',
+                                isYield && !isPos && !isNeg && 'text-muted-foreground',
+                              )}>
+                                {isYield ? pctStr : absStr}
                               </p>
-                              {!isRescue && (
+                              {isYield && (
                                 <p className={cn('text-[11px] font-mono', isPos && 'text-emerald-400/70', isNeg && 'text-rose-400/70', !isPos && !isNeg && 'text-muted-foreground')}>
                                   {absStr}
                                 </p>
@@ -616,7 +739,7 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
                   )}
 
                   {/* Investment transactions */}
-                  {investTx.length > 0 && (
+                  {!loadingPeriod && investTx.length > 0 && (
                     <div className="space-y-1">
                       <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-1">Inversiones registradas</p>
                       {investTx.map(tx => {
@@ -648,18 +771,51 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
                     </div>
                   )}
 
-                  {portfolioLogs.length === 0 && investTx.length === 0 && (
+                  {!loadingPeriod && portfolioLogs.length === 0 && investTx.length === 0 && (
                     <div className="text-center py-10">
                       <div className="w-12 h-12 rounded-2xl bg-muted/50 flex items-center justify-center mx-auto mb-3">
                         <List className="w-5 h-5 text-muted-foreground/60" />
                       </div>
                       <p className="text-[14px] font-semibold">Sin movimientos</p>
-                      <p className="text-[12px] text-muted-foreground">No hay inversiones registradas este mes.</p>
+                      <p className="text-[12px] text-muted-foreground">No hay inversiones registradas este {periodLabelLower}.</p>
                     </div>
                   )}
                 </div>
               )}
             </div>
+
+            {/* Rendimientos summary (movimientos tab) */}
+            {tab === 'movimientos' && !loadingPeriod && portfolioLogs.length > 0 && (
+              <div className="mt-4 pt-3 border-t border-border/40 shrink-0 relative z-10 flex items-center justify-between gap-2">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                  Neto del {periodLabelLower}
+                </span>
+                <div className="flex items-center gap-2.5 flex-wrap justify-end">
+                  {(['ARS', 'USD'] as const).map(cur => {
+                    const val = rendimientosByCurrency[cur]
+                    if (!val) return null
+                    const isPos = val >= 0
+                    const sym = cur === 'USD' ? 'U$S' : '$'
+                    return (
+                      <span
+                        key={cur}
+                        className={cn(
+                          'font-mono text-[12px] font-bold tabular-nums',
+                          isPos ? 'text-emerald-400' : 'text-rose-400'
+                        )}
+                      >
+                        {isPos ? '+' : '-'}{sym} {Math.abs(val).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    )
+                  })}
+                  {!rendimientosByCurrency.ARS && !rendimientosByCurrency.USD && (
+                    <span className="font-mono text-[12px] font-bold tabular-nums text-muted-foreground">
+                      $ 0,00
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Footer */}
             <div className="mt-5 pt-4 border-t border-border/50 shrink-0 relative z-10 flex items-center justify-between">
