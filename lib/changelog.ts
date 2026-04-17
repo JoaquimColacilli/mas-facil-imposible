@@ -6,6 +6,22 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.21.8',
+    date: '2026-04-17',
+    changes: [
+      'Corregido guardado de ubicación: ahora la card de Ajustes tiene su propio botón \'Guardar ubicación\' y refresca el topbar al guardar'
+    ]
+  },
+  {
+    version: '0.21.7',
+    date: '2026-04-17',
+    changes: [
+      'Agregado widget de clima y hora local en el topbar classic y mfi',
+      'Agregado selector de ubicación en Ajustes (búsqueda + usar mi ubicación actual)',
+      'Agregada migración 011 para campos location_lat, location_lng, location_name y location_timezone en profiles'
+    ]
+  },
+  {
     version: '0.21.6',
     date: '2026-04-16',
     changes: [

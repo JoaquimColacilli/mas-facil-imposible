@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import type { Profile, Currency } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
 import { signOut } from '@/app/auth/actions'
@@ -18,7 +19,8 @@ import {
 import { ThemeToggle } from '@/components/theme-toggle'
 import { AvatarUpload } from '@/components/avatar-upload'
 import { MoodPicker } from '@/components/mood-picker'
-import { LogOut, Save, Lock, Eye, EyeOff, CheckCircle2, Mail, User, AtSign } from 'lucide-react'
+import { LocationPicker, type LocationValue } from '@/components/location-picker'
+import { LogOut, Save, Lock, Eye, EyeOff, CheckCircle2, Mail, User, AtSign, MapPin } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -30,6 +32,7 @@ interface SettingsClientProps {
 
 export function SettingsClient({ profile, userEmail, userId }: SettingsClientProps) {
   const supabase = createClient()
+  const router = useRouter()
 
   // Profile form
   const [fullName, setFullName] = useState(profile?.full_name ?? '')
@@ -38,6 +41,18 @@ export function SettingsClient({ profile, userEmail, userId }: SettingsClientPro
   const [moodEmoji, setMoodEmoji] = useState(profile?.mood_emoji ?? null)
   const [moodText, setMoodText] = useState(profile?.mood_text ?? null)
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url ?? null)
+  const [location, setLocation] = useState<LocationValue | null>(
+    profile?.location_lat != null &&
+      profile?.location_lng != null &&
+      profile?.location_timezone != null
+      ? {
+          lat: profile.location_lat,
+          lng: profile.location_lng,
+          name: profile.location_name ?? 'Mi ubicación',
+          timezone: profile.location_timezone,
+        }
+      : null,
+  )
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -79,6 +94,29 @@ export function SettingsClient({ profile, userEmail, userId }: SettingsClientPro
       setTimeout(() => setSaved(false), 2000)
     }
     setSaving(false)
+  }
+
+  async function handleLocationChange(value: LocationValue | null) {
+    // Auto-save: la UI refleja inmediato, el persist va en paralelo.
+    setLocation(value)
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        location_lat: value?.lat ?? null,
+        location_lng: value?.lng ?? null,
+        location_name: value?.name ?? null,
+        location_timezone: value?.timezone ?? null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', userId)
+
+    if (error) {
+      toast.error('No se pudo guardar la ubicación. Intentá de nuevo.', { duration: 5000 })
+      return
+    }
+    // Refresh server components (topbar lee profile desde (app)/layout.tsx)
+    router.refresh()
+    toast.success(value ? 'Ubicación guardada' : 'Ubicación eliminada')
   }
 
   async function handlePasswordChange(e: React.FormEvent) {
@@ -236,6 +274,23 @@ export function SettingsClient({ profile, userEmail, userId }: SettingsClientPro
                   {saving ? 'Guardando...' : saved ? 'Guardado' : 'Guardar cambios'}
                 </Button>
               </form>
+            </CardContent>
+          </Card>
+
+          {/* Ubicación */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-muted-foreground" />
+                Ubicación
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-xs text-muted-foreground mb-3">
+                Se usa para mostrar la hora y el clima de tu zona en el topbar.
+                Los cambios se guardan automáticamente.
+              </p>
+              <LocationPicker value={location} onChange={handleLocationChange} />
             </CardContent>
           </Card>
 

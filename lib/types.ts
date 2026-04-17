@@ -20,6 +20,10 @@ export interface Profile {
   preferred_mode: AppMode
   onboarding_completed: boolean
   last_seen_version: string | null
+  location_lat: number | null
+  location_lng: number | null
+  location_name: string | null
+  location_timezone: string | null
   created_at: string
   updated_at: string
 }
