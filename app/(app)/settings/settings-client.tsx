@@ -20,6 +20,7 @@ import { ThemeToggle } from '@/components/theme-toggle'
 import { AvatarUpload } from '@/components/avatar-upload'
 import { MoodPicker } from '@/components/mood-picker'
 import { LocationPicker, type LocationValue } from '@/components/location-picker'
+import { DataPrivacyCard } from './data-privacy-card'
 import { LogOut, Save, Lock, Eye, EyeOff, CheckCircle2, Mail, User, AtSign, MapPin } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -363,6 +364,9 @@ export function SettingsClient({ profile, userEmail, userId }: SettingsClientPro
               </form>
             </CardContent>
           </Card>
+
+          {/* Privacy & data */}
+          <DataPrivacyCard userId={userId} />
 
           {/* Session */}
           <Card className="border-destructive/30">

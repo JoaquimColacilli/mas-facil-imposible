@@ -29,11 +29,19 @@ function isNewer(current: string, lastSeen: string) {
 
 const LS_KEY = 'mfi_last_seen_version'
 
-export function WhatsNewModal({ lastSeenVersion }: { lastSeenVersion: string | null | undefined }) {
+export function WhatsNewModal({
+  lastSeenVersion,
+  disabled = false,
+}: {
+  lastSeenVersion: string | null | undefined
+  disabled?: boolean
+}) {
   const [open, setOpen] = useState(false)
   const [unseenVersions, setUnseenVersions] = useState<ChangelogEntry[]>([])
 
   useEffect(() => {
+    if (disabled) return
+
     // Use localStorage as primary source — works immediately without waiting for DB round-trip.
     // Fall back to server-side lastSeenVersion if localStorage has nothing yet.
     const localSeen = typeof window !== 'undefined' ? localStorage.getItem(LS_KEY) : null
@@ -51,7 +59,7 @@ export function WhatsNewModal({ lastSeenVersion }: { lastSeenVersion: string | n
       const t = setTimeout(() => setOpen(true), 500)
       return () => clearTimeout(t)
     }
-  }, [lastSeenVersion])
+  }, [lastSeenVersion, disabled])
 
   async function handleClose(val: boolean) {
     if (!val) {
@@ -64,7 +72,7 @@ export function WhatsNewModal({ lastSeenVersion }: { lastSeenVersion: string | n
     }
   }
 
-  if (unseenVersions.length === 0) return null
+  if (disabled || unseenVersions.length === 0) return null
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>

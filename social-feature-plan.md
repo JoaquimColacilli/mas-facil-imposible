@@ -106,13 +106,13 @@ Lo que está en esta sección está cerrado. No re-discutir durante implementaci
 
 | Fase | Nombre | Objetivo | Migración | Sprints aprox. |
 |---|---|---|---|---|
-| 0 | Compliance base | Export + delete + ToS/Privacy | 012 | 1 |
-| 1 | Identity social base | Username + toggle discoverable + link invitación | 013 | 1 |
-| 2 | Social graph | Tablas friendship/requests/blocks + UI hub `/friends` | 014 | 2 |
-| 3 | Perfil público + stats | Ruta `/friends/:username` + privacy granular | 015 | 0.5 |
-| 4 | Chat text-only | Conversations + messages + Realtime básico | 016 | 2 |
+| 0 | Compliance base | Export + delete + ToS/Privacy | 013 | 1 |
+| 1 | Identity social base | Username + toggle discoverable + link invitación | 014 | 1 |
+| 2 | Social graph | Tablas friendship/requests/blocks + UI hub `/friends` | 015 | 2 |
+| 3 | Perfil público + stats | Ruta `/friends/:username` + privacy granular | 016 | 0.5 |
+| 4 | Chat text-only | Conversations + messages + Realtime básico | 017 | 2 |
 | 5 | Chat real-time UX | Presence + typing + read receipts | (sin migración) | 1 |
-| 6 | Integración loans/debts | `friend_id` en tablas existentes + UI | 017 | 0.5 |
+| 6 | Integración loans/debts | `friend_id` en tablas existentes + UI | 018 | 0.5 |
 
 Total: ~8 sprints = ~3 meses de calendario al ritmo de fines de semana + algunas horas de semana.
 
@@ -228,7 +228,7 @@ Ninguna. Es la primera fase.
 
 ### 5.4 Schema
 
-**Migración `012_add_compliance_fields.sql`**:
+**Migración `013_add_compliance_fields.sql`**:
 
 ```sql
 -- Campos de compliance en profiles
@@ -279,7 +279,7 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS deleted_at          TIMESTA
 
 ### 5.8 ✅ Criterios de aceptación
 
-- [ ] Migración 012 generada, NO aplicada (el owner la corre manual).
+- [ ] Migración 013 generada, NO aplicada (el owner la corre manual).
 - [ ] Export funciona: descarga JSON con todos los datos del user.
 - [ ] Delete funciona: borra cascade todo, signOut, redirect.
 - [ ] ToS y Privacy accesibles en `/legal/tos` y `/legal/privacy` sin auth.
@@ -319,13 +319,14 @@ Fase 0 completa.
 
 ### 6.4 Schema
 
-**Migración `013_add_social_identity.sql`**:
+**Migración `014_add_social_identity.sql`**:
 
 ```sql
 -- Username único, case-insensitive
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS username         TEXT;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_discoverable  BOOLEAN NOT NULL DEFAULT FALSE;
-ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS bio              TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS username             TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS username_changed_at  TIMESTAMPTZ;  -- NULL en onboarding, NOW() en cambios posteriores. Ver 6.11
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS is_discoverable      BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS bio                  TEXT;
 
 -- Constraint: username válido (3-20 chars, lowercase alfanumérico + underscore)
 ALTER TABLE public.profiles
@@ -403,7 +404,7 @@ Mantener la lista en `lib/social/reserved-usernames.ts` como export para fácil 
 
 ### 6.10 ✅ Criterios de aceptación
 
-- [ ] Migración 013 generada.
+- [ ] Migración 014 generada.
 - [ ] Users nuevos eligen username en onboarding (obligatorio).
 - [ ] Users existentes reciben modal obligatorio "Elegí tu username" al próximo login.
 - [ ] Username validado: regex, longitud, unicidad case-insensitive, palabras reservadas.
@@ -414,7 +415,12 @@ Mantener la lista en `lib/social/reserved-usernames.ts` como export para fácil 
 
 ### 6.11 Decisiones tomadas sin necesidad de preguntar
 
-- `username` es inmutable después de setearlo: **FALSO**, es editable desde Settings. Pero cada cambio genera una entrada en `username_history` (tabla nueva opcional — v2, por ahora solo log en DB logs). Evita squatting de usernames abandonados.
+- `username` es inmutable después de setearlo: **FALSO**, es editable desde Settings.
+- **Rate limit de cambio de username (decidido por owner)**: máximo **1 cambio cada 30 días** por user. Frena squatting/abuso sin bloquear cambios legítimos.
+  - Se enforced con una columna nueva `profiles.username_changed_at TIMESTAMPTZ`, set en cada cambio (incluyendo el primer set en onboarding — opcional, alternativa: dejar NULL en el set inicial y solo setear en cambios posteriores; **decisión: NULL en onboarding, NOW() solo en cambios posteriores**, para no penalizar al user que tipeó mal en onboarding y quiere arreglarlo en el primer login).
+  - El server action `setUsername` chequea `username_changed_at IS NULL OR NOW() - username_changed_at >= INTERVAL '30 days'` antes de aceptar el cambio. Si rechaza, retorna error con mensaje "Podés cambiar tu username el {fecha}" en es-AR.
+  - La migración 014 agrega esta columna en el mismo ALTER que `username` y `is_discoverable`.
+  - `username_history` (tabla de historial) y redirect del link viejo siguen siendo v2.
 - Al cambiar un username, el link viejo `/add/old_name` devuelve 404 (no redirect). Mantiene simpleza.
 
 ---
@@ -437,7 +443,7 @@ Fases 0 y 1 completas.
 
 ### 7.4 Schema
 
-**Migración `014_social_graph.sql`**:
+**Migración `015_social_graph.sql`**:
 
 ```sql
 -- ============================================================
@@ -594,7 +600,7 @@ Como los clients no tienen INSERT policy sobre `friendships`, este action corre 
 
 ### 7.10 ✅ Criterios de aceptación
 
-- [ ] Migración 014 generada.
+- [ ] Migración 015 generada.
 - [ ] Todas las tablas con RLS activa y policies correctas.
 - [ ] Server actions cubren los 8 verbos listados en 7.5.
 - [ ] `/friends` renderiza los 3 tabs.
@@ -627,7 +633,7 @@ Fases 0, 1, 2.
 
 ### 8.4 Schema
 
-**Migración `015_profile_privacy.sql`**:
+**Migración `016_profile_privacy.sql`**:
 
 ```sql
 -- Flags granulares de privacidad: qué mostrar en el perfil público
@@ -683,7 +689,7 @@ GRANT SELECT ON public.profiles_public TO authenticated;
 
 ### 8.8 ✅ Criterios de aceptación
 
-- [ ] Migración 015 generada.
+- [ ] Migración 016 generada.
 - [ ] `profiles_public` view actualizada con flags aplicados.
 - [ ] Ruta `/friends/:username` funciona con todos los relationship states.
 - [ ] Los 3 toggles en Settings persisten y afectan el perfil público.
@@ -711,7 +717,7 @@ Fases 0–3.
 
 ### 9.4 Schema
 
-**Migración `016_chat.sql`**:
+**Migración `017_chat.sql`**:
 
 ```sql
 -- ============================================================
@@ -894,7 +900,7 @@ Para el badge en el topbar:
 - **Decisión**: dos columnas en `conversations` (simpler, menos JOINs). Agregarlas en la misma migración 016.
 - Unread count = `SELECT count(*) FROM messages WHERE conversation_id=... AND created_at > my_last_read_at AND sender_id != auth.uid()`.
 
-**Ajuste a la migración**: agregar a `conversations`:
+**Ajuste a la migración 017**: agregar a `conversations`:
 ```sql
 ALTER TABLE public.conversations
   ADD COLUMN IF NOT EXISTS user_a_last_read_at TIMESTAMPTZ,
@@ -905,7 +911,7 @@ Y un server action `markConversationRead(conversationId)` que actualiza el campo
 
 ### 9.11 ✅ Criterios de aceptación
 
-- [ ] Migración 016 generada (tablas + triggers + publicación Realtime + campos de last_read).
+- [ ] Migración 017 generada (tablas + triggers + publicación Realtime + campos de last_read).
 - [ ] `/chat` muestra conversations ordenadas por actividad.
 - [ ] `/chat/:userId` permite enviar y recibir mensajes en real-time (abrir dos ventanas, verificar).
 - [ ] Scroll infinito funciona hacia atrás.
@@ -939,7 +945,7 @@ Fase 4 completa.
 
 Sin migración nueva — todo lo de Fase 5 usa Broadcast (ephemeral) o campos ya existentes.
 
-**Ajuste menor** (puede ir en migración 016 si no se aplicó aún, o en una 016b): agregar en `messages`:
+**Ajuste menor** (puede ir en migración 017 si no se aplicó aún, o en una 017b): agregar en `messages`:
 ```sql
 ALTER TABLE public.messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ;
 ```
@@ -951,7 +957,7 @@ Para read receipts. Updated cuando el receiver abre la conversation.
 **Presence** (online/offline/ausente):
 - Cada `conversation-client.tsx` se une a un channel Presence general del user: `presence:user:${userId}`.
 - El topbar y la inbox listen a los presences de los amigos y muestran dot verde/gris.
-- `last_seen_at` almacenado en `profiles` (columna nueva, migración separada si no cabe en 016).
+- `last_seen_at` almacenado en `profiles` (columna nueva, migración separada si no cabe en 017).
 
 **Typing indicator**:
 - Broadcast channel por conversation: `typing:${conversationId}`.
@@ -990,20 +996,22 @@ Fases 0–5 (solo necesita 0–2 estrictamente, pero se deja al final para no me
 
 ### 11.4 Schema
 
-**Migración `017_loans_debts_friend.sql`**:
+**Migración `018_loans_debts_friend.sql`**:
 
 ```sql
 ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS friend_id        UUID REFERENCES public.profiles(id) ON DELETE SET NULL;
-ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS linked_loan_id   UUID REFERENCES public.loans(id) ON DELETE SET NULL;
+ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS linked_debt_id   UUID REFERENCES public.debts(id) ON DELETE SET NULL;
 
 ALTER TABLE public.debts ADD COLUMN IF NOT EXISTS friend_id        UUID REFERENCES public.profiles(id) ON DELETE SET NULL;
-ALTER TABLE public.debts ADD COLUMN IF NOT EXISTS linked_debt_id   UUID REFERENCES public.debts(id) ON DELETE SET NULL;
+ALTER TABLE public.debts ADD COLUMN IF NOT EXISTS linked_loan_id   UUID REFERENCES public.loans(id) ON DELETE SET NULL;
 
--- linked_*_id: referencia al "otro lado" del registro.
--- Cuando A crea un "cobro" vinculado al amigo B, al aceptarlo B se crea un "deuda" con linked_loan_id = <loan.id> del lado de A.
--- Simétrico: el loan de A tiene linked_debt_id = <debt.id> del lado de B.
--- (Nota: conceptualmente linked_loan_id en loans apunta a otro loan, y en debts apunta al debt contrapartida.
--- El naming está pensado desde el POV de cada tabla.)
+-- linked_*_id: referencia CROSS-TABLE al registro contrapartida del otro lado.
+-- Cuando A crea un loan vinculado al amigo B, al aceptarlo B se crea un debt en su lado.
+-- Resultado:
+--   loans.linked_debt_id (lado A)  → apunta al id del debt en el lado B
+--   debts.linked_loan_id (lado B)  → apunta al id del loan en el lado A
+-- Naming = "el id de la tabla a la que apunto", no "mi propio tipo".
+-- Sin cifrar: ambos campos son UUIDs FK estructurales, no PII.
 
 -- RLS: las policies existentes con auth.uid() = user_id siguen aplicando.
 -- El friend_id es informativo para el dueño del registro.
@@ -1035,7 +1043,7 @@ export async function settleLoan(loanId: string): Promise<void>
 
 ### 11.7 ✅ Criterios de aceptación
 
-- [ ] Migración 017 generada.
+- [ ] Migración 018 generada.
 - [ ] Crear loan/debt con `friend_id` funciona.
 - [ ] Notificación al amigo + aceptación + creación de contrapartida + link bidireccional.
 - [ ] Saldar propaga al lado linkeado con confirmación.
@@ -1049,33 +1057,33 @@ export async function settleLoan(loanId: string): Promise<void>
 Resumen de todas las migraciones que genera este plan. **No es el archivo a correr** — cada migración va en su propio archivo numerado.
 
 ```
-012 — Compliance:
+013 — Compliance:
    profiles + (tos_accepted_at, privacy_accepted_at, deleted_at)
 
-013 — Identity social:
-   profiles + (username, is_discoverable, bio)
+014 — Identity social:
+   profiles + (username, username_changed_at, is_discoverable, bio)
    view profiles_public
    unique index username lower, constraint formato
 
-014 — Social graph:
+015 — Social graph:
    table friend_requests (sender, receiver, status)
    table friendships (canonical order)
    table blocks (blocker, blocked)
    RLS + policies
 
-015 — Privacy granular:
+016 — Privacy granular:
    profiles + (show_streak, show_badges, show_bio)
    recreate profiles_public con flags
 
-016 — Chat:
+017 — Chat:
    table conversations (canonical order, last_message_at, last_read_at per user)
    table messages (body, sender, soft delete, read_at)
    trigger bump_conversation_last_message
    ALTER PUBLICATION supabase_realtime
 
-017 — Loans/Debts social:
-   loans + (friend_id, linked_loan_id)
-   debts + (friend_id, linked_debt_id)
+018 — Loans/Debts social:
+   loans + (friend_id, linked_debt_id)   -- linked_debt_id apunta cross-table al debt contrapartida
+   debts + (friend_id, linked_loan_id)   -- linked_loan_id apunta cross-table al loan contrapartida
 ```
 
 ---
@@ -1184,7 +1192,7 @@ Al completar todas las fases, antes de mergear:
 
 ### 15.2 Checklist técnico
 
-- [ ] 6 migraciones SQL generadas (012–017), todas aplicadas manualmente y verificadas.
+- [ ] 6 migraciones SQL generadas (013–018), todas aplicadas manualmente y verificadas.
 - [ ] Todas las tablas nuevas con RLS activa y policies revisadas.
 - [ ] `profiles_public` view expone solo campos públicos.
 - [ ] Service role key NO expuesta al cliente en ningún lugar.

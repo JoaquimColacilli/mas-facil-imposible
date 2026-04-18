@@ -2,12 +2,16 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { LayoutDashboard, Table2, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
+import { TOS_VERSION, PRIVACY_VERSION } from '@/lib/legal-texts'
 
 type Mode = 'classic' | 'mfi'
 type Currency = 'ARS' | 'USD'
@@ -335,16 +339,20 @@ function StepConfig({
   name,
   currency,
   saving,
+  acceptedLegal,
   onNameChange,
   onCurrencyChange,
+  onAcceptedLegalChange,
   onNext,
   onBack,
 }: {
   name: string
   currency: Currency
   saving: boolean
+  acceptedLegal: boolean
   onNameChange: (v: string) => void
   onCurrencyChange: (v: Currency) => void
+  onAcceptedLegalChange: (v: boolean) => void
   onNext: () => void
   onBack: () => void
 }) {
@@ -417,11 +425,46 @@ function StepConfig({
             </div>
           </div>
 
+          {/* Legal acceptance */}
+          <div className="mt-8">
+            <Separator className="mb-6" />
+            <label
+              htmlFor="onboarding-legal"
+              className="flex items-start gap-3 cursor-pointer select-none"
+            >
+              <Checkbox
+                id="onboarding-legal"
+                checked={acceptedLegal}
+                onCheckedChange={(v) => onAcceptedLegalChange(v === true)}
+                className="mt-0.5"
+              />
+              <span className="text-[13px] leading-relaxed text-muted-foreground">
+                Acepto los{' '}
+                <Link
+                  href="/legal/tos"
+                  target="_blank"
+                  className="underline underline-offset-4 text-foreground hover:text-primary"
+                >
+                  Términos y Condiciones
+                </Link>{' '}
+                y la{' '}
+                <Link
+                  href="/legal/privacy"
+                  target="_blank"
+                  className="underline underline-offset-4 text-foreground hover:text-primary"
+                >
+                  Política de Privacidad
+                </Link>
+                .
+              </span>
+            </label>
+          </div>
+
           {/* CTA */}
-          <div className="mt-14 flex justify-center w-full">
+          <div className="mt-8 flex justify-center w-full">
             <Button
               onClick={onNext}
-              disabled={saving || !name.trim()}
+              disabled={saving || !name.trim() || !acceptedLegal}
               className="h-14 w-full rounded-2xl text-[15px] font-semibold transition-all hover:scale-[1.02] active:scale-[0.98] disabled:hover:scale-100"
             >
               {saving ? 'Guardando perfil…' : 'Comenzar a usar MFI →'}
@@ -470,6 +513,7 @@ export default function OnboardingClient({ profile }: OnboardingClientProps) {
   const [currency, setCurrency] = useState<Currency>(
     (profile?.default_currency as Currency) ?? 'ARS',
   )
+  const [acceptedLegal, setAcceptedLegal] = useState(false)
   const [saving, setSaving] = useState(false)
 
   // Auto-navigate after step 3
@@ -490,6 +534,7 @@ export default function OnboardingClient({ profile }: OnboardingClientProps) {
       } = await supabase.auth.getUser()
 
       if (user) {
+        const now = new Date().toISOString()
         await supabase
           .from('profiles')
           .update({
@@ -497,6 +542,10 @@ export default function OnboardingClient({ profile }: OnboardingClientProps) {
             default_currency: currency,
             preferred_mode: selectedMode,
             onboarding_completed: true,
+            tos_accepted_at: now,
+            tos_version: TOS_VERSION,
+            privacy_accepted_at: now,
+            privacy_version: PRIVACY_VERSION,
           })
           .eq('id', user.id)
       }
@@ -532,8 +581,10 @@ export default function OnboardingClient({ profile }: OnboardingClientProps) {
           name={name}
           currency={currency}
           saving={saving}
+          acceptedLegal={acceptedLegal}
           onNameChange={setName}
           onCurrencyChange={setCurrency}
+          onAcceptedLegalChange={setAcceptedLegal}
           onNext={handleSaveAndContinue}
           onBack={() => setStep(1)}
         />

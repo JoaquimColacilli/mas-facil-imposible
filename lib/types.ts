@@ -24,6 +24,10 @@ export interface Profile {
   location_lng: number | null
   location_name: string | null
   location_timezone: string | null
+  tos_accepted_at: string | null
+  tos_version: string | null
+  privacy_accepted_at: string | null
+  privacy_version: string | null
   created_at: string
   updated_at: string
 }
