@@ -32,6 +32,9 @@ export interface Profile {
   username_changed_at: string | null
   is_discoverable: boolean
   bio: string | null
+  show_streak: boolean
+  show_badges: boolean
+  show_bio: boolean
   created_at: string
   updated_at: string
 }
@@ -39,6 +42,9 @@ export interface Profile {
 /**
  * Shape of public.profiles_public (DB view).
  * Only safe-to-expose columns. Returned when looking up other users.
+ * - `bio` is already filtered server-side: returns null when show_bio=false.
+ * - `show_streak` / `show_badges` are returned as-is so the consumer
+ *   decides whether to fetch streak/badges.
  * Never use Profile for cross-user reads.
  */
 export interface PublicProfile {
@@ -47,6 +53,8 @@ export interface PublicProfile {
   nickname: string | null
   avatar_url: string | null
   bio: string | null
+  show_streak: boolean
+  show_badges: boolean
   is_discoverable: boolean
   created_at: string
 }

@@ -34,6 +34,9 @@ export function SocialProfileCard({ profile, userId }: SocialProfileCardProps) {
 
   const [isDiscoverable, setIsDiscoverable] = useState(profile.is_discoverable)
   const [bio, setBio] = useState(profile.bio ?? '')
+  const [showBio, setShowBio] = useState(profile.show_bio)
+  const [showStreak, setShowStreak] = useState(profile.show_streak)
+  const [showBadges, setShowBadges] = useState(profile.show_badges)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -70,12 +73,16 @@ export function SocialProfileCard({ profile, userId }: SocialProfileCardProps) {
         return
       }
 
-      // 2. is_discoverable + bio via direct browser update (RLS protected).
+      // 2. is_discoverable + bio + privacy flags via direct browser update
+      //    (RLS protected — only own row).
       const { error: profileErr } = await supabase
         .from('profiles')
         .update({
           is_discoverable: isDiscoverable,
           bio: bio.trim() || null,
+          show_bio: showBio,
+          show_streak: showStreak,
+          show_badges: showBadges,
           updated_at: new Date().toISOString(),
         })
         .eq('id', userId)
@@ -121,7 +128,7 @@ export function SocialProfileCard({ profile, userId }: SocialProfileCardProps) {
   const overBio = bioCount > BIO_MAX
 
   return (
-    <Card>
+    <Card id="social-profile" className="scroll-mt-20">
       <CardHeader className="pb-3">
         <CardTitle className="text-sm font-semibold text-foreground flex items-center gap-2">
           <AtSign className="w-4 h-4 text-muted-foreground" />
@@ -179,6 +186,47 @@ export function SocialProfileCard({ profile, userId }: SocialProfileCardProps) {
             className="resize-none text-sm"
             disabled={saving}
           />
+          {!showBio && bio.trim().length > 0 && (
+            <p className="text-[11px] text-muted-foreground">
+              Mostrar mi bio está desactivado — la bio queda guardada pero no se muestra.
+            </p>
+          )}
+        </div>
+
+        {/* Privacy flags */}
+        <div className="flex flex-col gap-3 pt-3 border-t border-border">
+          <p className="text-xs font-medium text-foreground">Qué mostrás en tu perfil público</p>
+
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <p className="text-sm text-foreground">Mostrar mi bio</p>
+              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                Tu descripción aparece en tu perfil público y en el link de invitación.
+              </p>
+            </div>
+            <Switch checked={showBio} onCheckedChange={setShowBio} disabled={saving} />
+          </div>
+
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <p className="text-sm text-foreground">Mostrar mi racha de inversión</p>
+              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                Otros usuarios ven cuántos días consecutivos cargás inversiones. Nunca se muestran
+                montos.
+              </p>
+            </div>
+            <Switch checked={showStreak} onCheckedChange={setShowStreak} disabled={saving} />
+          </div>
+
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <p className="text-sm text-foreground">Mostrar mis logros</p>
+              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                Reservado para una próxima versión.
+              </p>
+            </div>
+            <Switch checked={showBadges} onCheckedChange={setShowBadges} disabled={saving} />
+          </div>
         </div>
 
         {/* Save */}

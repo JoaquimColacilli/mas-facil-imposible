@@ -77,10 +77,11 @@ export function FriendCard({ friend }: FriendCardProps) {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-44">
-          {/* /friends/:username ruta de perfil interno — Fase 3. Mientras tanto deshabilitado. */}
-          <DropdownMenuItem disabled title="Disponible en breve" className="cursor-not-allowed opacity-60">
-            <User className="w-4 h-4 mr-2" />
-            Ver perfil
+          <DropdownMenuItem asChild className="cursor-pointer">
+            <Link href={`/friends/${friend.username}`}>
+              <User className="w-4 h-4 mr-2" />
+              Ver perfil
+            </Link>
           </DropdownMenuItem>
           <DropdownMenuItem disabled title="Disponible en breve" className="cursor-not-allowed opacity-60">
             <MessageCircle className="w-4 h-4 mr-2" />
