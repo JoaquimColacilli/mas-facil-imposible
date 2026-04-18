@@ -165,3 +165,29 @@ export function isNonTradingDay(date: Date): boolean {
 
   return getHolidayName(date) !== undefined
 }
+
+/**
+ * Retorna el próximo feriado estrictamente posterior a `from` (no incluye el mismo día).
+ * Busca en el año de `from` y en el siguiente para cubrir diciembre → enero.
+ */
+export function getNextHoliday(from: Date = new Date()): Holiday | null {
+  const fromMs = new Date(from.getFullYear(), from.getMonth(), from.getDate()).getTime()
+  const candidates = [
+    ...getHolidays(from.getFullYear()),
+    ...getHolidays(from.getFullYear() + 1),
+  ]
+  const future = candidates
+    .filter((h) => h.date.getTime() > fromMs)
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+  return future[0] ?? null
+}
+
+/**
+ * Diferencia en días calendario entre `target` y `from` (ignora hora/minuto).
+ * Retorna 0 si son el mismo día, 1 si target es mañana, -1 si ayer, etc.
+ */
+export function daysUntil(target: Date, from: Date = new Date()): number {
+  const fromDay = new Date(from.getFullYear(), from.getMonth(), from.getDate()).getTime()
+  const targetDay = new Date(target.getFullYear(), target.getMonth(), target.getDate()).getTime()
+  return Math.round((targetDay - fromDay) / 86_400_000)
+}

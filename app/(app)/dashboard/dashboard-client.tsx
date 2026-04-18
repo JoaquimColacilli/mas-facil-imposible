@@ -80,6 +80,13 @@ function formatMonthLabel(ym: string) {
   return { label, isCurrentMonth }
 }
 
+// Variante para el heading del dashboard: "Abril, 2026" (con coma).
+function formatMonthYearHeading(ym: string) {
+  const [y, m] = ym.split('-').map(Number)
+  const mes = new Date(y, m - 1, 1).toLocaleString('es-AR', { month: 'long' })
+  return `${mes.charAt(0).toUpperCase() + mes.slice(1)}, ${y}`
+}
+
 function navigateMonth(current: string, delta: number) {
   const [y, m] = current.split('-').map(Number)
   const d = new Date(y, m - 1 + delta, 1)
@@ -213,33 +220,77 @@ function MonthNavigator({ currentMonth, isPending, onNavigate }: {
   )
 }
 
-// Build per-day income vs expenses for the AreaChart
+type ExpenseBreakdownItem = {
+  categoryName: string
+  amount: number
+  currency: 'ARS' | 'USD'
+  count: number
+  note: string | null // solo cuando count === 1
+}
+
+// Build per-day income vs expenses (+ breakdown for tooltip) for the AreaChart
 function buildChartData(transactions: Transaction[], ym: string) {
   const [y, m] = ym.split('-').map(Number)
   const daysInMonth = new Date(y, m, 0).getDate()
-  const map: Record<number, { income: number; expenses: number; expensesUSD: number }> = {}
-  for (let d = 1; d <= daysInMonth; d++) map[d] = { income: 0, expenses: 0, expensesUSD: 0 }
+  type DayData = {
+    income: number
+    expenses: number
+    expensesUSD: number
+    expenseGroups: Map<string, ExpenseBreakdownItem>
+  }
+  const map: Record<number, DayData> = {}
+  for (let d = 1; d <= daysInMonth; d++) {
+    map[d] = { income: 0, expenses: 0, expensesUSD: 0, expenseGroups: new Map() }
+  }
   for (const tx of transactions) {
     if (tx.status === 'cancelled') continue
     const day = new Date(tx.date + 'T00:00:00').getDate()
     if (!map[day]) continue
-    if (tx.type === 'income')  map[day].income += tx.amount
+    if (tx.type === 'income') map[day].income += tx.amount
     if (tx.type === 'expense') {
       if (tx.currency === 'USD') map[day].expensesUSD += tx.amount
       else                       map[day].expenses    += tx.amount
+      // Agrupamos por categoría + currency para el detalle del tooltip
+      const key = `${tx.category_id ?? 'null'}-${tx.currency}`
+      const existing = map[day].expenseGroups.get(key)
+      if (existing) {
+        existing.amount += tx.amount
+        existing.count += 1
+        existing.note = null // >1 transacción => la nota individual pierde sentido
+      } else {
+        map[day].expenseGroups.set(key, {
+          categoryName: tx.category?.name ?? 'Sin categoría',
+          amount: tx.amount,
+          currency: tx.currency as 'ARS' | 'USD',
+          count: 1,
+          note: tx.note,
+        })
+      }
     }
   }
-  return Array.from({ length: daysInMonth }, (_, i) => ({
-    day: i + 1,
-    income:      map[i + 1].income,
-    expenses:    map[i + 1].expenses,
-    expensesUSD: map[i + 1].expensesUSD,
-  }))
+  return Array.from({ length: daysInMonth }, (_, i) => {
+    const d = map[i + 1]
+    const breakdown = Array.from(d.expenseGroups.values()).sort((a, b) => b.amount - a.amount)
+    return {
+      day: i + 1,
+      income:      d.income,
+      expenses:    d.expenses,
+      expensesUSD: d.expensesUSD,
+      expensesBreakdown: breakdown,
+    }
+  })
 }
 
 // Custom tooltip for the area chart
 function ChartTooltip({ active, payload, label, currency }: {
-  active?: boolean; payload?: Array<{ value: number; dataKey: string }>; label?: number; currency: string
+  active?: boolean
+  payload?: Array<{
+    value: number
+    dataKey: string
+    payload?: { expensesBreakdown?: ExpenseBreakdownItem[] }
+  }>
+  label?: number
+  currency: string
 }) {
   if (!active || !payload?.length) return null
   const labels: Record<string, string> = {
@@ -253,14 +304,50 @@ function ChartTooltip({ active, payload, label, currency }: {
     expensesUSD: 'text-orange-400',
   }
   const txCurrency = (key: string): 'ARS' | 'USD' => key === 'expensesUSD' ? 'USD' : currency as 'ARS' | 'USD'
+
+  const breakdown = payload[0]?.payload?.expensesBreakdown ?? []
+  const shown = breakdown.slice(0, 5)
+  const extra = breakdown.length - shown.length
+
   return (
-    <div className="bg-popover border border-border rounded-xl px-3 py-2.5 shadow-lg text-[12px]">
+    <div className="bg-popover border border-border rounded-xl px-3 py-2.5 shadow-lg text-[12px] max-w-[280px]">
       <p className="text-muted-foreground mb-1.5 font-medium">Día {label}</p>
       {payload.filter((p) => p.value > 0).map((p) => (
         <p key={p.dataKey} className={cn('font-semibold font-mono', colors[p.dataKey] ?? 'text-foreground')}>
           {labels[p.dataKey] ?? p.dataKey}: {formatCurrency(p.value, txCurrency(p.dataKey))}
         </p>
       ))}
+
+      {shown.length > 0 && (
+        <div className="mt-2 pt-2 border-t border-border/60 flex flex-col gap-1">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70 font-semibold mb-0.5">
+            Detalle
+          </p>
+          {shown.map((item, i) => (
+            <div key={i} className="flex items-center gap-1.5 min-w-0">
+              <span className={cn(
+                'w-1.5 h-1.5 rounded-full shrink-0',
+                item.currency === 'USD' ? 'bg-orange-400' : 'bg-rose-500',
+              )} />
+              <span className="text-foreground truncate flex-1 min-w-0">
+                {item.categoryName}
+                {item.count === 1 && item.note && (
+                  <span className="text-muted-foreground"> · {item.note}</span>
+                )}
+                {item.count > 1 && (
+                  <span className="text-muted-foreground/70"> ×{item.count}</span>
+                )}
+              </span>
+              <span className="font-mono tabular-nums text-foreground shrink-0">
+                {formatCurrency(item.amount, item.currency)}
+              </span>
+            </div>
+          ))}
+          {extra > 0 && (
+            <p className="text-[10px] text-muted-foreground/70 mt-0.5">+{extra} más</p>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -514,8 +601,9 @@ export function DashboardClient({
     <div className="flex flex-col gap-5 w-full">
 
       {/* ── Page header ────────────────────────────────────────────── */}
-      <div className="flex items-start justify-between pt-1">
-        <div>
+      <div className="flex items-center justify-between gap-4 pt-1 flex-wrap">
+        {/* Izquierda: saludo + nombre */}
+        <div className="shrink-0">
           <p className="text-[11px] font-semibold text-muted-foreground tracking-[0.1em] uppercase">
             {greeting || '\u00A0'}
           </p>
@@ -523,7 +611,14 @@ export function DashboardClient({
             {firstName}
           </h1>
         </div>
-        <div className="flex items-center gap-2 mt-1 flex-wrap">
+
+        {/* Centro: mes + año del período actual */}
+        <h2 className="font-serif text-[22px] md:text-[28px] font-medium text-foreground leading-tight tracking-tight text-center flex-1 min-w-0 basis-full md:basis-auto order-3 md:order-2">
+          {formatMonthYearHeading(currentMonth)}
+        </h2>
+
+        {/* Derecha: controles */}
+        <div className="flex items-center gap-2 shrink-0 order-2 md:order-3">
           <MonthlySummaryBanner userId={userId} />
           <MonthNavigator currentMonth={currentMonth} isPending={isNavigating} onNavigate={navigateToMonth} />
           <Button
@@ -659,9 +754,9 @@ export function DashboardClient({
           <div className="bg-card border border-border rounded-2xl p-5 overflow-hidden">
             <div className="flex items-start justify-between mb-4">
               <div>
-                <h2 className="text-[14px] font-semibold text-foreground leading-none">Monthly Overview</h2>
+                <h2 className="text-[14px] font-semibold text-foreground leading-none">Resumen mensual</h2>
                 <p className="text-[12px] text-muted-foreground mt-1">
-                  Income vs. Expenses &mdash; {monthLabel}
+                  Ingresos vs. gastos &middot; {monthLabel}
                 </p>
               </div>
               <div className="flex items-center gap-3 text-[11px] font-semibold">

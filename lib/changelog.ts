@@ -6,6 +6,54 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.21.14',
+    date: '2026-04-18',
+    changes: [
+      'Eliminada la sección \'Movimientos recientes\' del buscador Ctrl+K — no funcionaba correctamente'
+    ]
+  },
+  {
+    version: '0.21.13',
+    date: '2026-04-18',
+    changes: [
+      'Agregado widget de datos Argentina en el topbar con riesgo país y próximo feriado (clásico y MFI)',
+      'Movido el botón de refresh del widget USD adentro del pill para dejar claro que solo refresca la cotización del dólar'
+    ]
+  },
+  {
+    version: '0.21.12',
+    date: '2026-04-18',
+    changes: [
+      'Agregado skeleton en el widget de clima del topbar mientras carga la API',
+      'Agregado cursor-pointer a los botones Confirmar y Confirmar todos en la barra de gastos pendientes'
+    ]
+  },
+  {
+    version: '0.21.11',
+    date: '2026-04-18',
+    changes: [
+      'Corregido hydration mismatch en la tarjeta de mercado del dashboard (guard de montaje antes de renderizar contenido real)',
+      'Movido el encabezado de mes al centro del header del dashboard, a la altura del nombre de usuario'
+    ]
+  },
+  {
+    version: '0.21.10',
+    date: '2026-04-18',
+    changes: [
+      'Agregado detalle de gastos por categoría en el tooltip del gráfico mensual del dashboard (top 5 agrupadas por categoría y moneda, con contador o nota individual)',
+      'Agregado encabezado de mes y año arriba de las KPIs del dashboard',
+      'Traducidos \'Monthly Overview\' e \'Income vs. Expenses\' del gráfico a español'
+    ]
+  },
+  {
+    version: '0.21.9',
+    date: '2026-04-17',
+    changes: [
+      'Ubicación en Ajustes ahora se guarda automáticamente al seleccionarla (sin botón Guardar)',
+      'Corregido tipo de location_lat y location_lng en profiles (NUMERIC a DOUBLE PRECISION) para que el topbar muestre el clima tras guardar'
+    ]
+  },
+  {
     version: '0.21.8',
     date: '2026-04-17',
     changes: [

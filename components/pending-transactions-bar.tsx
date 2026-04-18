@@ -131,7 +131,7 @@ export function PendingTransactionsBar({
               size="sm"
               variant="outline"
               onClick={() => handleConfirmOne(single!)}
-              className="h-7 rounded-lg text-[11px] font-semibold gap-1 border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/50 transition-all duration-150"
+              className="h-7 rounded-lg text-[11px] font-semibold gap-1 border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/50 transition-all duration-150 cursor-pointer"
             >
               <Check className="w-3 h-3" />
               Confirmar
@@ -142,7 +142,7 @@ export function PendingTransactionsBar({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-7 rounded-lg text-[11px] font-semibold gap-1 border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/50 transition-all duration-150"
+                  className="h-7 rounded-lg text-[11px] font-semibold gap-1 border-amber-500/30 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 hover:border-amber-500/50 transition-all duration-150 cursor-pointer"
                 >
                   <Check className="w-3 h-3" />
                   Confirmar todos
@@ -160,14 +160,14 @@ export function PendingTransactionsBar({
                     size="sm"
                     variant="outline"
                     onClick={() => setConfirmAllOpen(false)}
-                    className="flex-1 h-8 rounded-lg text-[11px]"
+                    className="flex-1 h-8 rounded-lg text-[11px] cursor-pointer"
                   >
                     Cancelar
                   </Button>
                   <Button
                     size="sm"
                     onClick={handleConfirmAll}
-                    className="flex-1 h-8 rounded-lg text-[11px] font-semibold"
+                    className="flex-1 h-8 rounded-lg text-[11px] font-semibold cursor-pointer"
                   >
                     Confirmar todos
                   </Button>

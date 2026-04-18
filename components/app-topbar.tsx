@@ -20,6 +20,7 @@ import { Bell, LogOut, Settings, CheckCheck, Info, AlertTriangle, CheckCircle2, 
 import { ThemeToggle } from '@/components/theme-toggle'
 import { MfiPortfolioWidget } from '@/components/mfi-portfolio-widget'
 import { UsdCotizacionWidget } from '@/components/usd-cotizacion-widget'
+import { ArDatosWidget } from '@/components/ar-datos-widget'
 import { WeatherClockWidget } from '@/components/weather-clock-widget'
 import InvestmentStreakWidget from '@/components/investment-streak-widget'
 import { FeedbackModal } from '@/components/feedback-modal'
@@ -276,8 +277,9 @@ export function AppTopbar({ user, profile, mfiMode, onToggleMfi }: AppTopbarProp
 
       {/* All actions grouped right */}
       <div className="flex items-center gap-0.5 shrink-0 relative">
-        {/* Cotización USD → Clima + hora → Streak */}
+        {/* Cotización USD → Datos AR → Clima + hora → Streak */}
         <UsdCotizacionWidget />
+        <ArDatosWidget />
         <WeatherClockWidget profile={profile} />
         <InvestmentStreakWidget />
 

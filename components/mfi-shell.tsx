@@ -6,6 +6,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { LayoutDashboard, BarChart3, Target, List, Settings, LogOut, Shield } from 'lucide-react'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { MfiPortfolioWidget } from '@/components/mfi-portfolio-widget'
+import { ArDatosWidget } from '@/components/ar-datos-widget'
 import { WeatherClockWidget } from '@/components/weather-clock-widget'
 import { FeedbackModal } from '@/components/feedback-modal'
 import { createClient } from '@/lib/supabase/client'
@@ -152,6 +153,7 @@ export function MFIShell({ user, profile, children }: MFIShellProps) {
               <span className="hidden xs:inline">Modo clásico</span>
             </button>
             
+            <ArDatosWidget />
             <WeatherClockWidget profile={profile} />
 
             <MfiPortfolioWidget profileCurrency={profile?.default_currency ?? 'ARS'} />

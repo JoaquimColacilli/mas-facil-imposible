@@ -89,7 +89,7 @@ export function WeatherClockWidget({ profile }: WeatherClockWidgetProps) {
   const lng = profile?.location_lng ?? null
   const cacheKey = hasLocation ? `mfi-weather-${lat}-${lng}` : null
 
-  const { data: weather } = usePolling<WeatherCurrent>({
+  const { data: weather, isLoading: weatherLoading } = usePolling<WeatherCurrent>({
     key: cacheKey ?? 'mfi-weather-disabled',
     fetcher: async () => {
       if (!hasLocation) throw new Error('Sin ubicación configurada')
@@ -124,7 +124,22 @@ export function WeatherClockWidget({ profile }: WeatherClockWidgetProps) {
   const locationName = profile?.location_name ?? 'Tu ubicación'
   const timeStr = formatTimeInZone(now, timezone)
 
-  // Estado 2 — hay ubicación pero el clima falló: degradamos a solo hora.
+  // Estado 2a — loading inicial del clima: skeleton shimmer con ancho similar al final.
+  if (weatherLoading && !weather) {
+    return (
+      <div
+        className="hidden sm:flex items-center gap-1.5 h-9 px-2.5 rounded-xl bg-muted/40 border border-border/30 shrink-0 animate-pulse"
+        aria-label="Cargando clima"
+      >
+        <span className="w-3.5 h-3.5 rounded-full bg-muted" />
+        <span className="w-7 h-3 rounded bg-muted" />
+        <span className="w-px h-3.5 bg-border/50" />
+        <span className="w-10 h-3 rounded bg-muted" />
+      </div>
+    )
+  }
+
+  // Estado 2b — terminó de cargar pero el clima falló: degradamos a solo hora.
   if (!weather) {
     return (
       <div className="hidden sm:flex items-center gap-1.5 h-9 px-2.5 rounded-xl bg-muted/40 border border-border/30 text-xs select-none shrink-0">

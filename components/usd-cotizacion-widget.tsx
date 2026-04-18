@@ -97,12 +97,12 @@ export function UsdCotizacionWidget() {
     : null
 
   return (
-    <div className="hidden md:flex items-center gap-1 shrink-0">
+    <div className="hidden md:flex items-center shrink-0">
       <Tooltip>
         <TooltipTrigger asChild>
           <div
             className={cn(
-              'flex items-center gap-1.5 h-9 px-2.5 rounded-xl bg-muted/40 border border-border/30 text-xs select-none',
+              'flex items-center gap-1.5 h-9 pl-2.5 pr-1.5 rounded-xl bg-muted/40 border border-border/30 text-xs select-none',
               isStale && 'opacity-60',
             )}
           >
@@ -118,7 +118,7 @@ export function UsdCotizacionWidget() {
               {formatPrice(data.mep.venta)}
             </span>
 
-            {/* Divider */}
+            {/* Divider MEP | Blue */}
             <span className="w-px h-3.5 bg-border/50" />
 
             {/* Blue */}
@@ -132,6 +132,33 @@ export function UsdCotizacionWidget() {
             >
               {formatPrice(data.blue.venta)}
             </span>
+
+            {/* Divider Blue | Refresh (el botón vive acá adentro para dejar claro que solo refresca USD) */}
+            <span className="w-px h-3.5 bg-border/50" />
+
+            {/* Refresh — pertenece al pill USD, no al topbar.
+                Usamos title nativo en vez de Radix Tooltip para evitar
+                anidado de tooltips con el Tooltip exterior del pill. */}
+            <button
+              onClick={(e) => { e.stopPropagation(); handleRefresh() }}
+              disabled={onCooldown}
+              aria-label="Actualizar cotización USD"
+              title={onCooldown ? `Esperá ${cooldownRemaining}s` : 'Actualizar ahora'}
+              className={cn(
+                'p-1 rounded-md transition-colors',
+                onCooldown
+                  ? 'opacity-30 cursor-not-allowed'
+                  : 'text-muted-foreground/50 hover:text-muted-foreground cursor-pointer',
+              )}
+            >
+              <RefreshCw
+                className="w-3.5 h-3.5"
+                style={{
+                  transform: spinning ? 'rotate(360deg)' : 'rotate(0deg)',
+                  transition: spinning ? 'transform 0.5s ease-out' : 'none',
+                }}
+              />
+            </button>
           </div>
         </TooltipTrigger>
         <TooltipContent side="bottom" className="max-w-xs p-3">
@@ -174,31 +201,6 @@ export function UsdCotizacionWidget() {
         </TooltipContent>
       </Tooltip>
 
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            onClick={handleRefresh}
-            disabled={onCooldown}
-            className={cn(
-              'p-1 rounded-md transition-colors',
-              onCooldown
-                ? 'opacity-30 cursor-not-allowed'
-                : 'text-muted-foreground/50 hover:text-muted-foreground cursor-pointer',
-            )}
-          >
-            <RefreshCw
-              className="w-3.5 h-3.5"
-              style={{
-                transform: spinning ? 'rotate(360deg)' : 'rotate(0deg)',
-                transition: spinning ? 'transform 0.5s ease-out' : 'none',
-              }}
-            />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent>
-          {onCooldown ? `Esperá ${cooldownRemaining}s` : 'Actualizar ahora'}
-        </TooltipContent>
-      </Tooltip>
     </div>
   )
 }

@@ -367,6 +367,13 @@ export function MarketCard({ defaultExpanded = false, chartHeight = 32 }: Market
     ? activePolling.lastUpdated.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
     : null
 
+  // --- Hydration guard ---
+  // Server renderiza con defaults (sin localStorage) y con stocks.isLoading=true → skeleton.
+  // El primer render del client lee localStorage en los useState iniciales y puede diferir
+  // (tab persistido, data ya cacheada en SWR/sessionStorage). Mientras !mounted, forzamos
+  // skeleton para matchear el server y evitar el mismatch.
+  if (!mounted) return <MarketCardSkeleton />
+
   // --- Loading state (only for initial load of stocks) ---
   if (tab === 'acciones' && stocks.isLoading) return <MarketCardSkeleton />
 
