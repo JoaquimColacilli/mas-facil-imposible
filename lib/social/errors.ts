@@ -11,6 +11,11 @@ export const SOCIAL_ERROR_MESSAGES_ES_AR: Record<string, string> = {
   not_pending: 'Esta solicitud ya no está pendiente.',
   unauthenticated: 'Tenés que iniciar sesión.',
   invalid: 'Operación inválida.',
+  // Chat (Fase 4)
+  not_friends: 'Ya no son amigos. No podés enviar mensajes en esta conversación.',
+  rate_limited: 'Estás enviando mensajes muy seguido. Esperá un momento.',
+  empty: 'El mensaje no puede estar vacío.',
+  too_long: 'El mensaje supera el límite de 4000 caracteres.',
 }
 
 export function getSocialErrorMessage(code: string | null | undefined): string {

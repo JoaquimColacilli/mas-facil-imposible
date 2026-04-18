@@ -83,9 +83,11 @@ export function FriendCard({ friend }: FriendCardProps) {
               Ver perfil
             </Link>
           </DropdownMenuItem>
-          <DropdownMenuItem disabled title="Disponible en breve" className="cursor-not-allowed opacity-60">
-            <MessageCircle className="w-4 h-4 mr-2" />
-            Enviar mensaje
+          <DropdownMenuItem asChild className="cursor-pointer">
+            <Link href={`/chat/${friend.id}`}>
+              <MessageCircle className="w-4 h-4 mr-2" />
+              Enviar mensaje
+            </Link>
           </DropdownMenuItem>
           <DropdownMenuItem
             onClick={() => setConfirm('remove')}

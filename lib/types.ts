@@ -92,6 +92,54 @@ export interface FriendRequestNotificationData {
   sender_username: string | null
 }
 
+// ─── Chat (Fase 4) ───────────────────────────────────────────────────────────
+
+export interface Conversation {
+  id: string
+  user_a_id: string
+  user_b_id: string
+  last_message_at: string | null
+  user_a_last_read_at: string | null
+  user_b_last_read_at: string | null
+  created_at: string
+}
+
+export interface Message {
+  id: string
+  conversation_id: string
+  sender_id: string
+  body: string
+  created_at: string
+  deleted_at: string | null
+  edited_at: string | null
+}
+
+/**
+ * Shape of the `last_message` JSONB column in `conversation_summaries`.
+ * `body` is null when the message is soft-deleted (the view collapses it
+ * server-side so the client never sees deleted content).
+ */
+export interface LastMessagePreview {
+  id: string
+  sender_id: string
+  body: string | null
+  created_at: string
+  deleted_at: string | null
+}
+
+/** Shape of `public.conversation_summaries` (DB view). Per-viewer. */
+export interface ConversationSummary {
+  id: string
+  user_a_id: string
+  user_b_id: string
+  last_message_at: string | null
+  created_at: string
+  peer_id: string
+  my_last_read_at: string | null
+  unread_count: number
+  last_message: LastMessagePreview | null
+}
+
 export interface Category {
   id: string
   user_id: string

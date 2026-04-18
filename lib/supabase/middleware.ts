@@ -40,6 +40,7 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith('/notifications') ||
     request.nextUrl.pathname.startsWith('/mfi') ||
     request.nextUrl.pathname.startsWith('/friends') ||
+    request.nextUrl.pathname.startsWith('/chat') ||
     request.nextUrl.pathname.startsWith('/onboarding')
 
   if (isAppRoute && !user) {

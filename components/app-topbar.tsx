@@ -25,6 +25,7 @@ import { WeatherClockWidget } from '@/components/weather-clock-widget'
 import InvestmentStreakWidget from '@/components/investment-streak-widget'
 import { FeedbackModal } from '@/components/feedback-modal'
 import { FriendsTopbarButton } from '@/components/friends-topbar-button'
+import { MessagesTopbarButton } from '@/components/messages-topbar-button'
 import { cn } from '@/lib/utils'
 import { fetchMonthlyReportData } from '@/app/(app)/dashboard/actions'
 import { isNonTradingDay, getHolidayName } from '@/lib/ar-holidays'
@@ -294,6 +295,7 @@ export function AppTopbar({ user, profile, mfiMode, onToggleMfi }: AppTopbarProp
 
         {/* Amigos — separa datos económicos de acciones del user */}
         <FriendsTopbarButton userId={user.id} />
+        <MessagesTopbarButton userId={user.id} />
 
         {/* Switch to MFI mode */}
         <button

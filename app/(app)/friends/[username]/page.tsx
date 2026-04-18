@@ -1,9 +1,10 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
-import { ArrowLeft, Flame } from 'lucide-react'
+import { ArrowLeft, Flame, MessageCircle } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/server'
 import { getRelationshipState } from '@/lib/social/relationship'
 import { getPublicStreak } from '@/lib/social/public-stats'
@@ -165,9 +166,12 @@ export default async function FriendProfilePage({ params }: PageProps) {
                     targetId={publicProfile.id}
                   />
                   {relationship.state === 'friends' && (
-                    <p className="text-[11px] text-muted-foreground leading-relaxed pt-1 border-t border-border">
-                      El chat se habilita próximamente.
-                    </p>
+                    <Button asChild variant="outline" className="gap-1.5 mt-1">
+                      <Link href={`/chat/${publicProfile.id}`}>
+                        <MessageCircle className="w-4 h-4" />
+                        Enviar mensaje
+                      </Link>
+                    </Button>
                   )}
                 </>
               )}
