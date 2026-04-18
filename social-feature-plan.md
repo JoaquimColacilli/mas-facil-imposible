@@ -1140,6 +1140,15 @@ El flow de agregar amigo + chat tiene que funcionar a 360px. Priorizar testing m
 ### 13.10 Re-render storms en inbox y chat
 Una conversation activa genera un Realtime event por mensaje → si el inbox está abierto en otra tab y escucha todos los conversation updates, puede generar re-renders innecesarios. Debounce las actualizaciones de last_message_at si aparece lag.
 
+### 13.11 RLS de `profiles` bloquea lectura cross-user por default
+Las policies originales de `profiles` (migración 001) solo permiten SELECT con `auth.uid() = id`. Cualquier feature que necesite leer profiles ajenos via una view con `security_invoker=true` (como `friends_visible_profiles` o `profiles_public`) depende de la policy `profiles_select_discoverable_or_friends` agregada en la migración 017 post-debug.
+
+La policy permite SELECT si: es uno mismo, o el profile es `is_discoverable=true`, o existe una friendship entre caller y el profile target.
+
+Si una feature futura necesita un nuevo caso de lectura (ej: exposición a users bloqueados, exposición a staff/admin, exposición via mensaje directo sin amistad), hay que agregar policy adicional o extender la existente.
+
+Debugging de este bug es particularmente hostil porque la view no tira error — simplemente devuelve vacío. Cuando un server component hace `.from('profiles_public').select(...)` y devuelve null silencioso, revisar RLS antes que código.
+
 ---
 
 ## 14. Fuera de scope explícito (v2+)
