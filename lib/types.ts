@@ -51,6 +51,39 @@ export interface PublicProfile {
   created_at: string
 }
 
+// ─── Social graph (Fase 2) ───────────────────────────────────────────────────
+
+export type FriendRequestStatus = 'pending' | 'accepted' | 'rejected' | 'cancelled'
+
+export interface FriendRequest {
+  id: string
+  sender_id: string
+  receiver_id: string
+  status: FriendRequestStatus
+  created_at: string
+  updated_at: string
+}
+
+export interface Friendship {
+  user_a_id: string
+  user_b_id: string
+  created_at: string
+}
+
+export interface Block {
+  blocker_id: string
+  blocked_id: string
+  created_at: string
+}
+
+/** Payload stored in `notifications.data` when type='friend_request_received'. */
+export interface FriendRequestNotificationData {
+  type: 'friend_request_received'
+  request_id: string
+  sender_id: string
+  sender_username: string | null
+}
+
 export interface Category {
   id: string
   user_id: string

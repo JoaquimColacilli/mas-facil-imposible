@@ -1,12 +1,13 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import Image from 'next/image'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, UserPlus, LogIn } from 'lucide-react'
+import { ArrowLeft, LogIn } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/server'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import type { PublicProfile } from '@/lib/types'
+import { getRelationshipState } from '@/lib/social/relationship'
+import { FriendRequestButton } from '@/components/friend-request-button'
 
 // Privacy-first: discoverable profiles still shouldn't be indexed by search
 // engines without per-profile opt-in (v2). Apply a noindex blanket.
@@ -49,7 +50,11 @@ export default async function AddUsernamePage({ params }: PageProps) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  const isSelf = user?.id === publicProfile.id
+  // For authenticated viewers: compute the relationship state. If the target
+  // blocked the viewer (silencioso), 404 — never leak existence.
+  const relationship = user ? await getRelationshipState(user.id, publicProfile.id) : null
+  if (relationship?.state === 'blocked_by_them') notFound()
+
   const isAuthenticated = !!user
 
   const initials = (publicProfile.nickname ?? publicProfile.username ?? '?')
@@ -98,21 +103,20 @@ export default async function AddUsernamePage({ params }: PageProps) {
           )}
 
           {/* CTA branched by viewer */}
-          <div className="w-full pt-4 mt-2 border-t border-border/60 flex flex-col gap-2">
-            {isSelf ? (
-              <Button asChild className="w-full" variant="outline">
-                <Link href="/settings">Este es tu perfil — editar</Link>
-              </Button>
-            ) : isAuthenticated ? (
-              <>
-                <Button className="w-full gap-1.5" disabled title="Disponible próximamente">
-                  <UserPlus className="w-4 h-4" />
-                  Enviar solicitud de amistad
+          <div className="w-full pt-4 mt-2 border-t border-border/60 flex flex-col gap-2 items-center">
+            {isAuthenticated && relationship ? (
+              relationship.state === 'self' ? (
+                <Button asChild className="w-full" variant="outline">
+                  <Link href="/settings">Este es tu perfil — editar</Link>
                 </Button>
-                <p className="text-[11px] text-muted-foreground">
-                  El sistema de amigos se habilita en breve.
-                </p>
-              </>
+              ) : (
+                <FriendRequestButton
+                  state={relationship.state}
+                  requestId={relationship.requestId}
+                  targetUsername={publicProfile.username}
+                  targetId={publicProfile.id}
+                />
+              )
             ) : (
               <Button asChild className="w-full gap-1.5">
                 <Link href={`/auth/login?next=/add/${publicProfile.username}`}>

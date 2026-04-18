@@ -24,6 +24,7 @@ import { ArDatosWidget } from '@/components/ar-datos-widget'
 import { WeatherClockWidget } from '@/components/weather-clock-widget'
 import InvestmentStreakWidget from '@/components/investment-streak-widget'
 import { FeedbackModal } from '@/components/feedback-modal'
+import { FriendsTopbarButton } from '@/components/friends-topbar-button'
 import { cn } from '@/lib/utils'
 import { fetchMonthlyReportData } from '@/app/(app)/dashboard/actions'
 import { isNonTradingDay, getHolidayName } from '@/lib/ar-holidays'
@@ -46,6 +47,7 @@ const TYPE_ICONS: Record<NotificationType, React.ReactNode> = {
 
 function NotificationsPopover({ userId }: { userId: string }) {
   const supabase = createClient()
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const ref = useRef<HTMLDivElement>(null)
@@ -157,6 +159,7 @@ function NotificationsPopover({ userId }: { userId: string }) {
             ) : (
               notifications.map((n, i) => {
                 const isMonthly = n.data?.type === 'monthly_summary'
+                const isFriendRequest = n.data?.type === 'friend_request_received'
                 return (
                   <div
                     key={n.id}
@@ -167,7 +170,13 @@ function NotificationsPopover({ userId }: { userId: string }) {
                       i < notifications.length - 1 && 'border-b border-border/60',
                       !n.read && 'bg-accent/20',
                     )}
-                    onClick={() => markRead(n.id)}
+                    onClick={() => {
+                      markRead(n.id)
+                      if (isFriendRequest) {
+                        setOpen(false)
+                        router.push('/friends?tab=requests')
+                      }
+                    }}
                     role={!isMonthly ? 'button' : undefined}
                   >
                     <div className="mt-0.5 shrink-0">{TYPE_ICONS[n.type]}</div>
@@ -282,6 +291,9 @@ export function AppTopbar({ user, profile, mfiMode, onToggleMfi }: AppTopbarProp
         <ArDatosWidget />
         <WeatherClockWidget profile={profile} />
         <InvestmentStreakWidget />
+
+        {/* Amigos — separa datos económicos de acciones del user */}
+        <FriendsTopbarButton userId={user.id} />
 
         {/* Switch to MFI mode */}
         <button
