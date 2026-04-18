@@ -21,6 +21,7 @@ import { AvatarUpload } from '@/components/avatar-upload'
 import { MoodPicker } from '@/components/mood-picker'
 import { LocationPicker, type LocationValue } from '@/components/location-picker'
 import { DataPrivacyCard } from './data-privacy-card'
+import { SocialProfileCard } from './social-profile-card'
 import { LogOut, Save, Lock, Eye, EyeOff, CheckCircle2, Mail, User, AtSign, MapPin } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -277,6 +278,9 @@ export function SettingsClient({ profile, userEmail, userId }: SettingsClientPro
               </form>
             </CardContent>
           </Card>
+
+          {/* Perfil social */}
+          {profile && <SocialProfileCard profile={profile} userId={userId} />}
 
           {/* Ubicación */}
           <Card>

@@ -28,8 +28,27 @@ export interface Profile {
   tos_version: string | null
   privacy_accepted_at: string | null
   privacy_version: string | null
+  username: string | null
+  username_changed_at: string | null
+  is_discoverable: boolean
+  bio: string | null
   created_at: string
   updated_at: string
+}
+
+/**
+ * Shape of public.profiles_public (DB view).
+ * Only safe-to-expose columns. Returned when looking up other users.
+ * Never use Profile for cross-user reads.
+ */
+export interface PublicProfile {
+  id: string
+  username: string | null
+  nickname: string | null
+  avatar_url: string | null
+  bio: string | null
+  is_discoverable: boolean
+  created_at: string
 }
 
 export interface Category {
