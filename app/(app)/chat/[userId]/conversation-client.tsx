@@ -7,11 +7,16 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { useMessages } from '@/hooks/use-messages'
 import { useIsMobile } from '@/hooks/use-mobile'
+import { usePresence } from '@/hooks/use-presence'
+import { useTyping } from '@/hooks/use-typing'
 import { MessageBubble } from '@/components/message-bubble'
 import { ChatComposer } from '@/components/chat-composer'
 import { DaySeparator } from '@/components/day-separator'
+import { PresenceDot } from '@/components/presence-dot'
+import { TypingIndicator } from '@/components/typing-indicator'
 import { dayLabel, canSendMessage, newMessagesChipLabel } from '@/lib/social/chat'
 import { markConversationRead } from '@/app/(app)/chat/actions'
+import { isOnlineFromLastSeen } from '@/lib/social/presence'
 import type { Message, PublicProfile } from '@/lib/types'
 import type { RelationshipState } from '@/lib/social/relationship'
 
@@ -33,6 +38,31 @@ export function ConversationClient({
   const isMobile = useIsMobile()
   const { messages, loading, reachedEnd, loadMore, latestRealtimeInsertId, pushOwnEcho } =
     useMessages({ conversationId, initialMessages })
+
+  // Presence + typing viven en un canal compartido por conversación:
+  // `chat:${conversationId}`. No colisiona con `conversation:${id}` (canal de
+  // postgres_changes de Fase 4). Habilitados solo cuando la conversación es
+  // activa (friends) — ex-amigos y blocked_by_me son read-only, sin señales.
+  const channelLive = relationshipState === 'friends'
+  const channelKey = channelLive ? `chat:${conversationId}` : null
+  const { peerOnline } = usePresence({
+    channelKey,
+    viewerId,
+    peerId: peer.id,
+    enabled: channelLive,
+  })
+  const { peerTyping, notifyTyping, notifyStop } = useTyping({
+    channelKey,
+    viewerId,
+    peerId: peer.id,
+    enabled: channelLive,
+  })
+
+  // Fallback derivado: si el channel Presence aún no sincronizó (abrir chat
+  // recién), usamos el last_seen_at del SSR para evitar mostrar offline falso
+  // durante los primeros ~500ms.
+  const derivedOnline = isOnlineFromLastSeen(peer.last_seen_at)
+  const headerOnline = peerOnline || derivedOnline
 
   const feedRef = useRef<HTMLDivElement>(null)
   const topSentinelRef = useRef<HTMLDivElement>(null)
@@ -65,6 +95,17 @@ export function ConversationClient({
 
   // Realtime insert arrived: decide between auto-scroll and new-messages chip.
   // Own sends bypass the threshold and always auto-scroll (tracked via pushOwnEcho).
+  //
+  // Ajuste B (Fase 5): el RPC mark_conversation_read (que ahora además batch-
+  // updatea messages.read_at → ✓✓ para el sender) se dispara SOLO cuando el
+  // viewer efectivamente vio el mensaje. Los triggers son:
+  //   - SSR (page.tsx) on mount  → asume abrir la conv = ver los mensajes.
+  //   - Realtime INSERT + isNearBottom → auto-scroll al nuevo, mark_read.
+  //   - handleScroll (newCount > 0 + transición a isNearBottom) → mark_read.
+  //   - handleChipClick → scroll y mark_read.
+  // Si llega un mensaje y el viewer está scrolleando arriba (!isNearBottom),
+  // solo se bumpea el contador — el peer NO ve ✓✓ hasta que vos llegues al
+  // bottom. Semánticamente correcto para read receipts.
   useEffect(() => {
     if (!latestRealtimeInsertId) return
     const last = messages[messages.length - 1]
@@ -77,7 +118,6 @@ export function ConversationClient({
     }
     if (isNearBottom()) {
       scrollToBottom(true)
-      // Update read marker for live messages. Best-effort.
       markConversationRead(conversationId).catch(() => {})
     } else {
       setNewCount((n) => n + 1)
@@ -152,15 +192,30 @@ export function ConversationClient({
           href={peer.username ? `/friends/${peer.username}` : '#'}
           className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity"
         >
-          <Avatar className="w-9 h-9 shrink-0">
-            {peer.avatar_url && <AvatarImage src={peer.avatar_url} alt={`@${peer.username}`} />}
-            <AvatarFallback>{initials}</AvatarFallback>
-          </Avatar>
+          <div className="relative shrink-0">
+            <Avatar className="w-9 h-9">
+              {peer.avatar_url && <AvatarImage src={peer.avatar_url} alt={`@${peer.username}`} />}
+              <AvatarFallback>{initials}</AvatarFallback>
+            </Avatar>
+            {channelLive && (
+              <PresenceDot
+                online={headerOnline}
+                size="sm"
+                className="absolute bottom-0 right-0"
+              />
+            )}
+          </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-foreground truncate leading-tight">
               {peer.nickname ?? peer.username ?? 'Usuario'}
             </p>
-            <p className="text-[11px] text-muted-foreground truncate">@{peer.username}</p>
+            <p className="text-[11px] text-muted-foreground truncate">
+              {channelLive
+                ? headerOnline
+                  ? 'En línea'
+                  : `@${peer.username}`
+                : `@${peer.username}`}
+            </p>
           </div>
         </Link>
       </header>
@@ -217,12 +272,19 @@ export function ConversationClient({
         )}
       </div>
 
+      {/* Typing indicator — altura fija, no desplaza el feed */}
+      {channelLive && (
+        <TypingIndicator visible={peerTyping} username={peer.username} />
+      )}
+
       {/* Composer (sticky on mobile, normal on desktop) */}
       <div className="shrink-0 sticky bottom-0 bg-background pb-[env(safe-area-inset-bottom,0px)]">
         <ChatComposer
           conversationId={conversationId}
           onSent={handleSent}
           disabled={composerDisabled}
+          onTyping={channelLive ? notifyTyping : undefined}
+          onStopTyping={channelLive ? notifyStop : undefined}
         />
       </div>
     </div>

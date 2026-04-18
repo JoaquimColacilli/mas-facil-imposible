@@ -44,7 +44,9 @@ export default async function AddUsernamePage({ params }: PageProps) {
 
   if (!profile) notFound()
 
-  const publicProfile = profile as PublicProfile
+  // profiles_public no expone last_seen_at (decisión de privacidad Fase 5 —
+  // evitar leak de presence a anon). Inyectamos null para satisfacer el tipo.
+  const publicProfile = { ...profile, last_seen_at: null } as PublicProfile
 
   const {
     data: { user },

@@ -19,6 +19,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { Button } from '@/components/ui/button'
+import { ReadReceipt } from '@/components/read-receipt'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { timeLabel } from '@/lib/social/chat'
@@ -79,6 +80,7 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
               Visually identical, byte-different — React flags a mismatch we
               can safely suppress because the rendered timestamp is the same. */}
           <span suppressHydrationWarning>{timeLabel(message.created_at)}</span>
+          {isOwn && !isDeleted && <ReadReceipt readAt={message.read_at} />}
           {isOwn && !isDeleted && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

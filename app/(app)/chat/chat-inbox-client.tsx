@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button'
 import { MessageCircle, Search, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { relativeInboxTime } from '@/lib/social/chat'
+import { isOnlineFromLastSeen } from '@/lib/social/presence'
+import { PresenceDot } from '@/components/presence-dot'
 import type { ConversationSummary, PublicProfile } from '@/lib/types'
 
 export interface InboxItem {
@@ -90,10 +92,17 @@ function InboxRow({ item, userId }: { item: InboxItem; userId: string }) {
         href={`/chat/${peer.id}`}
         className="flex items-center gap-3 px-4 py-3 hover:bg-muted/50 transition-colors"
       >
-        <Avatar className="w-11 h-11 shrink-0">
-          {peer.avatar_url && <AvatarImage src={peer.avatar_url} alt={`@${peer.username}`} />}
-          <AvatarFallback>{initials}</AvatarFallback>
-        </Avatar>
+        <div className="relative shrink-0">
+          <Avatar className="w-11 h-11">
+            {peer.avatar_url && <AvatarImage src={peer.avatar_url} alt={`@${peer.username}`} />}
+            <AvatarFallback>{initials}</AvatarFallback>
+          </Avatar>
+          <PresenceDot
+            online={isOnlineFromLastSeen(peer.last_seen_at)}
+            size="sm"
+            className="absolute bottom-0 right-0"
+          />
+        </div>
 
         <div className="flex-1 min-w-0 flex flex-col gap-0.5">
           <div className="flex items-baseline justify-between gap-2">

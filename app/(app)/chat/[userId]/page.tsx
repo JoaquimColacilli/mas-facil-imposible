@@ -32,10 +32,12 @@ export default async function ConversationPage({ params }: PageProps) {
   if (relationship.state === 'friends') {
     const { data } = await supabase
       .from('friends_visible_profiles')
-      .select('id, username, nickname, avatar_url, bio, is_discoverable, created_at')
+      .select('id, username, nickname, avatar_url, bio, is_discoverable, last_seen_at, created_at')
       .eq('id', peerId)
       .maybeSingle()
-    peer = data ? ({ ...(data as PublicProfile), show_streak: false, show_badges: false }) : null
+    peer = data
+      ? ({ ...(data as PublicProfile), show_streak: false, show_badges: false })
+      : null
   } else {
     // Admin client: ex-friend / blocked_by_me profiles are hidden from
     // friends_visible_profiles but still need to render in a read-only view
@@ -43,7 +45,7 @@ export default async function ConversationPage({ params }: PageProps) {
     const admin = createAdminClient()
     const { data } = await admin
       .from('profiles')
-      .select('id, username, nickname, avatar_url, bio, is_discoverable, show_streak, show_badges, created_at')
+      .select('id, username, nickname, avatar_url, bio, is_discoverable, show_streak, show_badges, last_seen_at, created_at')
       .eq('id', peerId)
       .maybeSingle()
     peer = (data as PublicProfile | null) ?? null
@@ -76,7 +78,7 @@ export default async function ConversationPage({ params }: PageProps) {
   // Initial page of messages (newest-first from DB → reversed to chronological).
   const { data: pageRaw = [] } = await supabase
     .from('messages')
-    .select('id, conversation_id, sender_id, body, created_at, deleted_at, edited_at')
+    .select('id, conversation_id, sender_id, body, created_at, deleted_at, edited_at, read_at')
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: false })
     .limit(PAGE_SIZE)

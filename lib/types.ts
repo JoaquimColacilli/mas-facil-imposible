@@ -35,6 +35,7 @@ export interface Profile {
   show_streak: boolean
   show_badges: boolean
   show_bio: boolean
+  last_seen_at: string | null
   created_at: string
   updated_at: string
 }
@@ -56,6 +57,7 @@ export interface PublicProfile {
   show_streak: boolean
   show_badges: boolean
   is_discoverable: boolean
+  last_seen_at: string | null
   created_at: string
 }
 
@@ -112,6 +114,7 @@ export interface Message {
   created_at: string
   deleted_at: string | null
   edited_at: string | null
+  read_at: string | null
 }
 
 /**

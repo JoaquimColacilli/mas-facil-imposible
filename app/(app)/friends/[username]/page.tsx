@@ -9,6 +9,8 @@ import { createClient } from '@/lib/supabase/server'
 import { getRelationshipState } from '@/lib/social/relationship'
 import { getPublicStreak } from '@/lib/social/public-stats'
 import { FriendRequestButton } from '@/components/friend-request-button'
+import { PresenceDot } from '@/components/presence-dot'
+import { isOnlineFromLastSeen } from '@/lib/social/presence'
 import type { PublicProfile } from '@/lib/types'
 
 export const metadata: Metadata = {
@@ -53,6 +55,17 @@ export default async function FriendProfilePage({ params }: PageProps) {
   const relationship = await getRelationshipState(user.id, publicProfile.id)
   if (relationship.state === 'blocked_by_them') notFound()
 
+  // last_seen_at NO está en profiles_public (view granted a anon → evitamos
+  // exponer presence a randos). Traemos en query separada, authenticated —
+  // la policy profiles_select_discoverable_or_friends (017 bloque 11) cubre
+  // el caso discoverable/friend/self sin cambios.
+  const { data: presenceRow } = await supabase
+    .from('profiles')
+    .select('last_seen_at')
+    .eq('id', publicProfile.id)
+    .maybeSingle()
+  const peerOnline = isOnlineFromLastSeen(presenceRow?.last_seen_at ?? null)
+
   // Streak — RPC enforces the flag server-side. Null when show_streak=false
   // OR target doesn't exist OR not discoverable to viewer.
   const streak = publicProfile.show_streak ? await getPublicStreak(publicProfile.id) : null
@@ -96,12 +109,19 @@ export default async function FriendProfilePage({ params }: PageProps) {
           {/* Profile card */}
           <Card>
             <CardContent className="pt-6 flex flex-col items-center text-center gap-3">
-              <Avatar className="w-20 h-20">
-                {publicProfile.avatar_url && (
-                  <AvatarImage src={publicProfile.avatar_url} alt={`@${publicProfile.username}`} />
-                )}
-                <AvatarFallback className="text-lg">{initials}</AvatarFallback>
-              </Avatar>
+              <div className="relative">
+                <Avatar className="w-20 h-20">
+                  {publicProfile.avatar_url && (
+                    <AvatarImage src={publicProfile.avatar_url} alt={`@${publicProfile.username}`} />
+                  )}
+                  <AvatarFallback className="text-lg">{initials}</AvatarFallback>
+                </Avatar>
+                <PresenceDot
+                  online={peerOnline}
+                  size="md"
+                  className="absolute bottom-1 right-1"
+                />
+              </div>
               <div className="flex flex-col items-center gap-0.5">
                 {publicProfile.nickname && (
                   <p className="text-xl font-semibold text-foreground leading-tight">

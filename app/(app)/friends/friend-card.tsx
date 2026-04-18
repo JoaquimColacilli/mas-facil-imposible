@@ -24,6 +24,8 @@ import {
 } from '@/components/ui/alert-dialog'
 import { MoreVertical, User, MessageCircle, UserMinus, Ban } from 'lucide-react'
 import { toast } from 'sonner'
+import { PresenceDot } from '@/components/presence-dot'
+import { isOnlineFromLastSeen } from '@/lib/social/presence'
 import type { PublicProfile } from '@/lib/types'
 import { removeFriend, blockUser } from './actions'
 
@@ -52,10 +54,17 @@ export function FriendCard({ friend }: FriendCardProps) {
 
   return (
     <Card className="p-4 flex items-center gap-3">
-      <Avatar className="w-12 h-12 shrink-0">
-        {friend.avatar_url && <AvatarImage src={friend.avatar_url} alt={`@${friend.username}`} />}
-        <AvatarFallback>{initials}</AvatarFallback>
-      </Avatar>
+      <div className="relative shrink-0">
+        <Avatar className="w-12 h-12">
+          {friend.avatar_url && <AvatarImage src={friend.avatar_url} alt={`@${friend.username}`} />}
+          <AvatarFallback>{initials}</AvatarFallback>
+        </Avatar>
+        <PresenceDot
+          online={isOnlineFromLastSeen(friend.last_seen_at)}
+          size="sm"
+          className="absolute bottom-0 right-0"
+        />
+      </div>
 
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-foreground truncate">

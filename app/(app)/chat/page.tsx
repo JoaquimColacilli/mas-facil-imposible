@@ -31,7 +31,7 @@ export default async function ChatInboxPage() {
 
   const { data: visible = [] } = await supabase
     .from('friends_visible_profiles')
-    .select('id, username, nickname, avatar_url, bio, is_discoverable, created_at')
+    .select('id, username, nickname, avatar_url, bio, is_discoverable, last_seen_at, created_at')
     .in('id', peerIds)
 
   const profileById = new Map<string, PublicProfile>()
@@ -49,7 +49,7 @@ export default async function ChatInboxPage() {
     const admin = createAdminClient()
     const { data: recovered } = await admin
       .from('profiles')
-      .select('id, username, nickname, avatar_url, bio, is_discoverable, show_streak, show_badges, created_at')
+      .select('id, username, nickname, avatar_url, bio, is_discoverable, show_streak, show_badges, last_seen_at, created_at')
       .in('id', missingIds)
     for (const p of (recovered ?? []) as PublicProfile[]) {
       profileById.set(p.id, p)

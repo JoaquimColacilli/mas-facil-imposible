@@ -58,7 +58,7 @@ export async function sendMessage(
 
   const { data: message, error: fetchError } = await supabase
     .from('messages')
-    .select('id, conversation_id, sender_id, body, created_at, deleted_at, edited_at')
+    .select('id, conversation_id, sender_id, body, created_at, deleted_at, edited_at, read_at')
     .eq('id', msgId as string)
     .single()
   if (fetchError || !message) return fail(null, 'No se pudo leer el mensaje enviado.')

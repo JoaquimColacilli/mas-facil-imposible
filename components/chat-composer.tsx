@@ -15,9 +15,19 @@ interface ChatComposerProps {
   conversationId: string
   onSent: (message: Message) => void
   disabled?: boolean
+  /** Llamar on keystroke con throttle interno. No-op si no se pasa. */
+  onTyping?: () => void
+  /** Llamar para emitir typing:false (blur, empty, successful send). No-op si no se pasa. */
+  onStopTyping?: () => void
 }
 
-export function ChatComposer({ conversationId, onSent, disabled }: ChatComposerProps) {
+export function ChatComposer({
+  conversationId,
+  onSent,
+  disabled,
+  onTyping,
+  onStopTyping,
+}: ChatComposerProps) {
   const [value, setValue] = useState('')
   const [sending, setSending] = useState(false)
   const taRef = useRef<HTMLTextAreaElement>(null)
@@ -44,10 +54,11 @@ export function ChatComposer({ conversationId, onSent, disabled }: ChatComposerP
       return
     }
     setValue('')
+    onStopTyping?.()
     onSent(res.data)
     // Re-focus so typing can continue without mouse.
     requestAnimationFrame(() => taRef.current?.focus())
-  }, [canSend, value, conversationId, onSent])
+  }, [canSend, value, conversationId, onSent, onStopTyping])
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -77,7 +88,14 @@ export function ChatComposer({ conversationId, onSent, disabled }: ChatComposerP
           rows={1}
           value={value}
           maxLength={MAX_CHARS}
-          onChange={(e) => setValue(e.target.value)}
+          onChange={(e) => {
+            const next = e.target.value
+            setValue(next)
+            // Ajuste A: textarea vacío → stop inmediato, sin esperar idle timeout.
+            if (next.length === 0) onStopTyping?.()
+            else onTyping?.()
+          }}
+          onBlur={() => onStopTyping?.()}
           onKeyDown={handleKeyDown}
           placeholder="Escribí un mensaje…"
           className={cn(

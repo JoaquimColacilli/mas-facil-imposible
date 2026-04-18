@@ -61,7 +61,7 @@ export function SearchTab({ userId, friendIds, pendingByCounterparty }: SearchTa
     const timer = setTimeout(async () => {
       const { data, error } = await supabase
         .from('friends_visible_profiles')
-        .select('id, username, nickname, avatar_url, bio, is_discoverable, created_at')
+        .select('id, username, nickname, avatar_url, bio, is_discoverable, last_seen_at, created_at')
         .ilike('username', trimmed)
         .limit(1)
         .abortSignal(controller.signal)
@@ -86,7 +86,10 @@ export function SearchTab({ userId, friendIds, pendingByCounterparty }: SearchTa
           .maybeSingle()
         if (controller.signal.aborted) return
         if (maybeSelf && maybeSelf.id === userId) {
-          setState({ kind: 'self_match', profile: maybeSelf as PublicProfile })
+          setState({
+            kind: 'self_match',
+            profile: { ...maybeSelf, last_seen_at: null } as PublicProfile,
+          })
         } else {
           setState({ kind: 'no_result', query: trimmed })
         }

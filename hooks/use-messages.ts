@@ -89,7 +89,7 @@ export function useMessages({
       }
       const { data, error } = await supabase
         .from('messages')
-        .select('id, conversation_id, sender_id, body, created_at, deleted_at, edited_at')
+        .select('id, conversation_id, sender_id, body, created_at, deleted_at, edited_at, read_at')
         .eq('conversation_id', conversationId)
         .lt('created_at', oldest.created_at)
         .order('created_at', { ascending: false })

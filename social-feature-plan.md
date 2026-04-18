@@ -996,7 +996,7 @@ Fases 0–5 (solo necesita 0–2 estrictamente, pero se deja al final para no me
 
 ### 11.4 Schema
 
-**Migración `018_loans_debts_friend.sql`**:
+**Migración `019_loans_debts_friend.sql`**:
 
 ```sql
 ALTER TABLE public.loans ADD COLUMN IF NOT EXISTS friend_id        UUID REFERENCES public.profiles(id) ON DELETE SET NULL;
@@ -1077,11 +1077,18 @@ Resumen de todas las migraciones que genera este plan. **No es el archivo a corr
 
 017 — Chat:
    table conversations (canonical order, last_message_at, last_read_at per user)
-   table messages (body, sender, soft delete, read_at)
+   table messages (body, sender, soft delete)
    trigger bump_conversation_last_message
    ALTER PUBLICATION supabase_realtime
+   (bloque 11 post-debug) policy profiles_select_discoverable_or_friends
 
-018 — Loans/Debts social:
+018 — Chat presence (Fase 5):
+   messages + (read_at)                  -- read receipts granulares ✓✓
+   profiles + (last_seen_at)             -- heartbeat para presence derivada
+   RPC touch_last_seen()                 -- heartbeat 60s
+   RPC mark_conversation_read (extendida para batch-update messages.read_at)
+
+019 — Loans/Debts social:
    loans + (friend_id, linked_debt_id)   -- linked_debt_id apunta cross-table al debt contrapartida
    debts + (friend_id, linked_loan_id)   -- linked_loan_id apunta cross-table al loan contrapartida
 ```
@@ -1148,6 +1155,13 @@ La policy permite SELECT si: es uno mismo, o el profile es `is_discoverable=true
 Si una feature futura necesita un nuevo caso de lectura (ej: exposición a users bloqueados, exposición a staff/admin, exposición via mensaje directo sin amistad), hay que agregar policy adicional o extender la existente.
 
 Debugging de este bug es particularmente hostil porque la view no tira error — simplemente devuelve vacío. Cuando un server component hace `.from('profiles_public').select(...)` y devuelve null silencioso, revisar RLS antes que código.
+
+### 13.12 Presence online se expone a todo amigo/discoverable
+`profiles.last_seen_at` (migración 018) queda visible bajo la policy `profiles_select_discoverable_or_friends` — o sea, cualquier amigo o cualquier user con `is_discoverable=true` puede leer cuándo te viste por última vez. No hay toggle `show_online` en Fase 5.
+
+El threshold de 90s (heartbeat 60s + 30s grace) mitiga la paranoia razonable: el timestamp exacto no queda expuesto en la UI, solo el boolean online/offline derivado.
+
+v2.1 sumar `show_online` en `profiles` (mirror de `show_streak`, `show_badges`, `show_bio` de Fase 3) si algún user lo pide explícitamente. Mientras tanto, no inventar el toggle.
 
 ---
 

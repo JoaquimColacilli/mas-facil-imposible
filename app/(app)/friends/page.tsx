@@ -29,7 +29,7 @@ export default async function FriendsPage({ searchParams }: PageProps) {
   if (friendIds.length > 0) {
     const { data } = await supabase
       .from('friends_visible_profiles')
-      .select('id, username, nickname, avatar_url, bio, is_discoverable, created_at')
+      .select('id, username, nickname, avatar_url, bio, is_discoverable, last_seen_at, created_at')
       .in('id', friendIds)
     friends = (data ?? []) as PublicProfile[]
   }
@@ -49,7 +49,7 @@ export default async function FriendsPage({ searchParams }: PageProps) {
   if (counterpartyIds.length > 0) {
     const { data } = await supabase
       .from('friends_visible_profiles')
-      .select('id, username, nickname, avatar_url, bio, is_discoverable, created_at')
+      .select('id, username, nickname, avatar_url, bio, is_discoverable, last_seen_at, created_at')
       .in('id', counterpartyIds)
     counterpartyProfiles = (data ?? []) as PublicProfile[]
   }
@@ -84,7 +84,7 @@ export default async function FriendsPage({ searchParams }: PageProps) {
     const admin = createAdminClient()
     const { data } = await admin
       .from('profiles')
-      .select('id, username, nickname, avatar_url, bio, is_discoverable, created_at')
+      .select('id, username, nickname, avatar_url, bio, is_discoverable, last_seen_at, created_at')
       .in('id', blockedIds)
     blocked = (data ?? []) as PublicProfile[]
   }
