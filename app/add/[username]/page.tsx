@@ -9,16 +9,14 @@ import type { PublicProfile } from '@/lib/types'
 import { getRelationshipState } from '@/lib/social/relationship'
 import { FriendRequestButton } from '@/components/friend-request-button'
 
-// Privacy-first: discoverable profiles still shouldn't be indexed by search
-// engines without per-profile opt-in (v2). Apply a noindex blanket.
-export const metadata: Metadata = {
-  robots: { index: false, follow: false },
-}
-
 interface PageProps {
   params: Promise<{ username: string }>
 }
 
+// Privacy-first: discoverable profiles still shouldn't be indexed by search
+// engines without per-profile opt-in (v2). Robots noindex is set inside the
+// dynamic metadata below — Next.js forbids exporting both `metadata` and
+// `generateMetadata` in the same file.
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { username } = await params
   return {
