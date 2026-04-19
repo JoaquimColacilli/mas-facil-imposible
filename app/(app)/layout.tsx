@@ -5,6 +5,7 @@ import { WhatsNewModal } from '@/components/whats-new-modal'
 import { TosReacceptanceModal } from '@/components/tos-reacceptance-modal'
 import { UsernameSetupModal } from '@/components/username-setup-modal'
 import { HeartbeatMount } from '@/components/heartbeat-mount'
+import { SocialRealtimeMount } from '@/components/social-realtime-mount'
 import { Toaster } from '@/components/ui/sonner'
 import type { Profile } from '@/lib/types'
 import { needsLegalReacceptance } from '@/lib/legal-texts'
@@ -40,6 +41,7 @@ export default async function AppLayout({
     <AppShell user={user} profile={typedProfile}>
       {children}
       <HeartbeatMount />
+      <SocialRealtimeMount viewerId={user.id} />
       <TosReacceptanceModal open={needsReacceptance} />
       <UsernameSetupModal open={needsUsername} userId={user.id} />
       <WhatsNewModal

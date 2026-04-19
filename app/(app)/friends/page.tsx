@@ -90,7 +90,10 @@ export default async function FriendsPage({ searchParams }: PageProps) {
   }
 
   const params = await searchParams
-  const initialTab = params.tab === 'requests' || params.tab === 'search' ? params.tab : 'friends'
+  const initialTab =
+    params.tab === 'requests' || params.tab === 'search' || params.tab === 'suggested'
+      ? params.tab
+      : 'friends'
 
   return (
     <FriendsClient

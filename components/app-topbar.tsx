@@ -25,6 +25,7 @@ import {
   rejectLinkedRequest,
   type LinkedRequestPreview,
 } from '@/app/(app)/dashboard/social-actions'
+import { broadcastSocialEvent } from '@/lib/social/broadcast'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { MfiPortfolioWidget } from '@/components/mfi-portfolio-widget'
 import { UsdCotizacionWidget } from '@/components/usd-cotizacion-widget'
@@ -114,6 +115,13 @@ function NotificationsPopover({ userId }: { userId: string }) {
         ? 'Deuda registrada en tu cuenta'
         : 'Cobro registrado en tu cuenta',
     )
+    // Realtime (Fase 7): notificar al sender del request que el viewer aceptó.
+    const senderId = (n.data as { sender_id?: string } | null | undefined)?.sender_id
+    if (senderId) {
+      await broadcastSocialEvent(senderId, 'linked_loan_request_accepted', {
+        by_user_id: userId,
+      })
+    }
     mutate(notifications.map((x) => (x.id === n.id ? { ...x, read: true } : x)), false)
     setOpen(false)
     router.refresh()

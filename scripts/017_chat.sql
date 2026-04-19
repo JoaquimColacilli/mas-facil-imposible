@@ -248,7 +248,14 @@ GRANT EXECUTE ON FUNCTION public.ensure_conversation(UUID) TO authenticated;
 -- Cuenta vivos + deleted_at (borrar no reinicia el contador).
 -- Valida amistad actual + no-bloqueo + parte-de-la-conv.
 -- ────────────────────────────────────────────────────────────
-CREATE OR REPLACE FUNCTION public.send_message(conversation_id UUID, body TEXT)
+-- Parameters use p_ prefix to avoid collision with target table columns
+-- (`messages.conversation_id`, `messages.body`) inside INSERT/WHERE scopes.
+-- Bare `conversation_id` or `body` produced PG 42702 ambiguous-reference
+-- errors on some versions; p_ prefix eliminates the ambiguity at the source.
+-- Note: renaming parameters requires DROP + CREATE (CREATE OR REPLACE cannot
+-- change param names). In this file we keep CREATE OR REPLACE for idempotency;
+-- in prod run DROP FUNCTION once if the old signature is cached.
+CREATE OR REPLACE FUNCTION public.send_message(p_conversation_id UUID, p_body TEXT)
 RETURNS UUID
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -261,10 +268,10 @@ DECLARE
   v_count INT;
 BEGIN
   IF v_self IS NULL THEN RAISE EXCEPTION 'unauthenticated' USING ERRCODE='P0001'; END IF;
-  IF body IS NULL OR char_length(trim(body)) = 0 THEN
+  IF p_body IS NULL OR char_length(trim(p_body)) = 0 THEN
     RAISE EXCEPTION 'empty' USING ERRCODE='P0001';
   END IF;
-  IF char_length(body) > 4000 THEN
+  IF char_length(p_body) > 4000 THEN
     RAISE EXCEPTION 'too_long' USING ERRCODE='P0001';
   END IF;
 
@@ -272,7 +279,7 @@ BEGIN
               WHEN user_b_id = v_self THEN user_a_id
               ELSE NULL END
     INTO v_peer
-  FROM public.conversations WHERE id = conversation_id;
+  FROM public.conversations WHERE id = p_conversation_id;
 
   IF v_peer IS NULL THEN RAISE EXCEPTION 'not_found' USING ERRCODE='P0001'; END IF;
 
@@ -299,7 +306,7 @@ BEGIN
   SELECT COUNT(*) INTO v_count
   FROM public.messages
   WHERE sender_id = v_self
-    AND conversation_id = send_message.conversation_id
+    AND conversation_id = p_conversation_id
     AND created_at > NOW() - INTERVAL '1 minute';
 
   IF v_count >= 10 THEN
@@ -307,7 +314,7 @@ BEGIN
   END IF;
 
   INSERT INTO public.messages (conversation_id, sender_id, body)
-  VALUES (conversation_id, v_self, body)
+  VALUES (p_conversation_id, v_self, p_body)
   RETURNING id INTO v_msg_id;
 
   RETURN v_msg_id;
@@ -341,9 +348,15 @@ $$;
 GRANT EXECUTE ON FUNCTION public.delete_message(UUID) TO authenticated;
 
 -- ────────────────────────────────────────────────────────────
--- 8. RPC: mark_conversation_read(conversation_id UUID) → void
+-- 8. RPC: mark_conversation_read(p_conversation_id UUID) → void
+-- ------------------------------------------------------------
+-- Parameter uses p_ prefix to avoid the PG 42702 ambiguous column
+-- reference bug (same class as send_message). Superseded by the
+-- extended definition in migration 018 (which also bumps messages.
+-- read_at); this source remains for historical consistency but the
+-- deployed function is the 018 version.
 -- ────────────────────────────────────────────────────────────
-CREATE OR REPLACE FUNCTION public.mark_conversation_read(conversation_id UUID)
+CREATE OR REPLACE FUNCTION public.mark_conversation_read(p_conversation_id UUID)
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -356,11 +369,11 @@ BEGIN
 
   UPDATE public.conversations
   SET user_a_last_read_at = NOW()
-  WHERE id = conversation_id AND user_a_id = v_self;
+  WHERE id = p_conversation_id AND user_a_id = v_self;
 
   UPDATE public.conversations
   SET user_b_last_read_at = NOW()
-  WHERE id = conversation_id AND user_b_id = v_self;
+  WHERE id = p_conversation_id AND user_b_id = v_self;
 END;
 $$;
 

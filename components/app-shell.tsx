@@ -7,7 +7,6 @@ import { DesktopSidebar, MobileBottomNav } from '@/components/nav'
 import { AppTopbar } from '@/components/app-topbar'
 import { MFIQuickEntry } from '@/components/mfi-quick-entry'
 import { CommandPalette } from '@/components/command-palette'
-import { Search } from 'lucide-react'
 
 const MFI_STORAGE_KEY = 'mfi-quick-mode'
 
@@ -62,19 +61,6 @@ export function AppShell({ user, profile, children }: AppShellProps) {
 
       <MobileBottomNav />
       <CommandPalette />
-
-      {/* Fixed search bar (bottom-right) */}
-      <button
-        onClick={() => window.dispatchEvent(new CustomEvent('open-command-palette'))}
-        className="fixed bottom-6 right-6 z-40 md:bottom-8 md:right-8 flex items-center gap-2.5 h-10 px-4 rounded-xl bg-card border border-border shadow-lg hover:shadow-xl hover:border-primary/40 hover:-translate-y-[1px] active:scale-[0.98] transition-all duration-150 mb-[env(safe-area-inset-bottom,0px)] md:mb-0"
-        aria-label="Buscar (Ctrl+K)"
-      >
-        <Search className="w-3.5 h-3.5 text-muted-foreground" />
-        <span className="text-[13px] text-muted-foreground font-medium">Buscar...</span>
-        <kbd className="hidden sm:inline text-[10px] font-mono text-muted-foreground/50 bg-muted/60 border border-border rounded px-1.5 py-0.5 ml-1">
-          Ctrl K
-        </kbd>
-      </button>
     </div>
   )
 }

@@ -15,7 +15,9 @@ import {
 } from '@/components/ui/alert-dialog'
 import { UserPlus, UserCheck, X, Check, Ban } from 'lucide-react'
 import { toast } from 'sonner'
+import { createClient } from '@/lib/supabase/client'
 import type { RelationshipState } from '@/lib/social/relationship'
+import { broadcastSocialEvent, type SocialEventType } from '@/lib/social/broadcast'
 import {
   sendFriendRequest,
   acceptFriendRequest,
@@ -49,7 +51,11 @@ export function FriendRequestButton({
   const [pending, startTransition] = useTransition()
   const [confirmAction, setConfirmAction] = useState<null | 'remove' | 'block'>(null)
 
-  function handle<T>(promise: Promise<{ ok: boolean; error?: string }>, successMsg: string) {
+  function handle<T>(
+    promise: Promise<{ ok: boolean; error?: string }>,
+    successMsg: string,
+    broadcast?: { type: SocialEventType; payload?: Record<string, unknown> },
+  ) {
     startTransition(async () => {
       const result = await promise
       if (!result.ok) {
@@ -57,6 +63,16 @@ export function FriendRequestButton({
         return
       }
       toast.success(successMsg)
+      if (broadcast) {
+        // Fire-and-forget. Resolve viewerId lazily from the session to avoid
+        // drilling it through every caller. Broadcast helper already swallows.
+        const supabase = createClient()
+        const { data: { user: viewer } } = await supabase.auth.getUser()
+        if (viewer) {
+          const payload = { by_user_id: viewer.id, from_user_id: viewer.id, ...broadcast.payload }
+          await broadcastSocialEvent(targetId, broadcast.type, payload)
+        }
+      }
       router.refresh()
     })
   }
@@ -70,7 +86,9 @@ export function FriendRequestButton({
         disabled={pending || !targetUsername}
         onClick={() => {
           if (!targetUsername) return
-          handle(sendFriendRequest(targetUsername), 'Solicitud enviada.')
+          handle(sendFriendRequest(targetUsername), 'Solicitud enviada.', {
+            type: 'friend_request_received',
+          })
         }}
       >
         <UserPlus className="w-4 h-4" />
@@ -91,7 +109,9 @@ export function FriendRequestButton({
           size={compact ? 'sm' : 'default'}
           variant="outline"
           disabled={pending || !requestId}
-          onClick={() => requestId && handle(cancelFriendRequest(requestId), 'Solicitud cancelada.')}
+          onClick={() => requestId && handle(cancelFriendRequest(requestId), 'Solicitud cancelada.', {
+            type: 'friend_request_cancelled',
+          })}
         >
           {pending ? 'Cancelando…' : 'Cancelar'}
         </Button>
@@ -107,7 +127,9 @@ export function FriendRequestButton({
           size={compact ? 'sm' : 'default'}
           className="gap-1.5"
           disabled={pending || !requestId}
-          onClick={() => requestId && handle(acceptFriendRequest(requestId), '¡Ahora son amigos!')}
+          onClick={() => requestId && handle(acceptFriendRequest(requestId), '¡Ahora son amigos!', {
+            type: 'friend_request_accepted',
+          })}
         >
           <Check className="w-4 h-4" />
           Aceptar
@@ -116,7 +138,9 @@ export function FriendRequestButton({
           size={compact ? 'sm' : 'default'}
           variant="outline"
           disabled={pending || !requestId}
-          onClick={() => requestId && handle(rejectFriendRequest(requestId), 'Solicitud rechazada.')}
+          onClick={() => requestId && handle(rejectFriendRequest(requestId), 'Solicitud rechazada.', {
+            type: 'friend_request_rejected',
+          })}
         >
           <X className="w-4 h-4" />
           Rechazar

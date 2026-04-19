@@ -80,6 +80,18 @@ function AddDebtForm({
     if (err && data) { toast.warning(err, { duration: 5000 }); onSave(data); return }
     if (data) {
       toast.success(friendId && notifyFriend ? 'Deuda registrada · Solicitud enviada' : 'Deuda registrada')
+      // Realtime (Fase 7): notificar al amigo si hubo request.
+      if (friendId && notifyFriend) {
+        const { broadcastSocialEvent } = await import('@/lib/social/broadcast')
+        const supabase = createClient()
+        const { data: { user: viewer } } = await supabase.auth.getUser()
+        if (viewer) {
+          await broadcastSocialEvent(friendId, 'linked_loan_request_received', {
+            debt_id: data.id,
+            from_user_id: viewer.id,
+          })
+        }
+      }
       onSave(data)
     }
   }

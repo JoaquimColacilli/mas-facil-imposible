@@ -113,6 +113,7 @@ Lo que está en esta sección está cerrado. No re-discutir durante implementaci
 | 4 | Chat text-only | Conversations + messages + Realtime básico | 017 | 2 |
 | 5 | Chat real-time UX | Presence + typing + read receipts | (sin migración) | 1 |
 | 6 | Integración loans/debts | `friend_id` en tablas existentes + UI | 018 | 0.5 |
+| 7 | Sugeridos (post-plan) | Tab "Sugeridos" en `/friends` con ranking por actividad | 020 | 0.25 |
 
 Total: ~8 sprints = ~3 meses de calendario al ritmo de fines de semana + algunas horas de semana.
 
@@ -1052,6 +1053,176 @@ export async function settleLoan(loanId: string): Promise<void>
 
 ---
 
+## 11bis. Fase 7 — Sugeridos (post-plan)
+
+Discovery pasivo. Agregado al plan original (que cerraba en Fase 6) porque `is_discoverable = TRUE` sin surface pasivo no era descubrible: el user tenía que conocer el username del otro para encontrarlo.
+
+### 11bis.1 Objetivo
+
+Tab nuevo **"Sugeridos"** en `/friends` que lista users con `is_discoverable = TRUE` ordenados por actividad reciente + recencia de signup, para agregarlos como amigos sin buscarlos por nombre.
+
+### 11bis.2 Dependencias
+
+- Fase 1 (username + `is_discoverable`).
+- Fase 2 (`friendships`, `friend_requests`, `blocks`, `friends_visible_profiles`).
+- Fase 5 (`profiles.last_seen_at` para el ranking).
+
+### 11bis.3 Contexto obligatorio
+
+- `scripts/015_social_graph.sql` — tablas y policies base.
+- `scripts/018_chat_presence.sql` — `last_seen_at` + view actualizada.
+- `app/(app)/friends/friends-client.tsx` — patrón de tabs.
+- `app/(app)/friends/search-tab.tsx` — patrón de query + render de tarjetas.
+
+### 11bis.4 Schema
+
+Una sola RPC, sin columnas nuevas.
+
+```sql
+-- scripts/020_suggested_users.sql
+CREATE OR REPLACE FUNCTION public.get_suggested_users(
+  p_limit  INT DEFAULT 20,
+  p_offset INT DEFAULT 0
+)
+RETURNS TABLE (id UUID, username TEXT, nickname TEXT, avatar_url TEXT, bio TEXT, last_seen_at TIMESTAMPTZ, created_at TIMESTAMPTZ)
+LANGUAGE sql SECURITY INVOKER STABLE
+SET search_path = public
+AS $$
+  SELECT p.id, p.username, p.nickname, p.avatar_url, p.bio, p.last_seen_at, p.created_at
+  FROM public.friends_visible_profiles p
+  WHERE p.is_discoverable = TRUE
+    AND NOT EXISTS (SELECT 1 FROM public.friendships f WHERE (f.user_a_id = auth.uid() AND f.user_b_id = p.id) OR (f.user_b_id = auth.uid() AND f.user_a_id = p.id))
+    AND NOT EXISTS (SELECT 1 FROM public.friend_requests fr WHERE fr.status = 'pending' AND ((fr.sender_id = auth.uid() AND fr.receiver_id = p.id) OR (fr.sender_id = p.id AND fr.receiver_id = auth.uid())))
+    AND NOT EXISTS (SELECT 1 FROM public.friend_requests fr WHERE fr.status = 'rejected' AND fr.sender_id = auth.uid() AND fr.receiver_id = p.id)
+  ORDER BY CASE WHEN p.last_seen_at > NOW() - INTERVAL '7 days' THEN 0 ELSE 1 END ASC, p.created_at DESC
+  LIMIT GREATEST(1, LEAST(p_limit, 50))
+  OFFSET GREATEST(0, p_offset);
+$$;
+```
+
+Grants: `REVOKE` anon/PUBLIC + `GRANT EXECUTE` a `authenticated`.
+
+### 11bis.5 Archivos a crear
+
+- `scripts/020_suggested_users.sql` — RPC arriba.
+- `app/(app)/friends/suggested-tab.tsx` — client component con lazy-fetch, paginación, `SuggestedCard`, skeleton, empty/error state.
+
+### 11bis.6 Archivos a modificar
+
+- `app/(app)/friends/friends-client.tsx` — agregar trigger "Sugeridos" entre Solicitudes y Buscar, mount del `<SuggestedTab active={tab === 'suggested'} />`, extender tipo `initialTab`.
+- `app/(app)/friends/page.tsx` — aceptar `'suggested'` en `searchParams.tab`.
+- `app/(app)/friends/search-tab.tsx` — (fix UX, ver 11bis.9) prefix search + multi-result.
+- `app/(app)/chat/[userId]/conversation-client.tsx` — (fix UX) container `max-w-3xl`.
+- `components/app-shell.tsx` — (fix UX) eliminar botón flotante Ctrl+K.
+
+### 11bis.7 UI / UX — decisiones clave
+
+- **Tab orden**: Amigos / Solicitudes / Sugeridos / Buscar.
+- **Copy**: título "Usuarios MFI", subtítulo "Gente nueva que podés agregar", empty "No hay usuarios para sugerirte ahora.", empty-sub "Cuando haya más users en MFI te aparecerán acá."
+- **Fetch**: lazy-on-activate (no SSR). Primera visita al tab dispara la RPC con offset=0, cachea en state hasta unmount.
+- **Paginación**: 20 por batch, botón "Ver más" concat client-side. `hasMore = last_batch.length === 20`.
+- **Card**: Avatar + nickname + @username + `PresenceDot` + botón "Agregar". Sin bio (compacto). Solo avatar y nickname son links al perfil; el body de la card NO es clickeable (evita navegaciones accidentales al perfil).
+- **Estado Agregar**: idle → "Agregar" / sending → "Enviando…" disabled / sent → "Solicitud enviada" secondary disabled. Error → toast + roll-back del lock.
+- **Grid**: `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3`.
+- **Mobile 360px**: grid colapsa a 1 col. Legible.
+
+### 11bis.8 Edge cases
+
+- Offset grande → batch vacío → `hasMore=false`, desaparece "Ver más".
+- Race: peer envía request al viewer entre fetches → próximo batch lo excluye por filter pending. Items ya en el grid quedan hasta refresh (aceptable).
+- Viewer bloquea un suggested desde otra vista → próximo fetch lo excluye (`friends_visible_profiles` filtra blocks). Items ya cargados quedan.
+- `is_discoverable=false` del viewer → no afecta el feed (filtra OTROS users).
+- Spam-click Agregar → optimistic lock en `sent: Set<string>` impide re-envío.
+
+### 11bis.9 Fixes UX incluidos en la fase
+
+Van en el mismo commit por proximidad de código:
+
+**Fix 1 — search parcial por prefijo** (`search-tab.tsx`). Query actual usa `.ilike('username', trimmed)` sin `%` → match exacto case-insensitive. Cambio a `.ilike(pattern, \`${escape(trimmed)}%\`)` + `.limit(10)` + render multi-resultado. Self-match prioritizado arriba del listado con banner "Ese sos vos" cuando el username del viewer matchea el prefijo.
+
+**Fix 2 — container `/chat/[userId]` a `max-w-3xl`**. Se elimina el edge-to-edge (`-mx-4 md:-mx-6`) a favor de consistencia visual con `/chat` (inbox) y `/friends`. Desktop queda capped a 768px. Mobile 360px sin cambio (max-w no aplica). Decisión deliberada documentada en el comentario del código.
+
+**Fix 3 — remover botón flotante Ctrl+K** (`components/app-shell.tsx`). Superponía el composer del chat en mobile. Atajo Ctrl+K + evento custom `open-command-palette` siguen funcionales (listener global en `command-palette.tsx`).
+
+### 11bis.10 ✅ Criterios de aceptación
+
+- [ ] Migración 020 corrida.
+- [ ] Tab "Sugeridos" visible entre Solicitudes y Buscar.
+- [ ] Lazy fetch primero en el activate (no pre-fetch).
+- [ ] Ranking: activos <7d primero, luego por signup DESC.
+- [ ] 20 inicial + "Ver más" concat.
+- [ ] Empty state y error state con retry.
+- [ ] Fix 1 search parcial por prefijo + multi-result.
+- [ ] Fix 2 container chat alineado con /chat + /friends.
+- [ ] Fix 3 botón flotante Ctrl+K eliminado, atajo funcional.
+- [ ] Mobile 360px legible.
+
+### 11bis.11 Fuera de scope
+
+- Filtro "amigos en común" (v2.1).
+- Dismiss explícito "no me interesa este user" (v2.1).
+- Notif "@X acaba de unirse a MFI" (v2.1).
+- Sugeridos para anon (tab solo auth).
+
+### 11bis.12 Sub-fase 7b — Realtime social
+
+Discovery posterior a la implementación inicial: friend request / linked loan / read receipts no se propagaban en tiempo real (fuera del chat mismo). SWR poll 30s no era UX suficiente — badges quedaban stale, ticks no aparecían, inbox no se actualizaba.
+
+**Approach**: Client-side Broadcast sobre channel `user_social:${viewerId}` (`private: false`, ver §13.14). Cada mutación client-side, después de server action ok, emite un broadcast al channel del target. Hook global `useSocialRealtime` (montado en `(app)/layout.tsx`) escucha y dispatchea SWR `mutate` + `router.refresh` condicional.
+
+Para read receipts (ticks ✓✓) falta además `REPLICA IDENTITY FULL` en `public.messages` (migración 021, ver §13.15).
+
+**7 eventos implementados**:
+
+| Evento | Sender side | Receiver side | Payload |
+|---|---|---|---|
+| `friend_request_received` | Quien envía solicitud | Receptor de la solicitud | `{ from_user_id }` |
+| `friend_request_accepted` | Quien acepta | Sender original | `{ by_user_id }` |
+| `friend_request_rejected` | Quien rechaza | Sender original | `{ by_user_id }` |
+| `friend_request_cancelled` | Quien cancela | Receptor original | `{ from_user_id }` |
+| `linked_loan_request_received` | Creador del loan/debt con notify | Friend vinculado | `{ loan_id? / debt_id?, from_user_id }` |
+| `linked_loan_request_accepted` | Quien acepta desde el popover | Sender original | `{ by_user_id }` |
+| `conversation_read_peer` | Quien marca read (en chat) | Peer (para ✓✓ + inbox) + otras tabs propias | `{ conversation_id, by_user_id }` |
+
+**5 eventos fuera de scope (v2.1)** con fundamento:
+
+- `friendship_removed` — baja frecuencia. Al navegar a `/friends/:username` se refresca en mount. Stale en tab Amigos solo hasta próxima nav/F5.
+- `user_blocked_me` / `user_unblocked_me` — silenciosos por diseño del plan (§2.3). Realtime no es esencial.
+- `linked_loan_request_rejected` — cubierto por SWR poll 30s. Low impact.
+- `linked_loan_settled_propagate` — Fase 6 ya muestra estado "Confirmado" cuando llega al próximo fetch/nav. No hay UX regression notable.
+
+### 11bis.13 ✅ Criterios de aceptación sub-fase 7b
+
+- [ ] Migración 021 corrida (`REPLICA IDENTITY FULL`).
+- [ ] `<SocialRealtimeMount />` montado en `(app)/layout.tsx`.
+- [ ] Los 7 eventos emiten desde los callers correctos.
+- [ ] Hook global invalida SWR keys en todos los pathnames + `router.refresh()` solo en pathnames relevantes.
+- [ ] Read receipts (✓✓) aparecen en el sender sin F5.
+- [ ] Badge de unread en topbar baja a 0 cuando viewer lee la conv, sin F5.
+- [ ] Friend request received / accepted / rejected / cancelled propagan en < 3s.
+- [ ] Cross-tab del mismo user: segunda tab recibe `conversation_read_peer` y sincroniza.
+- [ ] Broadcast failures no bloquean la mutation principal (fire-and-forget con warn log).
+
+### 11bis.14 Archivos sub-fase 7b
+
+**Creados**:
+- `scripts/021_chat_replica_identity.sql` — ALTER TABLE messages REPLICA IDENTITY FULL.
+- `lib/social/broadcast.ts` — helper `broadcastSocialEvent(targetUserId, type, payload)` + tipos.
+- `hooks/use-social-realtime.ts` — subscription + dispatcher.
+- `components/social-realtime-mount.tsx` — wrapper client para el hook.
+
+**Modificados**:
+- `app/(app)/layout.tsx` — mount del hook global.
+- `components/friend-request-button.tsx` — broadcasts en send/accept/reject/cancel.
+- `app/(app)/friends/request-row.tsx` — broadcasts en accept/reject/cancel.
+- `app/(app)/friends/search-tab.tsx` — broadcast en send.
+- `app/(app)/friends/suggested-tab.tsx` — broadcast en send.
+- `components/pending-loans.tsx` / `components/pending-debts.tsx` — broadcast en createLoan/Debt con notify.
+- `components/app-topbar.tsx` — broadcast en handleAcceptLinked.
+- `app/(app)/chat/[userId]/conversation-client.tsx` — `markReadAndNotify` helper + mount-time notify + mutate chat-unread + broadcast peer + self.
+
+---
+
 ## 12. Schema SQL consolidado (referencia rápida)
 
 Resumen de todas las migraciones que genera este plan. **No es el archivo a correr** — cada migración va en su propio archivo numerado.
@@ -1162,6 +1333,29 @@ Debugging de este bug es particularmente hostil porque la view no tira error —
 El threshold de 90s (heartbeat 60s + 30s grace) mitiga la paranoia razonable: el timestamp exacto no queda expuesto en la UI, solo el boolean online/offline derivado.
 
 v2.1 sumar `show_online` en `profiles` (mirror de `show_streak`, `show_badges`, `show_bio` de Fase 3) si algún user lo pide explícitamente. Mientras tanto, no inventar el toggle.
+
+### 13.13 `is_discoverable` amplió semántica en Fase 7
+Con Fase 7, `is_discoverable = TRUE` también expone al user en el tab **Sugeridos** con ranking por actividad reciente (`last_seen_at < 7d` primero, tiebreak `created_at DESC`). No solo búsquedas activas.
+
+Users que quieran quedar fuera de la discovery pasiva tienen que desactivar el toggle, lo cual también los saca del search activo — es el mismo flag, no hay granularidad separada. Si más adelante pide alguno splittear "aparecer en búsquedas" vs "aparecer en sugerencias", crear `appear_in_suggestions` en v2.1 siguiendo el patrón de `show_*`.
+
+El filtro server-side vive en la RPC `get_suggested_users` (migración 020): `is_discoverable = TRUE` + exclusión de amigos, pending requests, y rejected-as-sender.
+
+### 13.14 Broadcast channels `user_social` usan `private: false`
+Los Realtime Broadcast channels de Fase 7 (sub-fase 7b) se nombran `user_social:${viewerId}` y usan `private: false`. Los payloads solo contienen UUIDs (no PII decriptada). Un atacante necesita el UUID exacto del target para subscribirse — no es adivinable por fuerza bruta, low severity.
+
+Migrar a `private: true` con RLS sobre `realtime.messages` queda para v2.1 si se agrega información sensible al payload (montos en claro, bodies de mensajes, etc.).
+
+Los 7 events actuales (`friend_request_*`, `linked_loan_request_*`, `conversation_read_peer`) solo transmiten IDs y timestamps — el receiver SIEMPRE hace un re-fetch autenticado via `router.refresh()` o SWR `mutate` para ver la data real.
+
+### 13.15 REPLICA IDENTITY FULL en `public.messages`
+Migración 021 corre `ALTER TABLE public.messages REPLICA IDENTITY FULL`.
+
+Requerido para que Supabase Realtime pueda evaluar RLS sobre UPDATE events. Sin esto, el WAL solo carga PK + columnas cambiadas → Realtime server no puede evaluar la policy `messages_select` contra el row completo → descarta el UPDATE silenciosamente o lo entrega con payload incompleto.
+
+Manifestación descubierta durante testing de Fase 7: `mark_conversation_read` bumpea `messages.read_at` correctamente, pero el sender nunca recibe el UPDATE → el ✓✓ no aparece sin F5.
+
+Costo: WAL volume ~2x para UPDATEs en messages (old row completa). UPDATE frequency es baja (mark-read + soft-delete ocasional), aceptable.
 
 ---
 

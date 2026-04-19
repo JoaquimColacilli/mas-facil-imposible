@@ -87,7 +87,7 @@ export default async function ConversationPage({ params }: PageProps) {
 
   // Mark as read on arrival (best-effort; rpc returns {data, error} — no throw).
   // A client-side effect also re-runs when new messages arrive while the tab is open.
-  await supabase.rpc('mark_conversation_read', { conversation_id: conversationId })
+  await supabase.rpc('mark_conversation_read', { p_conversation_id: conversationId })
 
   return (
     <ConversationClient

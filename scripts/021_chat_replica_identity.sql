@@ -1,0 +1,25 @@
+-- ============================================================
+-- Migration 021: REPLICA IDENTITY FULL for public.messages
+-- ------------------------------------------------------------
+-- Supabase Realtime's postgres_changes needs REPLICA IDENTITY
+-- FULL on tables with RLS to deliver UPDATE events correctly.
+--
+-- Without this, the WAL only carries PK + changed columns on
+-- UPDATE. The Realtime server cannot evaluate the table's SELECT
+-- policy against the complete row, so UPDATE events are silently
+-- dropped or delivered with an incomplete payload (missing the
+-- updated column).
+--
+-- Manifestation (Fase 7 testing): mark_conversation_read bumps
+-- messages.read_at correctly in DB, but the sender never receives
+-- the UPDATE event → the ✓✓ read receipt never appears without F5.
+--
+-- Cost: UPDATEs on messages write the full old row to WAL (~2x
+-- bytes per UPDATE). Acceptable — UPDATE frequency is low
+-- (mark-read once per conv per reader, occasional soft-delete).
+--
+-- Idempotent: ALTER TABLE SET REPLICA IDENTITY runs fine on
+-- re-apply.
+-- ============================================================
+
+ALTER TABLE public.messages REPLICA IDENTITY FULL;

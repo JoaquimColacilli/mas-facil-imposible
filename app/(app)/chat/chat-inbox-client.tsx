@@ -36,7 +36,9 @@ export function ChatInboxClient({ items, userId }: ChatInboxClientProps) {
   }, [items, query])
 
   return (
-    <div className="flex flex-col gap-4 max-w-3xl mx-auto w-full">
+    // Desktop (md+): card con border + rounded + shadow + padding interno para
+    // consistencia visual con /chat/[userId] y /friends. Mobile sin borde.
+    <div className="flex flex-col gap-4 max-w-3xl mx-auto w-full md:border md:border-border md:rounded-xl md:shadow-sm md:bg-background md:p-5">
       <header className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-foreground">Mensajes</h1>
       </header>

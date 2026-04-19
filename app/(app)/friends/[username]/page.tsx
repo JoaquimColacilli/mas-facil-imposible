@@ -14,10 +14,6 @@ import { isOnlineFromLastSeen } from '@/lib/social/presence'
 import { AccountsOpenCard } from './accounts-open-card'
 import type { PublicProfile } from '@/lib/types'
 
-export const metadata: Metadata = {
-  robots: { index: false, follow: false },
-}
-
 interface PageProps {
   params: Promise<{ username: string }>
 }

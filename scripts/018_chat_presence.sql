@@ -83,9 +83,14 @@ GRANT EXECUTE ON FUNCTION public.touch_last_seen() TO authenticated;
 
 -- ──────────────────────────────────────────────────────────────────────────
 -- 4. RPC mark_conversation_read — EXTENDIDA
---    Misma firma que 017, suma el batch de messages.read_at en la misma TX.
+--    Suma el batch de messages.read_at en la misma TX.
+--    Parameter renamed to p_conversation_id to eliminate the PG 42702
+--    ambiguous reference bug (same class as send_message — Fase 7 testing
+--    hit this). Renaming requires DROP + CREATE (CREATE OR REPLACE can't
+--    rename params); in prod run DROP FUNCTION once if the old signature
+--    is still cached.
 -- ──────────────────────────────────────────────────────────────────────────
-CREATE OR REPLACE FUNCTION public.mark_conversation_read(conversation_id UUID)
+CREATE OR REPLACE FUNCTION public.mark_conversation_read(p_conversation_id UUID)
 RETURNS VOID
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -95,12 +100,12 @@ BEGIN
   -- Bump last_read_at del viewer en conversations (comportamiento Fase 4).
   UPDATE public.conversations
   SET user_a_last_read_at = NOW()
-  WHERE id = mark_conversation_read.conversation_id
+  WHERE id = p_conversation_id
     AND user_a_id = auth.uid();
 
   UPDATE public.conversations
   SET user_b_last_read_at = NOW()
-  WHERE id = mark_conversation_read.conversation_id
+  WHERE id = p_conversation_id
     AND user_b_id = auth.uid();
 
   -- Fase 5: marcar todos los mensajes del peer como leídos en este momento.
@@ -109,7 +114,7 @@ BEGIN
   -- mensajes borrados.
   UPDATE public.messages
   SET read_at = NOW()
-  WHERE conversation_id = mark_conversation_read.conversation_id
+  WHERE conversation_id = p_conversation_id
     AND sender_id != auth.uid()
     AND read_at IS NULL
     AND deleted_at IS NULL;

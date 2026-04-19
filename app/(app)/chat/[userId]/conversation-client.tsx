@@ -17,6 +17,8 @@ import { TypingIndicator } from '@/components/typing-indicator'
 import { dayLabel, canSendMessage, newMessagesChipLabel } from '@/lib/social/chat'
 import { markConversationRead } from '@/app/(app)/chat/actions'
 import { isOnlineFromLastSeen } from '@/lib/social/presence'
+import { broadcastSocialEvent } from '@/lib/social/broadcast'
+import { mutate as swrMutate } from 'swr'
 import type { Message, PublicProfile } from '@/lib/types'
 import type { RelationshipState } from '@/lib/social/relationship'
 
@@ -86,6 +88,45 @@ export function ConversationClient({
     el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
   }, [])
 
+  // Fase 7: after a mark-read (DB already bumped read_at), propagate the
+  // state change without waiting for a poll:
+  //   1. SWR mutate local chat-unread-count → topbar badge updates.
+  //   2. Broadcast to peer → their ✓✓ tick appears (via postgres_changes
+  //      UPDATE, which works now thanks to REPLICA IDENTITY FULL in 021),
+  //      AND their inbox unread_count row refreshes.
+  //   3. Broadcast to self → other tabs of the same viewer sync their
+  //      badge/inbox (broadcasts don't echo back to the emitting client).
+  const notifyConversationRead = useCallback(() => {
+    swrMutate(`chat-unread-count-${viewerId}`)
+    void broadcastSocialEvent(peer.id, 'conversation_read_peer', {
+      conversation_id: conversationId,
+      by_user_id: viewerId,
+    })
+    void broadcastSocialEvent(viewerId, 'conversation_read_peer', {
+      conversation_id: conversationId,
+      by_user_id: viewerId,
+    })
+  }, [conversationId, viewerId, peer.id])
+
+  const markReadAndNotify = useCallback(() => {
+    markConversationRead(conversationId)
+      .then((res) => {
+        if (res?.ok) notifyConversationRead()
+      })
+      .catch(() => {})
+  }, [conversationId, notifyConversationRead])
+
+  // Client-side mark-read is primary; the SSR call in page.tsx is a defensive
+  // first pass but not to be relied on (Next.js caching can skip it on soft
+  // nav, silent RPC failures would leave DB inconsistent). This RPC call is
+  // idempotent — UPDATEs match 0 rows if already read.
+  useEffect(() => {
+    markReadAndNotify()
+    // Intentionally runs on mount only; subsequent triggers go through
+    // markReadAndNotify from the scroll / chip / realtime handlers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId])
+
   // Initial scroll-to-bottom on first paint.
   useLayoutEffect(() => {
     if (initialScrolled) return
@@ -118,7 +159,7 @@ export function ConversationClient({
     }
     if (isNearBottom()) {
       scrollToBottom(true)
-      markConversationRead(conversationId).catch(() => {})
+      markReadAndNotify()
     } else {
       setNewCount((n) => n + 1)
     }
@@ -157,14 +198,14 @@ export function ConversationClient({
   function handleScroll() {
     if (newCount > 0 && isNearBottom()) {
       setNewCount(0)
-      markConversationRead(conversationId).catch(() => {})
+      markReadAndNotify()
     }
   }
 
   function handleChipClick() {
     setNewCount(0)
     scrollToBottom(true)
-    markConversationRead(conversationId).catch(() => {})
+    markReadAndNotify()
   }
 
   const composerDisabled = !canSendMessage(relationshipState)
@@ -175,12 +216,16 @@ export function ConversationClient({
   const grouped = useMemo(() => groupByDay(messages), [messages])
 
   return (
-    // Heights below account for: topbar (56px) + py-5 top (20px) + pb-24 mobile
-    // / md:pb-8 desktop (96px / 32px). Negative horizontal margins make the
-    // chat feel edge-to-edge without touching the app-shell padding itself.
-    <div className="flex flex-col -mx-4 md:-mx-6 h-[calc(100svh-172px)] md:h-[calc(100svh-108px)]">
+    // Heights account for: topbar (56px) + py-5 top (20px) + pb-24 mobile
+    // / md:pb-8 desktop (96px / 32px). Container capado a max-w-3xl +
+    // mx-auto + w-full para alinear con /chat (inbox) y /friends (Fase 7).
+    // Desktop (md+) agrega border + rounded + shadow para que el chat no flote.
+    // Mobile: edge-to-edge sin borde.
+    // Header y composer llevan rounded-t/b-xl matching para que el sticky no
+    // asome más allá del corner del wrapper en md+.
+    <div className="flex flex-col max-w-3xl mx-auto w-full h-[calc(100svh-172px)] md:h-[calc(100svh-108px)] md:border md:border-border md:rounded-xl md:shadow-sm md:bg-background">
       {/* Header */}
-      <header className="flex items-center gap-3 px-3 md:px-4 py-2.5 border-b border-border bg-background/95 backdrop-blur-sm sticky top-0 z-20">
+      <header className="flex items-center gap-3 px-3 md:px-4 py-2.5 border-b border-border bg-background/95 backdrop-blur-sm sticky top-0 z-20 md:rounded-t-xl">
         <Link
           href="/chat"
           className="md:hidden inline-flex items-center justify-center h-8 w-8 rounded-full hover:bg-muted cursor-pointer"
@@ -278,7 +323,7 @@ export function ConversationClient({
       )}
 
       {/* Composer (sticky on mobile, normal on desktop) */}
-      <div className="shrink-0 sticky bottom-0 bg-background pb-[env(safe-area-inset-bottom,0px)]">
+      <div className="shrink-0 sticky bottom-0 bg-background pb-[env(safe-area-inset-bottom,0px)] md:rounded-b-xl">
         <ChatComposer
           conversationId={conversationId}
           onSent={handleSent}

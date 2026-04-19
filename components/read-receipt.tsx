@@ -1,4 +1,4 @@
-import { Check, CheckCheck } from 'lucide-react'
+import { CheckCheck } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface ReadReceiptProps {
@@ -8,10 +8,12 @@ interface ReadReceiptProps {
 }
 
 /**
- * ✓  — enviado, peer aún no leyó. Hereda color del contenedor (bubble propio,
- *       typ. text-primary-foreground/60).
- * ✓✓ — leído por el peer. Azul sky-300 para contraste sobre bubble primary
- *       tanto en light como dark mode.
+ * ReadReceipt — WhatsApp-style check marks for sent messages.
+ *
+ * - ✓✓ muted   — enviado, peer aún no leyó.
+ * - ✓✓ sky-300 — leído por el peer (read_at IS NOT NULL).
+ *
+ * Mostrar solo en mensajes propios del viewer. Los del peer no llevan ticks.
  */
 export function ReadReceipt({ readAt, className }: ReadReceiptProps) {
   if (readAt) {
@@ -23,6 +25,9 @@ export function ReadReceipt({ readAt, className }: ReadReceiptProps) {
     )
   }
   return (
-    <Check aria-label="Enviado" className={cn('w-3.5 h-3.5 shrink-0', className)} />
+    <CheckCheck
+      aria-label="Enviado"
+      className={cn('w-3.5 h-3.5 shrink-0 text-muted-foreground', className)}
+    />
   )
 }

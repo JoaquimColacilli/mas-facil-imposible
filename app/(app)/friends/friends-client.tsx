@@ -4,12 +4,13 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Users, UserPlus, Inbox } from 'lucide-react'
+import { Users, UserPlus, Inbox, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { FriendRequest, PublicProfile } from '@/lib/types'
 import { FriendCard } from './friend-card'
 import { RequestRow } from './request-row'
 import { SearchTab } from './search-tab'
+import { SuggestedTab } from './suggested-tab'
 import { BlockedUsersSection } from './blocked-users-section'
 import { markFriendRequestNotificationsRead } from './actions'
 
@@ -17,7 +18,7 @@ export type FriendRequestWithProfile = FriendRequest & { profile: PublicProfile 
 
 interface FriendsClientProps {
   userId: string
-  initialTab: 'friends' | 'requests' | 'search'
+  initialTab: 'friends' | 'requests' | 'suggested' | 'search'
   friends: PublicProfile[]
   received: FriendRequestWithProfile[]
   sent: FriendRequestWithProfile[]
@@ -45,7 +46,7 @@ export function FriendsClient({
 
   // Keep tab state and URL in sync (so badge link from topbar resets back to friends after navigation).
   function handleTabChange(value: string) {
-    const next = value as 'friends' | 'requests' | 'search'
+    const next = value as 'friends' | 'requests' | 'suggested' | 'search'
     setTab(next)
     const params = new URLSearchParams(window.location.search)
     if (next === 'friends') params.delete('tab')
@@ -61,7 +62,9 @@ export function FriendsClient({
   for (const r of sent) if (r.profile) pendingByCounterparty.set(r.profile.id, { id: r.id, iSent: true })
 
   return (
-    <div className="flex flex-col gap-4 max-w-3xl mx-auto w-full">
+    // Desktop (md+): card con border + rounded + shadow + padding interno para
+    // consistencia visual con /chat/[userId] y /chat inbox. Mobile sin borde.
+    <div className="flex flex-col gap-4 max-w-3xl mx-auto w-full md:border md:border-border md:rounded-xl md:shadow-sm md:bg-background md:p-5">
       <header className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-foreground">Amigos</h1>
       </header>
@@ -77,6 +80,7 @@ export function FriendsClient({
               </span>
             )}
           </TabsTrigger>
+          <TabsTrigger value="suggested">Sugeridos</TabsTrigger>
           <TabsTrigger value="search">Buscar</TabsTrigger>
         </TabsList>
 
@@ -132,6 +136,11 @@ export function FriendsClient({
               </div>
             )}
           </Section>
+        </TabsContent>
+
+        {/* ── Tab Sugeridos ──────────────────────────────────────────── */}
+        <TabsContent value="suggested" className="mt-4">
+          <SuggestedTab />
         </TabsContent>
 
         {/* ── Tab Buscar ─────────────────────────────────────────────── */}

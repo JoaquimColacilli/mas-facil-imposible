@@ -51,8 +51,8 @@ export async function sendMessage(
 ): Promise<ActionResult<Message>> {
   const supabase = await createClient()
   const { data: msgId, error } = await supabase.rpc('send_message', {
-    conversation_id: conversationId,
-    body,
+    p_conversation_id: conversationId,
+    p_body: body,
   })
   if (error) return fail(extractRpcCode(error))
 
@@ -84,7 +84,7 @@ export async function deleteMessage(messageId: string): Promise<ActionResult> {
 export async function markConversationRead(conversationId: string): Promise<ActionResult> {
   const supabase = await createClient()
   const { error } = await supabase.rpc('mark_conversation_read', {
-    conversation_id: conversationId,
+    p_conversation_id: conversationId,
   })
   if (error) return fail(extractRpcCode(error))
   bustCaches()

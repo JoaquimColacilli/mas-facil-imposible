@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
+import { createClient } from '@/lib/supabase/client'
 import type { PublicProfile } from '@/lib/types'
+import { broadcastSocialEvent, type SocialEventType } from '@/lib/social/broadcast'
 import {
   acceptFriendRequest,
   rejectFriendRequest,
@@ -35,7 +37,11 @@ export function RequestRow({ requestId, profile, direction, createdAt }: Request
   const router = useRouter()
   const [pending, startTransition] = useTransition()
 
-  function run(promise: Promise<{ ok: boolean; error?: string }>, msg: string) {
+  function run(
+    promise: Promise<{ ok: boolean; error?: string }>,
+    msg: string,
+    broadcastType?: SocialEventType,
+  ) {
     startTransition(async () => {
       const result = await promise
       if (!result.ok) {
@@ -43,6 +49,16 @@ export function RequestRow({ requestId, profile, direction, createdAt }: Request
         return
       }
       toast.success(msg)
+      if (broadcastType) {
+        const supabase = createClient()
+        const { data: { user: viewer } } = await supabase.auth.getUser()
+        if (viewer) {
+          await broadcastSocialEvent(profile.id, broadcastType, {
+            by_user_id: viewer.id,
+            from_user_id: viewer.id,
+          })
+        }
+      }
       router.refresh()
     })
   }
@@ -69,7 +85,7 @@ export function RequestRow({ requestId, profile, direction, createdAt }: Request
           <Button
             size="sm"
             disabled={pending}
-            onClick={() => run(acceptFriendRequest(requestId), '¡Ahora son amigos!')}
+            onClick={() => run(acceptFriendRequest(requestId), '¡Ahora son amigos!', 'friend_request_accepted')}
           >
             Aceptar
           </Button>
@@ -77,7 +93,7 @@ export function RequestRow({ requestId, profile, direction, createdAt }: Request
             size="sm"
             variant="outline"
             disabled={pending}
-            onClick={() => run(rejectFriendRequest(requestId), 'Solicitud rechazada.')}
+            onClick={() => run(rejectFriendRequest(requestId), 'Solicitud rechazada.', 'friend_request_rejected')}
           >
             Rechazar
           </Button>
@@ -87,7 +103,7 @@ export function RequestRow({ requestId, profile, direction, createdAt }: Request
           size="sm"
           variant="outline"
           disabled={pending}
-          onClick={() => run(cancelFriendRequest(requestId), 'Solicitud cancelada.')}
+          onClick={() => run(cancelFriendRequest(requestId), 'Solicitud cancelada.', 'friend_request_cancelled')}
         >
           Cancelar
         </Button>
