@@ -153,9 +153,9 @@ export function SettingsClient({ profile, userEmail, userId }: SettingsClientPro
     <div className="flex flex-col gap-6">
       <h1 className="text-xl font-semibold text-foreground">Ajustes</h1>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-6 items-start">
+      <div className="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-6 items-start">
         {/* ── Left column: Profile card ──────────────────────────── */}
-        <Card className="lg:sticky lg:top-20">
+        <Card className="md:sticky md:top-20">
           <CardContent className="pt-6 flex flex-col items-center text-center gap-3">
             <AvatarUpload
               userId={userId}

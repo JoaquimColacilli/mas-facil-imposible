@@ -6,6 +6,13 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.22.1',
+    date: '2026-04-19',
+    changes: [
+      'Card del perfil en Ajustes ahora queda sticky en desktop y tablets (md+), para que se vea mientras scrolleás los formularios'
+    ]
+  },
+  {
     version: '0.22.0',
     date: '2026-04-19',
     changes: [
