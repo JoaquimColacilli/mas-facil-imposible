@@ -13,6 +13,8 @@ import {
   Bell,
   Plus,
   Search,
+  Users,
+  MessageCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -25,6 +27,8 @@ export const navItems = [
   { href: '/goals',        label: 'Metas',       icon: Target          },
   { href: '/analytics',    label: 'Análisis',     icon: BarChart3       },
   { href: '/investments',  label: 'Inversiones',  icon: TrendingUp      },
+  { href: '/friends',      label: 'Amigos',       icon: Users           },
+  { href: '/chat',         label: 'Mensajes',     icon: MessageCircle   },
 ]
 
 export function DesktopSidebar() {

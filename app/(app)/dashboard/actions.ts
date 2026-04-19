@@ -1,8 +1,39 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { encryptFields, decryptRow } from '@/lib/crypto'
 import type { Loan, Debt, Currency } from '@/lib/types'
+
+// ─── Helpers internos (no exportados — 'use server' solo permite actions) ───
+
+/**
+ * Si el loan/debt tenía una notif `friend_loan_request` / `friend_debt_request`
+ * pending (read=false) para el friend_id actual, marcarla como leída. Se llama
+ * al borrar o al quitar/cambiar el friend_id en edit — evita que el amigo
+ * encuentre un request fantasma días después.
+ *
+ * Silencioso: si no hay notif pending, no-op.
+ * Usa admin client porque la notif vive en el user_id del friend, no del owner.
+ *
+ * Helper interno: NO exportarlo desde un archivo 'use server' — queda callable
+ * desde el cliente, que podría marcar notifs ajenas como leídas sin auth check.
+ */
+async function cancelPendingLinkedRequest(
+  kind: 'loan' | 'debt',
+  recordId: string,
+  friendId: string | null,
+): Promise<void> {
+  if (!friendId) return
+  const admin = createAdminClient()
+  const notifType = kind === 'loan' ? 'friend_loan_request' : 'friend_debt_request'
+  const idKey = kind === 'loan' ? 'loan_id' : 'debt_id'
+  await admin
+    .from('notifications')
+    .update({ read: true })
+    .eq('user_id', friendId)
+    .eq('read', false)
+    .contains('data', { type: notifType, [idKey]: recordId })
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -47,6 +78,8 @@ export async function createLoan(input: {
   currency: Currency
   note: string | null
   date: string
+  friend_id?: string | null
+  notify_friend?: boolean
 }): Promise<{ data: Loan | null; error: string | null }> {
   const supabase = await createClient()
   const {
@@ -71,11 +104,27 @@ export async function createLoan(input: {
       date: input.date,
       paid: false,
       enc_data,
+      friend_id: input.friend_id ?? null,
     })
     .select()
     .single()
 
   if (error) return { data: null, error: error.message }
+
+  // Dispara la notif si se pidió — silencioso si la RPC falla (el loan ya
+  // quedó creado, el user puede reintentar con un botón "Reenviar solicitud").
+  if (input.friend_id && input.notify_friend) {
+    const { error: rpcErr } = await supabase.rpc('send_linked_loan_request', {
+      loan_id: data.id,
+    })
+    if (rpcErr) {
+      return {
+        data: decryptRow(data) as Loan,
+        error: `Cobro creado, pero no se pudo notificar a tu amigo (${rpcErr.message}).`,
+      }
+    }
+  }
+
   return { data: decryptRow(data) as Loan, error: null }
 }
 
@@ -86,8 +135,35 @@ export async function updateLoan(input: {
   currency: Currency
   note: string | null
   date: string
+  friend_id?: string | null
+  notify_friend?: boolean
 }): Promise<{ data: Loan | null; error: string | null }> {
   const supabase = await createClient()
+
+  // Fase 6: si el loan ya está linkeado (ambos lados confirmaron), el friend_id
+  // es inmutable. Si el user intenta cambiarlo, rechazar con mensaje explícito.
+  const { data: prev } = await supabase
+    .from('loans')
+    .select('friend_id, linked_debt_id')
+    .eq('id', input.id)
+    .single()
+
+  const nextFriendId = input.friend_id ?? null
+  const prevFriendId = prev?.friend_id ?? null
+  const friendChanged = prevFriendId !== nextFriendId
+
+  if (prev?.linked_debt_id && friendChanged) {
+    return {
+      data: null,
+      error: 'No podés cambiar el amigo de un cobro ya confirmado. Eliminá y creá uno nuevo.',
+    }
+  }
+
+  // Si se está sacando el friend_id o cambiándolo, cancelar la notif pending
+  // del friend anterior (evita request fantasma — ajuste A owner).
+  if (friendChanged && prevFriendId) {
+    await cancelPendingLinkedRequest('loan', input.id, prevFriendId)
+  }
 
   const enc_data = encryptFields({
     person_name: input.person_name,
@@ -104,6 +180,7 @@ export async function updateLoan(input: {
       note: null,
       date: input.date,
       enc_data,
+      friend_id: nextFriendId,
       updated_at: new Date().toISOString(),
     })
     .eq('id', input.id)
@@ -111,6 +188,20 @@ export async function updateLoan(input: {
     .single()
 
   if (error) return { data: null, error: error.message }
+
+  // Si el user tildó notify_friend y ahora hay friend_id sin linkear → enviar.
+  if (nextFriendId && input.notify_friend && !prev?.linked_debt_id) {
+    const { error: rpcErr } = await supabase.rpc('send_linked_loan_request', {
+      loan_id: input.id,
+    })
+    if (rpcErr) {
+      return {
+        data: decryptRow(data) as Loan,
+        error: `Cobro actualizado, pero no se pudo notificar (${rpcErr.message}).`,
+      }
+    }
+  }
+
   return { data: decryptRow(data) as Loan, error: null }
 }
 
@@ -194,10 +285,20 @@ export async function markLoanPaid(id: string): Promise<{ data: Loan | null; err
 export async function deleteLoan(id: string): Promise<{ error: string | null }> {
   const supabase = await createClient()
 
-  // If the loan had a resolved transaction, delete it too
-  const { data: loan } = await supabase.from('loans').select('resolved_transaction_id').eq('id', id).single()
+  // If the loan had a resolved transaction, delete it too.
+  // Also grab friend_id for the pending-notif cleanup (ajuste A owner).
+  const { data: loan } = await supabase
+    .from('loans')
+    .select('resolved_transaction_id, friend_id, linked_debt_id')
+    .eq('id', id)
+    .single()
   if (loan?.resolved_transaction_id) {
     await supabase.from('transactions').delete().eq('id', loan.resolved_transaction_id)
+  }
+  // Cancel any pending request notif on the friend side — solo si no está linkeado
+  // (si linked, ya no hay notif pending por definición del flow).
+  if (loan?.friend_id && !loan?.linked_debt_id) {
+    await cancelPendingLinkedRequest('loan', id, loan.friend_id)
   }
 
   const { error } = await supabase.from('loans').delete().eq('id', id)
@@ -212,6 +313,8 @@ export async function createDebt(input: {
   currency: Currency
   note: string | null
   date: string
+  friend_id?: string | null
+  notify_friend?: boolean
 }): Promise<{ data: Debt | null; error: string | null }> {
   const supabase = await createClient()
   const {
@@ -236,11 +339,25 @@ export async function createDebt(input: {
       date: input.date,
       paid: false,
       enc_data,
+      friend_id: input.friend_id ?? null,
     })
     .select()
     .single()
 
   if (error) return { data: null, error: error.message }
+
+  if (input.friend_id && input.notify_friend) {
+    const { error: rpcErr } = await supabase.rpc('send_linked_debt_request', {
+      debt_id: data.id,
+    })
+    if (rpcErr) {
+      return {
+        data: decryptRow(data) as Debt,
+        error: `Deuda creada, pero no se pudo notificar a tu amigo (${rpcErr.message}).`,
+      }
+    }
+  }
+
   return { data: decryptRow(data) as Debt, error: null }
 }
 
@@ -251,8 +368,31 @@ export async function updateDebt(input: {
   currency: Currency
   note: string | null
   date: string
+  friend_id?: string | null
+  notify_friend?: boolean
 }): Promise<{ data: Debt | null; error: string | null }> {
   const supabase = await createClient()
+
+  const { data: prev } = await supabase
+    .from('debts')
+    .select('friend_id, linked_loan_id')
+    .eq('id', input.id)
+    .single()
+
+  const nextFriendId = input.friend_id ?? null
+  const prevFriendId = prev?.friend_id ?? null
+  const friendChanged = prevFriendId !== nextFriendId
+
+  if (prev?.linked_loan_id && friendChanged) {
+    return {
+      data: null,
+      error: 'No podés cambiar el amigo de una deuda ya confirmada. Eliminá y creá una nueva.',
+    }
+  }
+
+  if (friendChanged && prevFriendId) {
+    await cancelPendingLinkedRequest('debt', input.id, prevFriendId)
+  }
 
   const enc_data = encryptFields({
     person_name: input.person_name,
@@ -269,6 +409,7 @@ export async function updateDebt(input: {
       note: null,
       date: input.date,
       enc_data,
+      friend_id: nextFriendId,
       updated_at: new Date().toISOString(),
     })
     .eq('id', input.id)
@@ -276,6 +417,19 @@ export async function updateDebt(input: {
     .single()
 
   if (error) return { data: null, error: error.message }
+
+  if (nextFriendId && input.notify_friend && !prev?.linked_loan_id) {
+    const { error: rpcErr } = await supabase.rpc('send_linked_debt_request', {
+      debt_id: input.id,
+    })
+    if (rpcErr) {
+      return {
+        data: decryptRow(data) as Debt,
+        error: `Deuda actualizada, pero no se pudo notificar (${rpcErr.message}).`,
+      }
+    }
+  }
+
   return { data: decryptRow(data) as Debt, error: null }
 }
 
@@ -359,10 +513,16 @@ export async function markDebtPaid(id: string): Promise<{ data: Debt | null; err
 export async function deleteDebt(id: string): Promise<{ error: string | null }> {
   const supabase = await createClient()
 
-  // If the debt had a resolved transaction, delete it too
-  const { data: debt } = await supabase.from('debts').select('resolved_transaction_id').eq('id', id).single()
+  const { data: debt } = await supabase
+    .from('debts')
+    .select('resolved_transaction_id, friend_id, linked_loan_id')
+    .eq('id', id)
+    .single()
   if (debt?.resolved_transaction_id) {
     await supabase.from('transactions').delete().eq('id', debt.resolved_transaction_id)
+  }
+  if (debt?.friend_id && !debt?.linked_loan_id) {
+    await cancelPendingLinkedRequest('debt', id, debt.friend_id)
   }
 
   const { error } = await supabase.from('debts').delete().eq('id', id)

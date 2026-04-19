@@ -15,7 +15,7 @@ export default async function OnboardingPage() {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('full_name, default_currency, preferred_mode, onboarding_completed')
+    .select('full_name, default_currency, preferred_mode, onboarding_completed, username')
     .eq('id', user.id)
     .single()
 
@@ -27,5 +27,5 @@ export default async function OnboardingPage() {
     }
   }
 
-  return <OnboardingClient profile={profile} />
+  return <OnboardingClient profile={profile} userId={user.id} />
 }

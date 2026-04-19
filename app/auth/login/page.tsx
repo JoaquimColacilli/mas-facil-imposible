@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { login } from '@/app/auth/actions'
@@ -13,6 +13,14 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  // Read `?next=...` from the URL (no Suspense boundary needed — we read
+  // window.location once mounted instead of using useSearchParams).
+  const [next, setNext] = useState('')
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const params = new URLSearchParams(window.location.search)
+    setNext(params.get('next') ?? '')
+  }, [])
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
@@ -104,6 +112,9 @@ export default function LoginPage() {
           </div>
 
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+            {/* Round-trips ?next=... back to the server action. The action
+                rejects anything outside ALLOWED_NEXT_PREFIXES. */}
+            <input type="hidden" name="next" value={next} />
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="email" className="text-[13px] font-semibold text-foreground">
                 Email

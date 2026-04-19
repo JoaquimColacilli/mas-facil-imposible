@@ -2,26 +2,35 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { LayoutDashboard, Table2, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
+import { TOS_VERSION, PRIVACY_VERSION } from '@/lib/legal-texts'
+import { setUsername as setUsernameAction } from '@/app/(app)/settings/social-actions'
+import { StepUsername, type StepUsernameValidity } from './steps/step-username'
+import { toast } from 'sonner'
 
 type Mode = 'classic' | 'mfi'
 type Currency = 'ARS' | 'USD'
-type Step = 0 | 1 | 2 | 3
+type Step = 0 | 1 | 2 | 3 | 4
 
 interface Profile {
   full_name?: string | null
   default_currency?: string | null
   preferred_mode?: string | null
   onboarding_completed?: boolean | null
+  username?: string | null
 }
 
 interface OnboardingClientProps {
   profile: Profile | null
+  userId: string
 }
 
 // ─── Progress Dots ────────────────────────────────────────────────────────────
@@ -335,16 +344,20 @@ function StepConfig({
   name,
   currency,
   saving,
+  acceptedLegal,
   onNameChange,
   onCurrencyChange,
+  onAcceptedLegalChange,
   onNext,
   onBack,
 }: {
   name: string
   currency: Currency
   saving: boolean
+  acceptedLegal: boolean
   onNameChange: (v: string) => void
   onCurrencyChange: (v: Currency) => void
+  onAcceptedLegalChange: (v: boolean) => void
   onNext: () => void
   onBack: () => void
 }) {
@@ -417,14 +430,49 @@ function StepConfig({
             </div>
           </div>
 
+          {/* Legal acceptance */}
+          <div className="mt-8">
+            <Separator className="mb-6" />
+            <label
+              htmlFor="onboarding-legal"
+              className="flex items-start gap-3 cursor-pointer select-none"
+            >
+              <Checkbox
+                id="onboarding-legal"
+                checked={acceptedLegal}
+                onCheckedChange={(v) => onAcceptedLegalChange(v === true)}
+                className="mt-0.5"
+              />
+              <span className="text-[13px] leading-relaxed text-muted-foreground">
+                Acepto los{' '}
+                <Link
+                  href="/legal/tos"
+                  target="_blank"
+                  className="underline underline-offset-4 text-foreground hover:text-primary"
+                >
+                  Términos y Condiciones
+                </Link>{' '}
+                y la{' '}
+                <Link
+                  href="/legal/privacy"
+                  target="_blank"
+                  className="underline underline-offset-4 text-foreground hover:text-primary"
+                >
+                  Política de Privacidad
+                </Link>
+                .
+              </span>
+            </label>
+          </div>
+
           {/* CTA */}
-          <div className="mt-14 flex justify-center w-full">
+          <div className="mt-8 flex justify-center w-full">
             <Button
               onClick={onNext}
-              disabled={saving || !name.trim()}
+              disabled={saving || !name.trim() || !acceptedLegal}
               className="h-14 w-full rounded-2xl text-[15px] font-semibold transition-all hover:scale-[1.02] active:scale-[0.98] disabled:hover:scale-100"
             >
-              {saving ? 'Guardando perfil…' : 'Comenzar a usar MFI →'}
+              Continuar →
             </Button>
           </div>
         </div>
@@ -460,7 +508,7 @@ function StepDone({ name }: { name: string }) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function OnboardingClient({ profile }: OnboardingClientProps) {
+export default function OnboardingClient({ profile, userId }: OnboardingClientProps) {
   const router = useRouter()
   const supabase = createClient()
 
@@ -470,11 +518,16 @@ export default function OnboardingClient({ profile }: OnboardingClientProps) {
   const [currency, setCurrency] = useState<Currency>(
     (profile?.default_currency as Currency) ?? 'ARS',
   )
+  const [acceptedLegal, setAcceptedLegal] = useState(false)
+  const [usernameValidity, setUsernameValidity] = useState<StepUsernameValidity>({
+    canSubmit: !!profile?.username,
+    normalized: profile?.username ?? null,
+  })
   const [saving, setSaving] = useState(false)
 
-  // Auto-navigate after step 3
+  // Auto-navigate after step 4 (Done)
   useEffect(() => {
-    if (step === 3) {
+    if (step === 4) {
       const timer = setTimeout(() => {
         router.push(selectedMode === 'mfi' ? '/mfi' : '/dashboard')
       }, 1500)
@@ -482,35 +535,49 @@ export default function OnboardingClient({ profile }: OnboardingClientProps) {
     }
   }, [step, selectedMode, router])
 
-  const handleSaveAndContinue = async () => {
+  const handleConfigContinue = () => {
+    // No DB writes here — defer to step 3 (Username) so the whole onboarding
+    // commits atomically only when the user finishes the flow.
+    setStep(3)
+  }
+
+  const handleUsernameContinue = async () => {
+    if (!usernameValidity.canSubmit || !usernameValidity.normalized) return
     setSaving(true)
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      if (user) {
-        await supabase
-          .from('profiles')
-          .update({
-            full_name: name.trim() || null,
-            default_currency: currency,
-            preferred_mode: selectedMode,
-            onboarding_completed: true,
-          })
-          .eq('id', user.id)
+      // 1. Reserve the username via the server action (handles unicidad + rate limit).
+      const usernameResult = await setUsernameAction(usernameValidity.normalized)
+      if (!usernameResult.ok) {
+        toast.error(usernameResult.error)
+        setSaving(false)
+        return
       }
-    } catch {
-      // Non-blocking — proceed regardless
+
+      // 2. Persist the rest of the onboarding profile.
+      const now = new Date().toISOString()
+      await supabase
+        .from('profiles')
+        .update({
+          full_name: name.trim() || null,
+          default_currency: currency,
+          preferred_mode: selectedMode,
+          onboarding_completed: true,
+          tos_accepted_at: now,
+          tos_version: TOS_VERSION,
+          privacy_accepted_at: now,
+          privacy_version: PRIVACY_VERSION,
+        })
+        .eq('id', userId)
+
+      setStep(4)
     } finally {
       setSaving(false)
-      setStep(3)
     }
   }
 
   return (
     <div className="relative min-h-svh bg-background">
-      {/* Subtle gradient backdrop (steps 0 only effectively, but harmless elsewhere) */}
+      {/* Subtle gradient backdrop */}
       <div className="pointer-events-none fixed inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/3" />
 
       {/* Step 0 — Welcome */}
@@ -532,20 +599,35 @@ export default function OnboardingClient({ profile }: OnboardingClientProps) {
           name={name}
           currency={currency}
           saving={saving}
+          acceptedLegal={acceptedLegal}
           onNameChange={setName}
           onCurrencyChange={setCurrency}
-          onNext={handleSaveAndContinue}
+          onAcceptedLegalChange={setAcceptedLegal}
+          onNext={handleConfigContinue}
           onBack={() => setStep(1)}
         />
       )}
 
-      {/* Step 3 — Done */}
-      {step === 3 && <StepDone name={name} />}
+      {/* Step 3 — Username */}
+      {step === 3 && (
+        <StepUsername
+          userId={userId}
+          initialValue={profile?.username ?? null}
+          saving={saving}
+          canSubmit={usernameValidity.canSubmit}
+          onValidityChange={setUsernameValidity}
+          onNext={handleUsernameContinue}
+          onBack={() => setStep(2)}
+        />
+      )}
+
+      {/* Step 4 — Done */}
+      {step === 4 && <StepDone name={name} />}
 
       {/* Progress dots — hidden on welcome and done screens */}
-      {step !== 0 && step !== 3 && (
+      {step !== 0 && step !== 4 && (
         <div className="fixed bottom-8 left-0 right-0 flex justify-center animate-in fade-in duration-300">
-          <ProgressDots current={step} total={4} />
+          <ProgressDots current={step} total={5} />
         </div>
       )}
     </div>

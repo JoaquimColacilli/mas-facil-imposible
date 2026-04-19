@@ -24,8 +24,141 @@ export interface Profile {
   location_lng: number | null
   location_name: string | null
   location_timezone: string | null
+  tos_accepted_at: string | null
+  tos_version: string | null
+  privacy_accepted_at: string | null
+  privacy_version: string | null
+  username: string | null
+  username_changed_at: string | null
+  is_discoverable: boolean
+  bio: string | null
+  show_streak: boolean
+  show_badges: boolean
+  show_bio: boolean
+  last_seen_at: string | null
   created_at: string
   updated_at: string
+}
+
+/**
+ * Shape of public.profiles_public (DB view).
+ * Only safe-to-expose columns. Returned when looking up other users.
+ * - `bio` is already filtered server-side: returns null when show_bio=false.
+ * - `show_streak` / `show_badges` are returned as-is so the consumer
+ *   decides whether to fetch streak/badges.
+ * Never use Profile for cross-user reads.
+ */
+export interface PublicProfile {
+  id: string
+  username: string | null
+  nickname: string | null
+  avatar_url: string | null
+  bio: string | null
+  show_streak: boolean
+  show_badges: boolean
+  is_discoverable: boolean
+  last_seen_at: string | null
+  created_at: string
+}
+
+// ─── Social graph (Fase 2) ───────────────────────────────────────────────────
+
+export type FriendRequestStatus = 'pending' | 'accepted' | 'rejected' | 'cancelled'
+
+export interface FriendRequest {
+  id: string
+  sender_id: string
+  receiver_id: string
+  status: FriendRequestStatus
+  created_at: string
+  updated_at: string
+}
+
+export interface Friendship {
+  user_a_id: string
+  user_b_id: string
+  created_at: string
+}
+
+export interface Block {
+  blocker_id: string
+  blocked_id: string
+  created_at: string
+}
+
+/** Payload stored in `notifications.data` when type='friend_request_received'. */
+export interface FriendRequestNotificationData {
+  type: 'friend_request_received'
+  request_id: string
+  sender_id: string
+  sender_username: string | null
+}
+
+/** Payload when type='friend_loan_request' — sender pidió confirmación del debt contrapartida. */
+export interface FriendLoanRequestNotificationData {
+  type: 'friend_loan_request'
+  loan_id: string
+  sender_id: string
+  sender_username: string | null
+  currency: Currency
+}
+
+/** Payload when type='friend_debt_request' — sender pidió confirmación del loan contrapartida. */
+export interface FriendDebtRequestNotificationData {
+  type: 'friend_debt_request'
+  debt_id: string
+  sender_id: string
+  sender_username: string | null
+  currency: Currency
+}
+
+// ─── Chat (Fase 4) ───────────────────────────────────────────────────────────
+
+export interface Conversation {
+  id: string
+  user_a_id: string
+  user_b_id: string
+  last_message_at: string | null
+  user_a_last_read_at: string | null
+  user_b_last_read_at: string | null
+  created_at: string
+}
+
+export interface Message {
+  id: string
+  conversation_id: string
+  sender_id: string
+  body: string
+  created_at: string
+  deleted_at: string | null
+  edited_at: string | null
+  read_at: string | null
+}
+
+/**
+ * Shape of the `last_message` JSONB column in `conversation_summaries`.
+ * `body` is null when the message is soft-deleted (the view collapses it
+ * server-side so the client never sees deleted content).
+ */
+export interface LastMessagePreview {
+  id: string
+  sender_id: string
+  body: string | null
+  created_at: string
+  deleted_at: string | null
+}
+
+/** Shape of `public.conversation_summaries` (DB view). Per-viewer. */
+export interface ConversationSummary {
+  id: string
+  user_a_id: string
+  user_b_id: string
+  last_message_at: string | null
+  created_at: string
+  peer_id: string
+  my_last_read_at: string | null
+  unread_count: number
+  last_message: LastMessagePreview | null
 }
 
 export interface Category {
@@ -84,6 +217,8 @@ export interface Loan {
   paid: boolean
   paid_at: string | null
   resolved_transaction_id: string | null
+  friend_id: string | null
+  linked_debt_id: string | null
   created_at: string
   updated_at: string
 }
@@ -99,6 +234,8 @@ export interface Debt {
   paid: boolean
   paid_at: string | null
   resolved_transaction_id: string | null
+  friend_id: string | null
+  linked_loan_id: string | null
   created_at: string
   updated_at: string
 }
