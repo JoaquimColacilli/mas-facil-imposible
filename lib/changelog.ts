@@ -6,6 +6,20 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.22.0',
+    date: '2026-04-19',
+    changes: [
+      'Agregado sistema de amigos con búsqueda por username, solicitudes, aceptar, rechazar y bloqueos',
+      'Agregado perfil público de amigos con controles de privacidad (mostrar bio, racha de inversión, actividad)',
+      'Agregado chat 1:1 en tiempo real con estado en línea, indicador de escritura y confirmación de lectura',
+      'Agregada vinculación de préstamos y deudas con amigos: la contraparte confirma y el registro espejo se crea automáticamente',
+      'Agregado tab Sugeridos en Amigos con usuarios activos recientes que podés agregar sin buscar',
+      'Agregado tiempo real para solicitudes, préstamos vinculados y notificaciones — sin recargar la página',
+      'Agregado username único y opción para no aparecer en búsquedas ni sugerencias desde Ajustes',
+      'Agregado onboarding con aceptación de Términos y Privacidad, exportar datos personales y eliminar cuenta'
+    ]
+  },
+  {
     version: '0.21.14',
     date: '2026-04-18',
     changes: [
