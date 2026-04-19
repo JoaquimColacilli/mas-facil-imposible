@@ -6,6 +6,13 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.22.4',
+    date: '2026-04-19',
+    changes: [
+      'Corregido scroll del shell para que funcione correctamente el sticky de la card de perfil en Ajustes'
+    ]
+  },
+  {
     version: '0.22.3',
     date: '2026-04-19',
     changes: [
