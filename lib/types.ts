@@ -94,6 +94,24 @@ export interface FriendRequestNotificationData {
   sender_username: string | null
 }
 
+/** Payload when type='friend_loan_request' — sender pidió confirmación del debt contrapartida. */
+export interface FriendLoanRequestNotificationData {
+  type: 'friend_loan_request'
+  loan_id: string
+  sender_id: string
+  sender_username: string | null
+  currency: Currency
+}
+
+/** Payload when type='friend_debt_request' — sender pidió confirmación del loan contrapartida. */
+export interface FriendDebtRequestNotificationData {
+  type: 'friend_debt_request'
+  debt_id: string
+  sender_id: string
+  sender_username: string | null
+  currency: Currency
+}
+
 // ─── Chat (Fase 4) ───────────────────────────────────────────────────────────
 
 export interface Conversation {
@@ -199,6 +217,8 @@ export interface Loan {
   paid: boolean
   paid_at: string | null
   resolved_transaction_id: string | null
+  friend_id: string | null
+  linked_debt_id: string | null
   created_at: string
   updated_at: string
 }
@@ -214,6 +234,8 @@ export interface Debt {
   paid: boolean
   paid_at: string | null
   resolved_transaction_id: string | null
+  friend_id: string | null
+  linked_loan_id: string | null
   created_at: string
   updated_at: string
 }

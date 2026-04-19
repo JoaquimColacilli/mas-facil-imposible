@@ -61,7 +61,7 @@ export function FriendsClient({
   for (const r of sent) if (r.profile) pendingByCounterparty.set(r.profile.id, { id: r.id, iSent: true })
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 max-w-3xl mx-auto w-full">
       <header className="flex items-center justify-between">
         <h1 className="text-xl font-semibold text-foreground">Amigos</h1>
       </header>

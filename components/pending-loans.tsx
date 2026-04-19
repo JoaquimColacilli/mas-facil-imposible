@@ -1,12 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Loan } from '@/lib/types'
+import type { Loan, PublicProfile } from '@/lib/types'
 import { formatCurrency, formatDate } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { liveFormatMoney, parseMoneyInput, formatMoneyInput } from '@/components/money-input'
+import { FriendPicker } from '@/components/friend-picker'
+import { LinkedBadge } from '@/components/linked-badge'
+import { SettlePropagateDialog } from '@/components/settle-propagate-dialog'
 import {
   Dialog,
   DialogContent,
@@ -49,10 +52,14 @@ function AddLoanForm({
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [friendId, setFriendId] = useState<string | null>(null)
+  const [friendName, setFriendName] = useState<string | null>(null)
+  const [notifyFriend, setNotifyFriend] = useState(true)
 
   async function handleSave() {
-    if (!personName.trim() || parseMoneyInput(amount) <= 0) {
-      setError('Completá nombre y monto')
+    const effectiveName = friendId ? (friendName ?? 'amigo') : personName.trim()
+    if (!effectiveName || parseMoneyInput(amount) <= 0) {
+      setError(friendId ? 'Completá el monto' : 'Completá nombre y monto')
       return
     }
     setSaving(true)
@@ -60,29 +67,53 @@ function AddLoanForm({
 
     const { createLoan } = await import('@/app/(app)/dashboard/actions')
     const { data, error: err } = await createLoan({
-      person_name: personName.trim(),
+      person_name: effectiveName,
       amount: parseMoneyInput(amount),
       currency: curr,
       note: note.trim() || null,
       date,
+      friend_id: friendId,
+      notify_friend: friendId ? notifyFriend : false,
     })
 
     setSaving(false)
-    if (err) { setError(err); toast.error('No se pudo registrar. Intentá de nuevo.', { duration: 5000 }); return }
-    if (data) { toast.success('Cobro registrado'); onSave(data) }
+    if (err && !data) {
+      setError(err)
+      toast.error('No se pudo registrar. Intentá de nuevo.', { duration: 5000 })
+      return
+    }
+    if (err && data) {
+      // Loan guardado, pero la notif falló. Guardamos igual con warning.
+      toast.warning(err, { duration: 5000 })
+      onSave(data)
+      return
+    }
+    if (data) {
+      toast.success(friendId && notifyFriend ? 'Cobro registrado · Solicitud enviada' : 'Cobro registrado')
+      onSave(data)
+    }
   }
 
   const inputCls = 'w-full bg-muted/50 border border-border rounded-lg px-2.5 py-1.5 text-[12px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/60 transition-shadow'
 
   return (
     <div className="p-3 border-t border-border bg-muted/20 flex flex-col gap-2">
-      <input
-        className={inputCls}
-        placeholder="Nombre (ej. Martín)"
-        value={personName}
-        onChange={(e) => setPersonName(e.target.value)}
-        autoFocus
+      <FriendPicker
+        value={friendId}
+        onChange={(id, friend) => {
+          setFriendId(id)
+          setFriendName(friend?.nickname ?? friend?.username ?? null)
+        }}
       />
+      {!friendId && (
+        <input
+          className={inputCls}
+          placeholder="Nombre (ej. Martín)"
+          value={personName}
+          onChange={(e) => setPersonName(e.target.value)}
+          autoFocus
+        />
+      )}
       <div className="flex gap-2">
         <input
           className={cn(inputCls, 'flex-1')}
@@ -91,6 +122,7 @@ function AddLoanForm({
           placeholder="Monto"
           value={amount}
           onChange={(e) => setAmount(liveFormatMoney(e.target.value))}
+          autoFocus={!!friendId}
         />
         <select
           className={cn(inputCls, 'w-20 shrink-0')}
@@ -113,6 +145,17 @@ function AddLoanForm({
         value={date}
         onChange={(e) => setDate(e.target.value)}
       />
+      {friendId && (
+        <label className="flex items-center gap-2 text-[11px] text-foreground cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={notifyFriend}
+            onChange={(e) => setNotifyFriend(e.target.checked)}
+            className="w-3 h-3 cursor-pointer"
+          />
+          <span>Notificar a @{friendName ?? 'amigo'} para que confirme</span>
+        </label>
+      )}
       {error && <p className="text-[11px] text-rose-500">{error}</p>}
       <div className="flex gap-2 pt-1">
         <Button
@@ -142,12 +185,14 @@ function LoanRow({
   onEdit,
   onDelete,
   loadingId,
+  friendMap,
 }: {
   loan: Loan
   onMarkPaid: (id: string) => void
   onEdit: (loan: Loan) => void
   onDelete: (id: string) => void
   loadingId: string | null
+  friendMap: Map<string, PublicProfile>
 }) {
   const [confirming, setConfirming] = useState(false)
   const isLoading = loadingId === loan.id
@@ -180,9 +225,17 @@ function LoanRow({
       </button>
 
       <div className="flex-1 min-w-0">
-        <p className={cn('text-[12.5px] font-semibold text-foreground leading-none truncate', loan.paid && 'line-through')}>
-          {loan.person_name}
-        </p>
+        <div className="flex items-center gap-1.5">
+          <p className={cn('text-[12.5px] font-semibold text-foreground leading-none truncate', loan.paid && 'line-through')}>
+            {loan.friend_id ? `@${friendMap.get(loan.friend_id)?.username ?? loan.person_name}` : loan.person_name}
+          </p>
+          <LinkedBadge
+            friendId={loan.friend_id}
+            linkedId={loan.linked_debt_id}
+            paid={loan.paid}
+            friendUsername={loan.friend_id ? friendMap.get(loan.friend_id)?.username ?? null : null}
+          />
+        </div>
         <p className="text-[10.5px] text-muted-foreground mt-0.5 leading-none truncate">
           {loan.note ? `${loan.note} · ` : ''}
           {formatDate(loan.date)}
@@ -239,24 +292,66 @@ export function PendingLoans({ initialLoans, currency, onResolved }: PendingLoan
   const [editingLoan, setEditingLoan] = useState<Loan | null>(null)
   const [loadingId, setLoadingId] = useState<string | null>(null)
   const [showHistory, setShowHistory] = useState(false)
+  const [friendMap, setFriendMap] = useState<Map<string, PublicProfile>>(new Map())
+  const [settleDialog, setSettleDialog] = useState<{ loan: Loan } | null>(null)
+  const [settleLoading, setSettleLoading] = useState(false)
+
+  // Resolve friend profiles for rows that have friend_id — small, lazy.
+  useEffect(() => {
+    const ids = Array.from(new Set(loans.map((l) => l.friend_id).filter(Boolean) as string[]))
+    const missing = ids.filter((id) => !friendMap.has(id))
+    if (missing.length === 0) return
+    const supabase = createClient()
+    supabase
+      .from('friends_visible_profiles')
+      .select('id, username, nickname, avatar_url, bio, is_discoverable, last_seen_at, created_at')
+      .in('id', missing)
+      .then(({ data }) => {
+        if (!data) return
+        setFriendMap((prev) => {
+          const next = new Map(prev)
+          for (const p of data as PublicProfile[]) next.set(p.id, p)
+          return next
+        })
+      })
+  }, [loans, friendMap])
 
   const pending = loans.filter((l) => !l.paid)
   const paid    = loans.filter((l) => l.paid)
   const totalPending = pending.reduce((s, l) => l.currency === currency ? s + l.amount : s, 0)
 
-  async function handleMarkPaid(id: string) {
-    const loan = loans.find((l) => l.id === id)
-    setLoadingId(id)
+  async function doMarkPaid(loan: Loan, propagate: boolean) {
+    setLoadingId(loan.id)
     const { markLoanPaid } = await import('@/app/(app)/dashboard/actions')
-    const { data } = await markLoanPaid(id)
+    const { data } = await markLoanPaid(loan.id)
+    if (data) setLoans((prev) => prev.map((l) => l.id === loan.id ? data : l))
+
+    if (loan.linked_debt_id && propagate) {
+      const { propagateSettleToLinked } = await import('@/app/(app)/dashboard/social-actions')
+      const res = await propagateSettleToLinked('loan', loan.id)
+      if (!res.ok) toast.warning(`Saldado local, pero no se propagó: ${res.error}`)
+    }
+
     setLoadingId(null)
     if (data) {
-      setLoans((prev) => prev.map((l) => l.id === id ? data : l))
-      if (loan) {
-        toast.success('Cobro registrado como ingreso')
-      }
+      toast.success(
+        loan.linked_debt_id && propagate
+          ? 'Saldado y propagado a tu amigo'
+          : 'Cobro registrado como ingreso',
+      )
       onResolved?.()
     }
+  }
+
+  function handleMarkPaid(id: string) {
+    const loan = loans.find((l) => l.id === id)
+    if (!loan) return
+    // Linked → pedí confirmación del propagate. Legacy (sin linked) → directo.
+    if (loan.linked_debt_id) {
+      setSettleDialog({ loan })
+      return
+    }
+    doMarkPaid(loan, false)
   }
 
   async function handleDelete(id: string) {
@@ -325,6 +420,7 @@ export function PendingLoans({ initialLoans, currency, onResolved }: PendingLoan
                   loan={l}
                   onSave={handleEdited}
                   onCancel={() => setEditingLoan(null)}
+                  friendMap={friendMap}
                 />
               ) : (
                 <LoanRow
@@ -334,6 +430,7 @@ export function PendingLoans({ initialLoans, currency, onResolved }: PendingLoan
                   onEdit={setEditingLoan}
                   onDelete={handleDelete}
                   loadingId={loadingId}
+                  friendMap={friendMap}
                 />
               ),
             )
@@ -385,6 +482,7 @@ export function PendingLoans({ initialLoans, currency, onResolved }: PendingLoan
                     onEdit={(loan) => { setEditingLoan(loan); setShowHistory(false) }}
                     onDelete={handleDelete}
                     loadingId={loadingId}
+                    friendMap={friendMap}
                   />
                 ))}
               </>
@@ -403,6 +501,7 @@ export function PendingLoans({ initialLoans, currency, onResolved }: PendingLoan
                     onEdit={setEditingLoan}
                     onDelete={handleDelete}
                     loadingId={loadingId}
+                    friendMap={friendMap}
                   />
                 ))}
               </>
@@ -416,6 +515,27 @@ export function PendingLoans({ initialLoans, currency, onResolved }: PendingLoan
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Settle + propagate dialog */}
+      {settleDialog && (
+        <SettlePropagateDialog
+          open
+          onOpenChange={(o) => !o && !settleLoading && setSettleDialog(null)}
+          kind="loan"
+          friendUsername={
+            settleDialog.loan.friend_id
+              ? friendMap.get(settleDialog.loan.friend_id)?.username ?? null
+              : null
+          }
+          loading={settleLoading}
+          onConfirm={async (propagate) => {
+            setSettleLoading(true)
+            await doMarkPaid(settleDialog.loan, propagate)
+            setSettleLoading(false)
+            setSettleDialog(null)
+          }}
+        />
+      )}
     </>
   )
 }
@@ -424,10 +544,12 @@ function EditLoanInline({
   loan,
   onSave,
   onCancel,
+  friendMap,
 }: {
   loan: Loan
   onSave: (updated: Loan) => void
   onCancel: () => void
+  friendMap: Map<string, PublicProfile>
 }) {
   const [personName, setPersonName] = useState(loan.person_name)
   const [amount, setAmount] = useState(formatMoneyInput(loan.amount))
@@ -435,20 +557,29 @@ function EditLoanInline({
   const [note, setNote] = useState(loan.note ?? '')
   const [date, setDate] = useState(loan.date)
   const [saving, setSaving] = useState(false)
+  const [friendId, setFriendId] = useState<string | null>(loan.friend_id)
+  const [notifyFriend, setNotifyFriend] = useState(false)
+  const initialFriend = loan.friend_id ? friendMap.get(loan.friend_id) ?? null : null
+  const isLinkedConfirmed = !!loan.linked_debt_id
+  const friendUsername = friendId ? friendMap.get(friendId)?.username ?? null : null
 
   async function handleSave() {
-    if (!personName.trim() || parseMoneyInput(amount) <= 0) return
+    const effectiveName = friendId ? (friendUsername ?? personName.trim() ?? 'amigo') : personName.trim()
+    if (!effectiveName || parseMoneyInput(amount) <= 0) return
     setSaving(true)
     const { updateLoan } = await import('@/app/(app)/dashboard/actions')
-    const { data } = await updateLoan({
+    const { data, error } = await updateLoan({
       id: loan.id,
-      person_name: personName.trim(),
+      person_name: effectiveName,
       amount: parseMoneyInput(amount),
       currency: curr,
       note: note.trim() || null,
+      friend_id: friendId,
+      notify_friend: friendId && !loan.linked_debt_id ? notifyFriend : false,
       date,
     })
     setSaving(false)
+    if (error && !data) { toast.error(error); return }
     if (data) { toast.success('Cobro actualizado'); onSave(data) }
   }
 
@@ -456,7 +587,16 @@ function EditLoanInline({
 
   return (
     <div className="p-3 border-b border-border bg-muted/20 flex flex-col gap-2">
-      <input className={inputCls} value={personName} onChange={(e) => setPersonName(e.target.value)} placeholder="Nombre" autoFocus />
+      <FriendPicker
+        value={friendId}
+        onChange={(id) => setFriendId(id)}
+        disabled={isLinkedConfirmed}
+        disabledHint="No podés cambiar el amigo de un cobro ya confirmado. Eliminá y creá uno nuevo."
+        initialFriend={initialFriend}
+      />
+      {!friendId && (
+        <input className={inputCls} value={personName} onChange={(e) => setPersonName(e.target.value)} placeholder="Nombre" autoFocus />
+      )}
       <div className="flex gap-2">
         <input className={cn(inputCls, 'flex-1')} type="text" inputMode="decimal" value={amount} onChange={(e) => setAmount(liveFormatMoney(e.target.value))} />
         <select className={cn(inputCls, 'w-20 shrink-0')} value={curr} onChange={(e) => setCurr(e.target.value as 'ARS' | 'USD')}>
@@ -466,6 +606,17 @@ function EditLoanInline({
       </div>
       <input className={inputCls} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Nota (opcional)" />
       <input className={inputCls} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+      {friendId && !isLinkedConfirmed && friendId !== loan.friend_id && (
+        <label className="flex items-center gap-2 text-[11px] text-foreground cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={notifyFriend}
+            onChange={(e) => setNotifyFriend(e.target.checked)}
+            className="w-3 h-3 cursor-pointer"
+          />
+          <span>Notificar a @{friendUsername ?? 'amigo'} para que confirme</span>
+        </label>
+      )}
       <div className="flex gap-2 pt-1">
         <Button size="sm" onClick={handleSave} disabled={saving} className="flex-1 h-7 text-[11px] rounded-lg">
           {saving ? 'Guardando...' : 'Guardar'}

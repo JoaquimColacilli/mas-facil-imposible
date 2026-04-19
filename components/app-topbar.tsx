@@ -16,7 +16,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Bell, LogOut, Settings, CheckCheck, Info, AlertTriangle, CheckCircle2, AlertCircle, ChevronRight, ChevronDown, Table2, Shield, FileSpreadsheet, FileText, Loader2 } from 'lucide-react'
+import { Bell, LogOut, Settings, CheckCheck, Info, AlertTriangle, CheckCircle2, AlertCircle, ChevronRight, ChevronDown, Table2, Shield, FileSpreadsheet, FileText, Loader2, Check, X } from 'lucide-react'
+import { formatCurrency } from '@/lib/types'
+import {
+  fetchLinkedRequestsPreview,
+  acceptLinkedLoanRequest,
+  acceptLinkedDebtRequest,
+  rejectLinkedRequest,
+  type LinkedRequestPreview,
+} from '@/app/(app)/dashboard/social-actions'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { MfiPortfolioWidget } from '@/components/mfi-portfolio-widget'
 import { UsdCotizacionWidget } from '@/components/usd-cotizacion-widget'
@@ -68,6 +76,61 @@ function NotificationsPopover({ userId }: { userId: string }) {
   )
 
   const unread = notifications.filter((n) => !n.read).length
+
+  // Fase 6: preview de linked requests (loan/debt). Map notifId → { amount, note, ... }.
+  const [previews, setPreviews] = useState<Record<string, LinkedRequestPreview>>({})
+  const [linkedActionId, setLinkedActionId] = useState<string | null>(null)
+
+  useEffect(() => {
+    const linkedNotifs = notifications.filter(
+      (n) =>
+        !n.read &&
+        (n.data?.type === 'friend_loan_request' || n.data?.type === 'friend_debt_request'),
+    )
+    const missing = linkedNotifs.map((n) => n.id).filter((id) => !(id in previews))
+    if (missing.length === 0) return
+    fetchLinkedRequestsPreview(missing).then((res) => {
+      if (res.ok && res.data) setPreviews((prev) => ({ ...prev, ...res.data }))
+    })
+  }, [notifications, previews])
+
+  async function handleAcceptLinked(n: Notification) {
+    setLinkedActionId(n.id)
+    const kind = n.data?.type as 'friend_loan_request' | 'friend_debt_request'
+    const res =
+      kind === 'friend_loan_request'
+        ? await acceptLinkedLoanRequest(n.id)
+        : await acceptLinkedDebtRequest(n.id)
+    setLinkedActionId(null)
+    if (!res.ok) {
+      // Dynamic import: evita bundlar sonner en este archivo si no se usaba
+      const { toast } = await import('sonner')
+      toast.error(res.error)
+      return
+    }
+    const { toast } = await import('sonner')
+    toast.success(
+      kind === 'friend_loan_request'
+        ? 'Deuda registrada en tu cuenta'
+        : 'Cobro registrado en tu cuenta',
+    )
+    mutate(notifications.map((x) => (x.id === n.id ? { ...x, read: true } : x)), false)
+    setOpen(false)
+    router.refresh()
+  }
+
+  async function handleRejectLinked(n: Notification) {
+    setLinkedActionId(n.id)
+    const kind = n.data?.type as 'friend_loan_request' | 'friend_debt_request'
+    const res = await rejectLinkedRequest(n.id, kind)
+    setLinkedActionId(null)
+    if (!res.ok) {
+      const { toast } = await import('sonner')
+      toast.error(res.error)
+      return
+    }
+    mutate(notifications.map((x) => (x.id === n.id ? { ...x, read: true } : x)), false)
+  }
 
   async function markAllRead() {
     const ids = notifications.filter((n) => !n.read).map((n) => n.id)
@@ -161,24 +224,30 @@ function NotificationsPopover({ userId }: { userId: string }) {
               notifications.map((n, i) => {
                 const isMonthly = n.data?.type === 'monthly_summary'
                 const isFriendRequest = n.data?.type === 'friend_request_received'
+                const isLinkedLoan = n.data?.type === 'friend_loan_request'
+                const isLinkedDebt = n.data?.type === 'friend_debt_request'
+                const isLinked = isLinkedLoan || isLinkedDebt
+                const preview = isLinked ? previews[n.id] : undefined
+                const linkedBusy = linkedActionId === n.id
+                const isInteractive = !isMonthly && !isLinked
                 return (
                   <div
                     key={n.id}
                     className={cn(
                       'w-full flex items-start gap-3 px-4 py-3 text-left transition-colors duration-100',
-                      'cursor-pointer',
-                      !isMonthly && 'hover:bg-muted/40',
+                      isInteractive && 'cursor-pointer hover:bg-muted/40',
                       i < notifications.length - 1 && 'border-b border-border/60',
                       !n.read && 'bg-accent/20',
                     )}
                     onClick={() => {
+                      if (isLinked) return // CTAs inline manejan la acción
                       markRead(n.id)
                       if (isFriendRequest) {
                         setOpen(false)
                         router.push('/friends?tab=requests')
                       }
                     }}
-                    role={!isMonthly ? 'button' : undefined}
+                    role={isInteractive ? 'button' : undefined}
                   >
                     <div className="mt-0.5 shrink-0">{TYPE_ICONS[n.type]}</div>
                     <div className="flex-1 min-w-0">
@@ -188,6 +257,39 @@ function NotificationsPopover({ userId }: { userId: string }) {
                       <p className="text-[11px] text-muted-foreground leading-relaxed mt-0.5 line-clamp-2">
                         {n.message}
                       </p>
+                      {isLinked && !n.read && (
+                        <div className="mt-2 flex flex-col gap-1.5" onClick={(e) => e.stopPropagation()}>
+                          {preview ? (
+                            <p className="text-[11px] text-foreground font-medium">
+                              {formatCurrency(preview.amount, preview.currency)}
+                              {preview.note ? ` · ${preview.note}` : ''}
+                            </p>
+                          ) : (
+                            <p className="text-[10.5px] text-muted-foreground italic">Cargando detalle…</p>
+                          )}
+                          <div className="flex gap-1.5">
+                            <Button
+                              size="sm"
+                              onClick={() => handleAcceptLinked(n)}
+                              disabled={linkedBusy || !preview}
+                              className="h-6 text-[10.5px] px-2 gap-1 rounded-md"
+                            >
+                              {linkedBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                              Aceptar
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleRejectLinked(n)}
+                              disabled={linkedBusy}
+                              className="h-6 text-[10.5px] px-2 gap-1 rounded-md"
+                            >
+                              <X className="w-3 h-3" />
+                              Rechazar
+                            </Button>
+                          </div>
+                        </div>
+                      )}
                       {isMonthly && (
                         <div className="flex gap-1.5 mt-1.5" onClick={(e) => e.stopPropagation()}>
                           <button

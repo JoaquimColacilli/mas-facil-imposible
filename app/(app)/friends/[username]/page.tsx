@@ -11,6 +11,7 @@ import { getPublicStreak } from '@/lib/social/public-stats'
 import { FriendRequestButton } from '@/components/friend-request-button'
 import { PresenceDot } from '@/components/presence-dot'
 import { isOnlineFromLastSeen } from '@/lib/social/presence'
+import { AccountsOpenCard } from './accounts-open-card'
 import type { PublicProfile } from '@/lib/types'
 
 export const metadata: Metadata = {
@@ -148,6 +149,15 @@ export default async function FriendProfilePage({ params }: PageProps) {
                 <StreakRow streak={streak} />
               </CardContent>
             </Card>
+          )}
+
+          {/* Fase 6 — Cuentas abiertas con este amigo (Card se auto-esconde si vacío) */}
+          {!isSelf && (
+            <AccountsOpenCard
+              viewerId={user.id}
+              peerId={publicProfile.id}
+              peerUsername={publicProfile.username}
+            />
           )}
         </div>
 

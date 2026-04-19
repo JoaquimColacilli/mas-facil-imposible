@@ -1043,7 +1043,7 @@ export async function settleLoan(loanId: string): Promise<void>
 
 ### 11.7 ✅ Criterios de aceptación
 
-- [ ] Migración 018 generada.
+- [ ] Migración 019 generada.
 - [ ] Crear loan/debt con `friend_id` funciona.
 - [ ] Notificación al amigo + aceptación + creación de contrapartida + link bidireccional.
 - [ ] Saldar propaga al lado linkeado con confirmación.
