@@ -6,6 +6,13 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.22.2',
+    date: '2026-04-19',
+    changes: [
+      'Agregado acceso rápido al detalle de Gastos desde el tile del dashboard (consistencia con Ingresos, Ahorros e Inversiones)'
+    ]
+  },
+  {
     version: '0.22.1',
     date: '2026-04-19',
     changes: [

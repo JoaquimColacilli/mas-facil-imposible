@@ -656,15 +656,18 @@ export function DashboardClient({
                 label === 'Ahorros'     ? 'savings'    : null
               const borderHover =
                 label === 'Ingresos'    ? 'hover:border-emerald-500/50 hover:ring-1 hover:ring-emerald-500/20' :
+                label === 'Gastos'      ? 'hover:border-rose-500/50 hover:ring-1 hover:ring-rose-500/20'      :
                 label === 'Ahorros'     ? 'hover:border-sky-500/50 hover:ring-1 hover:ring-sky-500/20'        :
                 label === 'Inversiones' ? 'hover:border-violet-500/50 hover:ring-1 hover:ring-violet-500/20'  : ''
               const activeBorder =
                 label === 'Ingresos'    ? 'border-emerald-500/30' :
+                label === 'Gastos'      ? 'border-rose-500/30'    :
                 label === 'Ahorros'     ? 'border-sky-500/30'     :
                 label === 'Inversiones' ? 'border-violet-500/30'  : 'border-border'
 
               const isInvestment = label === 'Inversiones'
-              const isClickable = !!modalType || isInvestment
+              const isExpenseLink = label === 'Gastos'
+              const isClickable = !!modalType || isInvestment || isExpenseLink
               const isPulsing = pulseKpis.has(label)
               const pulseRing =
                 isPulsing && label === 'Ingresos'       ? 'ring-2 ring-emerald-500/50' :
@@ -677,6 +680,8 @@ export function DashboardClient({
                   onClick={() => {
                     if (isInvestment) {
                       window.dispatchEvent(new CustomEvent('open-portfolio-widget'))
+                    } else if (isExpenseLink) {
+                      router.push('/transactions?type=expense')
                     } else {
                       setOpenTypeModal(modalType!)
                     }

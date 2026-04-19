@@ -101,7 +101,14 @@ export function TransactionsClient({ transactions: initial, portfolios, cumulati
   const [showAdd, setShowAdd] = useState(false)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [search, setSearch] = useState('')
-  const [filterType, setFilterType] = useState<string>('all')
+  // Seed filterType from ?type= search param (e.g. dashboard Gastos tile links
+  // to /transactions?type=expense). Lazy init — only on first render; later
+  // changes via the filter UI stay in state and don't write back to the URL.
+  const [filterType, setFilterType] = useState<string>(() => {
+    const initial = searchParams.get('type')
+    const valid = ['income', 'expense', 'savings', 'investment']
+    return initial && valid.includes(initial) ? initial : 'all'
+  })
   const [filterCurrency, setFilterCurrency] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [filterPaymentMethod, setFilterPaymentMethod] = useState<string>('all')
