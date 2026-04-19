@@ -458,7 +458,10 @@ export function AppTopbar({ user, profile, mfiMode, onToggleMfi }: AppTopbarProp
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
+            <DropdownMenuItem
+              asChild
+              className="focus:bg-muted focus:text-foreground"
+            >
               <Link href="/settings" className="flex items-center gap-2 cursor-pointer">
                 <Settings className="w-4 h-4" />
                 Ajustes
@@ -466,7 +469,8 @@ export function AppTopbar({ user, profile, mfiMode, onToggleMfi }: AppTopbarProp
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              className="text-destructive focus:text-destructive cursor-pointer"
+              variant="destructive"
+              className="cursor-pointer"
               onClick={() => signOut()}
             >
               <LogOut className="w-4 h-4 mr-2" />

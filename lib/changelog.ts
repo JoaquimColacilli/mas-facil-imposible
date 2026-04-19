@@ -6,6 +6,13 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.22.3',
+    date: '2026-04-19',
+    changes: [
+      'Mejorados los colores de hover del menú de usuario (Ajustes con gris neutro, Cerrar sesión con rojo tenue)'
+    ]
+  },
+  {
     version: '0.22.2',
     date: '2026-04-19',
     changes: [
