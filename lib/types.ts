@@ -137,6 +137,11 @@ export interface Message {
   /** Snapshot del mensaje quoted. Null si no hay reply, o si el quoted fue
    *  hard-deleted (FK ON DELETE SET NULL → reply_to_message_id = null). */
   reply_to: ReplyToSnapshot | null
+  /** Client-only. True mientras el envío optimista está in-flight al server.
+   *  Ids de mensajes pending tienen prefijo `temp-`. La DB nunca ve este flag. */
+  pending?: boolean
+  /** Client-only. True si el envío falló — la burbuja ofrece retry. */
+  failed?: boolean
 }
 
 export interface ReplyToSnapshot {

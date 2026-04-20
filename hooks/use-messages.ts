@@ -24,8 +24,18 @@ interface UseMessagesResult {
   loadMore: () => Promise<void>
   /** The last INSERT received via Realtime — drives auto-scroll / new-chip logic. */
   latestRealtimeInsertId: string | null
-  /** Push a message into local state synchronously (own send echo). */
-  pushOwnEcho: (m: Message) => void
+  /** Append an optimistic (not-yet-acked) own message to local state.
+   *  Temp ids MUST be prefixed with `temp-` so the realtime dedupe in ingest()
+   *  never collides with them. The real Message replaces it via replaceOptimistic. */
+  pushOptimistic: (temp: Message) => void
+  /** Swap a temp message for the real one returned by the server. Handles the
+   *  race where the Realtime INSERT landed before the server response (rare but
+   *  possible): in that case the real row is already in local state and we just
+   *  drop the temp. */
+  replaceOptimistic: (tempId: string, real: Message) => void
+  /** Patch the client-only flags (pending/failed) on a temp message in place.
+   *  Used to flip a failed temp back to pending on retry, or mark pending → failed. */
+  setOptimisticStatus: (tempId: string, patch: { pending?: boolean; failed?: boolean }) => void
 }
 
 /**
@@ -74,7 +84,7 @@ export function useMessages({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationId])
 
-  const ingest = useCallback((m: Message, source: 'realtime_insert' | 'realtime_update' | 'own_echo') => {
+  const ingest = useCallback((m: Message, source: 'realtime_insert' | 'realtime_update') => {
     if (seenIds.current.has(m.id)) {
       // UPDATE path (soft delete, or echo collision) — replace the row.
       setMessages((prev) => prev.map((x) => (x.id === m.id ? m : x)))
@@ -85,7 +95,33 @@ export function useMessages({
     if (source === 'realtime_insert') setLatestRealtimeInsertId(m.id)
   }, [])
 
-  const pushOwnEcho = useCallback((m: Message) => ingest(m, 'own_echo'), [ingest])
+  const pushOptimistic = useCallback((temp: Message) => {
+    if (seenIds.current.has(temp.id)) return
+    seenIds.current.add(temp.id)
+    setMessages((prev) => [...prev, temp])
+  }, [])
+
+  const replaceOptimistic = useCallback((tempId: string, real: Message) => {
+    const realAlreadyIngested = seenIds.current.has(real.id)
+    seenIds.current.delete(tempId)
+    if (realAlreadyIngested) {
+      // Realtime INSERT landed before the server response — the real row is
+      // already in messages. Drop the temp; keep the real (canonical) one.
+      setMessages((prev) => prev.filter((m) => m.id !== tempId))
+      return
+    }
+    seenIds.current.add(real.id)
+    // Seed reply cache from the real row's embed so future quoters resolve instantly.
+    if (real.reply_to) replySnapshotCache.current.set(real.reply_to.id, real.reply_to)
+    setMessages((prev) => prev.map((m) => (m.id === tempId ? real : m)))
+  }, [])
+
+  const setOptimisticStatus = useCallback(
+    (tempId: string, patch: { pending?: boolean; failed?: boolean }) => {
+      setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, ...patch } : m)))
+    },
+    [],
+  )
 
   const prependOlder = useCallback((older: Message[]) => {
     const fresh = older.filter((m) => !seenIds.current.has(m.id))
@@ -221,5 +257,14 @@ export function useMessages({
     }
   }, [conversationId, supabase, ingest])
 
-  return { messages, loading, reachedEnd, loadMore, latestRealtimeInsertId, pushOwnEcho }
+  return {
+    messages,
+    loading,
+    reachedEnd,
+    loadMore,
+    latestRealtimeInsertId,
+    pushOptimistic,
+    replaceOptimistic,
+    setOptimisticStatus,
+  }
 }

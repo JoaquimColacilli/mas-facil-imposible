@@ -6,6 +6,17 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.24.2',
+    date: '2026-04-20',
+    changes: [
+      'Envío de mensajes optimista en el chat (burbuja aparece al instante con 1 tilde; pasa a 2 tildes negras cuando el server confirma)',
+      'Textarea se libera al instante al enviar: podés spammear mensajes sin esperar spinner',
+      'Cola serializada interna preserva el orden de envío bajo ráfagas',
+      'Fallo de envío: burbuja con ícono rojo clickable para reintentar, sin toast ruidoso',
+      'Reply optimista: el quote se renderiza instantáneamente usando el snapshot local'
+    ]
+  },
+  {
     version: '0.24.1',
     date: '2026-04-20',
     changes: [

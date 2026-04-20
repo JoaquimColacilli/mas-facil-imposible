@@ -14,10 +14,7 @@ import {
   DrawerTrigger,
 } from '@/components/ui/drawer'
 import { useIsMobile } from '@/hooks/use-mobile'
-import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
-import { sendMessage } from '@/app/(app)/chat/actions'
-import type { Message } from '@/lib/types'
 
 const MAX_CHARS = 4000
 const WARN_THRESHOLD = 200
@@ -46,8 +43,9 @@ export interface ReplyingTo {
 }
 
 interface ChatComposerProps {
-  conversationId: string
-  onSent: (message: Message) => void
+  /** Fire-and-forget submit. Parent builds the optimistic temp, enqueues the
+   *  network send, and handles resolve/failure. Composer only owns the input. */
+  onOptimisticSend: (body: string, replyToMessageId: string | null) => void
   disabled?: boolean
   /** Llamar on keystroke con throttle interno. No-op si no se pasa. */
   onTyping?: () => void
@@ -60,8 +58,7 @@ interface ChatComposerProps {
 }
 
 export function ChatComposer({
-  conversationId,
-  onSent,
+  onOptimisticSend,
   disabled,
   onTyping,
   onStopTyping,
@@ -69,7 +66,6 @@ export function ChatComposer({
   onCancelReply,
 }: ChatComposerProps) {
   const [value, setValue] = useState('')
-  const [sending, setSending] = useState(false)
   const [emojiOpen, setEmojiOpen] = useState(false)
   const taRef = useRef<HTMLTextAreaElement>(null)
   const isMobile = useIsMobile()
@@ -95,26 +91,22 @@ export function ChatComposer({
     return () => cancelAnimationFrame(raf)
   }, [replyingTo])
 
-  const canSend = !disabled && !sending && value.trim().length > 0 && value.length <= MAX_CHARS
+  const canSend = !disabled && value.trim().length > 0 && value.length <= MAX_CHARS
 
-  const handleSend = useCallback(async () => {
+  // Optimistic submit: sync visual flow. Parent takes over the network round-trip
+  // so the composer never "blocks" on send — the user can keep typing while the
+  // previous message is in-flight (serialized queue lives in conversation-client).
+  const handleSend = useCallback(() => {
     if (!canSend) return
     const body = value
     const replyId = replyingTo?.id ?? null
-    setSending(true)
-    const res = await sendMessage(conversationId, body, replyId)
-    setSending(false)
-    if (!res.ok || !res.data) {
-      toast.error(res.ok ? 'No se pudo enviar.' : res.error)
-      return
-    }
     setValue('')
     onStopTyping?.()
     onCancelReply?.()
-    onSent(res.data)
+    onOptimisticSend(body, replyId)
     // Re-focus so typing can continue without mouse.
     requestAnimationFrame(() => taRef.current?.focus())
-  }, [canSend, value, conversationId, onSent, onStopTyping, replyingTo, onCancelReply])
+  }, [canSend, value, onOptimisticSend, onStopTyping, replyingTo, onCancelReply])
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -268,7 +260,7 @@ export function ChatComposer({
             aria-label="Enviar mensaje"
             className="h-10 w-10 shrink-0"
           >
-            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            <Send className="w-4 h-4" />
           </Button>
         </div>
         {showCounter && (

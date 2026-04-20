@@ -16,12 +16,12 @@ import { DaySeparator } from '@/components/day-separator'
 import { PresenceDot } from '@/components/presence-dot'
 import { TypingIndicator } from '@/components/typing-indicator'
 import { dayLabel, canSendMessage, newMessagesChipLabel } from '@/lib/social/chat'
-import { markConversationRead } from '@/app/(app)/chat/actions'
+import { markConversationRead, sendMessage } from '@/app/(app)/chat/actions'
 import { isOnlineFromLastSeen } from '@/lib/social/presence'
 import { getInitials } from '@/lib/social/initials'
 import { broadcastSocialEvent } from '@/lib/social/broadcast'
 import { mutate as swrMutate } from 'swr'
-import type { Message, PublicProfile } from '@/lib/types'
+import type { Message, PublicProfile, ReplyToSnapshot } from '@/lib/types'
 import type { RelationshipState } from '@/lib/social/relationship'
 
 interface ConversationClientProps {
@@ -40,8 +40,16 @@ export function ConversationClient({
   relationshipState,
 }: ConversationClientProps) {
   const isMobile = useIsMobile()
-  const { messages, loading, reachedEnd, loadMore, latestRealtimeInsertId, pushOwnEcho } =
-    useMessages({ conversationId, initialMessages })
+  const {
+    messages,
+    loading,
+    reachedEnd,
+    loadMore,
+    latestRealtimeInsertId,
+    pushOptimistic,
+    replaceOptimistic,
+    setOptimisticStatus,
+  } = useMessages({ conversationId, initialMessages })
 
   // Presence + typing viven en un canal compartido por conversación:
   // `chat:${conversationId}`. No colisiona con `conversation:${id}` (canal de
@@ -70,11 +78,31 @@ export function ConversationClient({
 
   const feedRef = useRef<HTMLDivElement>(null)
   const topSentinelRef = useRef<HTMLDivElement>(null)
-  const lastOwnSendIdRef = useRef<string | null>(null)
   const [newCount, setNewCount] = useState(0)
   const [initialScrolled, setInitialScrolled] = useState(false)
   const [replyingToMsg, setReplyingToMsg] = useState<Message | null>(null)
   const [highlightedId, setHighlightedId] = useState<string | null>(null)
+
+  // Serialized promise-chain queue — in-flight sends execute in submit order so
+  // the server-side `created_at` timestamps stay monotonic even under rapid-fire
+  // spamming. Fire-and-track from handleOptimisticSend; resolution path handles
+  // success (replaceOptimistic) and failure (mark failed + keep retry args).
+  const sendQueueRef = useRef<Promise<unknown>>(Promise.resolve())
+  const retryArgsRef = useRef<Map<string, { body: string; replyToMessageId: string | null }>>(new Map())
+  // Read-only ref to `messages` so the optimistic-send callback can resolve
+  // reply snapshots without having `messages` in its deps (which would re-memo
+  // the callback on every render and churn the composer).
+  const messagesRef = useRef<Message[]>(messages)
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
+  // Guard against setState after unmount for in-flight queue resolutions.
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false
+    }
+  }, [])
 
   const peerLabel = peer.nickname ?? (peer.username ? `@${peer.username}` : 'el usuario')
 
@@ -177,7 +205,7 @@ export function ConversationClient({
   }, [initialScrolled, scrollToBottom])
 
   // Realtime insert arrived: decide between auto-scroll and new-messages chip.
-  // Own sends bypass the threshold and always auto-scroll (tracked via pushOwnEcho).
+  // Own sends bypass the threshold and always auto-scroll (pushed via pushOptimistic).
   //
   // Ajuste B (Fase 5): el RPC mark_conversation_read (que ahora además batch-
   // updatea messages.read_at → ✓✓ para el sender) se dispara SOLO cuando el
@@ -225,15 +253,82 @@ export function ConversationClient({
     return () => observer.disconnect()
   }, [loadMore])
 
-  // Handler the composer calls after a successful send.
-  const handleSent = useCallback(
-    (m: Message) => {
-      lastOwnSendIdRef.current = m.id
-      pushOwnEcho(m)
+  // ─── Optimistic send ────────────────────────────────────────────────────
+  // Push the temp bubble into local state, then enqueue the network send. The
+  // queue is serialized (chain via useRef promise) to preserve submit order
+  // even when the user rapid-fires messages.
+  const enqueueSend = useCallback(
+    (tempId: string, body: string, replyToMessageId: string | null) => {
+      sendQueueRef.current = sendQueueRef.current
+        .catch(() => {
+          // Previous link may have rejected; swallow so the chain keeps moving.
+        })
+        .then(() => sendMessage(conversationId, body, replyToMessageId))
+        .then((res) => {
+          if (!mountedRef.current) return
+          if (res.ok && res.data) {
+            replaceOptimistic(tempId, res.data)
+            retryArgsRef.current.delete(tempId)
+          } else {
+            setOptimisticStatus(tempId, { pending: false, failed: true })
+          }
+        })
+        .catch(() => {
+          if (!mountedRef.current) return
+          setOptimisticStatus(tempId, { pending: false, failed: true })
+        })
+    },
+    [conversationId, replaceOptimistic, setOptimisticStatus],
+  )
+
+  const handleOptimisticSend = useCallback(
+    (body: string, replyToMessageId: string | null) => {
+      const tempId = `temp-${crypto.randomUUID()}`
+      const now = new Date().toISOString()
+      // Resolve reply snapshot from the current messages array so the temp
+      // bubble renders the quote box immediately (no flicker on server ack).
+      let replySnap: ReplyToSnapshot | null = null
+      if (replyToMessageId) {
+        const src = messagesRef.current.find((m) => m.id === replyToMessageId)
+        if (src) {
+          replySnap = {
+            id: src.id,
+            sender_id: src.sender_id,
+            body: src.deleted_at ? null : src.body,
+            deleted_at: src.deleted_at,
+          }
+        }
+      }
+      const temp: Message = {
+        id: tempId,
+        conversation_id: conversationId,
+        sender_id: viewerId,
+        body,
+        created_at: now,
+        deleted_at: null,
+        edited_at: null,
+        read_at: null,
+        reply_to_message_id: replyToMessageId,
+        reply_to: replySnap,
+        pending: true,
+      }
+      pushOptimistic(temp)
+      retryArgsRef.current.set(tempId, { body, replyToMessageId })
+      enqueueSend(tempId, body, replyToMessageId)
       // Own send → always auto-scroll regardless of threshold.
       requestAnimationFrame(() => scrollToBottom(true))
     },
-    [pushOwnEcho, scrollToBottom],
+    [conversationId, viewerId, pushOptimistic, enqueueSend, scrollToBottom],
+  )
+
+  const handleRetrySend = useCallback(
+    (tempId: string) => {
+      const args = retryArgsRef.current.get(tempId)
+      if (!args) return
+      setOptimisticStatus(tempId, { pending: true, failed: false })
+      enqueueSend(tempId, args.body, args.replyToMessageId)
+    },
+    [enqueueSend, setOptimisticStatus],
   )
 
   // When the user scrolls close enough to bottom manually, drop the chip.
@@ -350,6 +445,7 @@ export function ConversationClient({
                       highlighted={highlightedId === m.id}
                       onReply={handleStartReply}
                       onQuoteClick={handleQuoteClick}
+                      onRetry={handleRetrySend}
                     />
                   ))}
                 </div>
@@ -376,8 +472,7 @@ export function ConversationClient({
       {/* Composer (sticky on mobile, normal on desktop) */}
       <div className="shrink-0 sticky bottom-0 bg-background pb-[env(safe-area-inset-bottom,0px)] md:rounded-b-xl">
         <ChatComposer
-          conversationId={conversationId}
-          onSent={handleSent}
+          onOptimisticSend={handleOptimisticSend}
           disabled={composerDisabled}
           onTyping={channelLive ? notifyTyping : undefined}
           onStopTyping={channelLive ? notifyStop : undefined}

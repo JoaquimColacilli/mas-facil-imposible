@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { MoreVertical, Trash2, Loader2, Reply, Copy } from 'lucide-react'
+import { MoreVertical, Trash2, Loader2, Reply, Copy, Check, AlertCircle } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,6 +39,8 @@ interface MessageBubbleProps {
   onReply?: (message: Message) => void
   /** Click en el quote box → scroll al mensaje original. */
   onQuoteClick?: (messageId: string) => void
+  /** Reintentar un envío que falló (message.failed === true). Parent re-enqueues. */
+  onRetry?: (tempId: string) => void
 }
 
 export function MessageBubble({
@@ -49,11 +51,18 @@ export function MessageBubble({
   highlighted,
   onReply,
   onQuoteClick,
+  onRetry,
 }: MessageBubbleProps) {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [copied, setCopied] = useState(false)
   const isDeleted = message.deleted_at !== null
+  const isPending = message.pending === true
+  const isFailed = message.failed === true
+  // Actions on pending/failed messages don't make sense: the row either doesn't
+  // exist on the server yet (pending) or was never written (failed). We gate
+  // reply / copy / delete out until the message lands.
+  const isInFlight = isPending || isFailed
 
   // Auto-clear "copied" flag — not functional, just UX nicety for the toast.
   useEffect(() => {
@@ -195,8 +204,32 @@ export function MessageBubble({
               Visually identical, byte-different — React flags a mismatch we
               can safely suppress because the rendered timestamp is the same. */}
           <span suppressHydrationWarning>{timeLabel(message.created_at)}</span>
-          {isOwn && !isDeleted && <ReadReceipt readAt={message.read_at} />}
-          {!isDeleted && (
+          {isOwn && !isDeleted && (
+            <>
+              {isFailed ? (
+                <button
+                  type="button"
+                  onClick={() => onRetry?.(message.id)}
+                  aria-label="Reintentar envío"
+                  title="Tocá para reintentar"
+                  className="inline-flex items-center justify-center rounded-full text-destructive hover:opacity-80 cursor-pointer"
+                >
+                  <AlertCircle className="w-3.5 h-3.5" />
+                </button>
+              ) : isPending ? (
+                <Check
+                  aria-label="Enviando"
+                  className={cn(
+                    'w-3.5 h-3.5 shrink-0',
+                    isOwn ? 'text-primary-foreground/60' : 'text-muted-foreground',
+                  )}
+                />
+              ) : (
+                <ReadReceipt readAt={message.read_at} />
+              )}
+            </>
+          )}
+          {!isDeleted && !isInFlight && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
