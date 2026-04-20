@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useEffect, useRef, useState } from 'react'
 import {
   ArrowBigUp,
   ArrowBigDown,
@@ -24,6 +25,7 @@ import type { CommunityPost, CommunityAuthor } from '@/lib/types'
 import { CATEGORY_BY_ID, CATEGORY_COLORS } from './categories'
 import { MfiEmbed } from './mfi-embed'
 import { ImageGrid } from './image-grid'
+import { RichTextView } from './rich-text-view'
 
 function getInitials(author: CommunityAuthor) {
   const display = author.nickname || author.full_name || author.username || '?'
@@ -37,6 +39,13 @@ function getInitials(author: CommunityAuthor) {
 
 function displayName(author: CommunityAuthor) {
   return author.nickname || author.full_name || author.username || 'Usuario'
+}
+
+const COUNT_FORMATTER = new Intl.NumberFormat('es-AR')
+
+/** Formats a whole number using the es-AR thousands separator (`.`). */
+export function fmtCount(n: number): string {
+  return COUNT_FORMATTER.format(n)
 }
 
 function formatRelative(iso: string) {
@@ -146,7 +155,7 @@ export function VoteBar({
               : 'text-foreground/85',
         )}
       >
-        {voteCount}
+        {fmtCount(voteCount)}
       </span>
       <button
         type="button"
@@ -231,6 +240,14 @@ export function PostCard({
           )}
           <span>·</span>
           <RelTime iso={post.created_at} />
+          {post.edited_at && (
+            <span
+              className="text-[11px] italic text-muted-foreground"
+              title={`Editado: ${new Date(post.edited_at).toLocaleString('es-AR')}`}
+            >
+              (editado)
+            </span>
+          )}
           <div className="ml-auto flex items-center gap-1">
             <CatChip id={post.category} size="xs" />
             {isOwner && (onEdit || onDelete) && (
@@ -294,16 +311,7 @@ export function PostCard({
           {post.title}
         </h3>
         {post.body && (
-          <p
-            className={cn(
-              'mt-1.5 leading-relaxed whitespace-pre-line text-foreground/80',
-              isThread
-                ? 'text-[15px]'
-                : 'text-sm text-foreground/75 line-clamp-3',
-            )}
-          >
-            {post.body}
-          </p>
+          <ExpandableBody body={post.body} isThread={isThread} />
         )}
         {post.image_urls.length > 0 && (
           <div className="mt-3">
@@ -408,7 +416,7 @@ function PostFooter({
                 : '',
           )}
         >
-          {voteCount}
+          {fmtCount(voteCount)}
         </span>
         <button
           type="button"
@@ -432,7 +440,7 @@ function PostFooter({
       <span className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-muted-foreground font-medium">
         <MessageSquare className="w-4 h-4" strokeWidth={1.8} />
         <span className="font-mono text-xs tabular-nums">
-          {post.comment_count}
+          {fmtCount(post.comment_count)}
         </span>
         <span className="hidden sm:inline">comentarios</span>
       </span>
@@ -467,6 +475,76 @@ function PostFooter({
           {post.saved ? 'Guardado' : 'Guardar'}
         </span>
       </button>
+    </div>
+  )
+}
+
+/**
+ * Classic variant: wraps body in a collapsible container that measures the
+ * rendered height and shows a "Ver más / Ver menos" toggle when content
+ * overflows ~5 lines. Thread variant renders the body in full.
+ *
+ * Body may be HTML (Tiptap output) or legacy plain text — RichTextView
+ * detects and renders accordingly.
+ */
+const COLLAPSED_MAX_PX = 120 // ~5 lines of 15px body copy
+
+function ExpandableBody({
+  body,
+  isThread,
+}: {
+  body: string
+  isThread: boolean
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [expanded, setExpanded] = useState(false)
+  const [canExpand, setCanExpand] = useState(false)
+
+  useEffect(() => {
+    if (isThread) return
+    const el = ref.current
+    if (!el) return
+    // Measure the FULL scrollHeight of the inner content. If it exceeds
+    // the collapsed cap, show the toggle. Recomputes when the body changes
+    // (edit flow) or when images inside the content load and reflow.
+    setCanExpand(el.scrollHeight - COLLAPSED_MAX_PX > 2)
+  }, [body, isThread])
+
+  if (isThread) {
+    return (
+      <div className="mt-3">
+        <RichTextView html={body} />
+      </div>
+    )
+  }
+
+  return (
+    <div className="mt-1.5">
+      <div
+        ref={ref}
+        className={cn(
+          'overflow-hidden transition-[max-height] duration-150 ease-out',
+          !expanded && 'max-h-[120px]',
+          !expanded && canExpand &&
+            '[mask-image:linear-gradient(to_bottom,black_60%,transparent)]',
+        )}
+        style={expanded ? { maxHeight: 'none' } : undefined}
+      >
+        <RichTextView html={body} variant="compact" />
+      </div>
+      {canExpand && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
+            setExpanded((v) => !v)
+          }}
+          className="mt-1 text-xs font-medium text-primary hover:underline inline-flex items-center gap-1"
+        >
+          {expanded ? 'Ver menos' : 'Ver más'}
+        </button>
+      )}
     </div>
   )
 }

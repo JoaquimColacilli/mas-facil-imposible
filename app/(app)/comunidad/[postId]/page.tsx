@@ -31,6 +31,7 @@ type PostRow = {
   vote_count: number
   comment_count: number
   created_at: string
+  edited_at: string | null
   deleted_at: string | null
 }
 
@@ -64,14 +65,19 @@ export default async function ThreadPage({
   const postRes = await supabase
     .from('community_posts')
     .select(
-      'id, user_id, category, title, body, embed, image_urls, vote_count, comment_count, created_at, deleted_at',
+      'id, user_id, category, title, body, embed, image_urls, vote_count, comment_count, created_at, edited_at, deleted_at',
     )
     .eq('id', postId)
     .is('deleted_at', null)
     .maybeSingle()
 
   if (postRes.error) {
-    console.error('[comunidad] thread post fetch error', postRes.error)
+    console.error('[comunidad] thread post fetch error', {
+      message: postRes.error.message,
+      code: postRes.error.code,
+      details: postRes.error.details,
+      hint: postRes.error.hint,
+    })
   }
   if (!postRes.data) notFound()
   const postRow = postRes.data as PostRow
@@ -185,6 +191,7 @@ export default async function ThreadPage({
     vote_count: postRow.vote_count,
     comment_count: postRow.comment_count,
     created_at: postRow.created_at,
+    edited_at: postRow.edited_at,
     deleted_at: postRow.deleted_at,
     author: authorMap.get(postRow.user_id) ?? FALLBACK_AUTHOR,
     myVote: ((postVoteRes.data?.value as -1 | 1 | undefined) ?? 0) as

@@ -28,6 +28,7 @@ import { POSTABLE_CATEGORIES } from './categories'
 import { MfiAttachPicker } from './mfi-attach-picker'
 import { MfiEmbed } from './mfi-embed'
 import { displayName, getInitials } from './post-card'
+import { RichTextEditor } from './rich-text-editor'
 import { uploadCommunityImage, deleteCommunityImageByUrl } from './upload-image'
 
 const MAX_IMAGES = 4
@@ -134,11 +135,12 @@ export function ComposerDialog({
           body: body.trim(),
           embed,
           image_urls: images,
+          edited_at: new Date().toISOString(),
         })
         .eq('id', editing.id)
         .eq('user_id', currentUser.id)
         .select(
-          'id, user_id, category, title, body, embed, image_urls, vote_count, comment_count, created_at, deleted_at',
+          'id, user_id, category, title, body, embed, image_urls, vote_count, comment_count, created_at, edited_at, deleted_at',
         )
         .single()
 
@@ -170,7 +172,7 @@ export function ComposerDialog({
         image_urls: images,
       })
       .select(
-        'id, user_id, category, title, body, embed, image_urls, vote_count, comment_count, created_at, deleted_at',
+        'id, user_id, category, title, body, embed, image_urls, vote_count, comment_count, created_at, edited_at, deleted_at',
       )
       .single()
 
@@ -277,15 +279,14 @@ export function ComposerDialog({
             <label className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
               Contenido
             </label>
-            <div className="mt-1.5 rounded-lg border border-border bg-muted/40 focus-within:border-primary focus-within:bg-background transition-colors">
-              <textarea
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                placeholder="Contá tu experiencia, tu jugada, tu duda…"
-                rows={6}
-                className="w-full resize-none bg-transparent px-3 py-3 text-[14.5px] leading-relaxed placeholder:text-muted-foreground focus:outline-none"
-              />
-              <div className="flex items-center gap-0.5 px-2 h-10 border-t border-border/60">
+            <RichTextEditor
+              value={body}
+              onChange={setBody}
+              placeholder="Contá tu experiencia, tu jugada, tu duda…"
+              className="mt-1.5"
+            />
+            <div className="mt-2 rounded-lg border border-border bg-muted/40">
+              <div className="flex items-center gap-0.5 px-2 h-10">
                 <input
                   ref={fileInputRef}
                   type="file"

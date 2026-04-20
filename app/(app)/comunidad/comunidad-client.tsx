@@ -37,7 +37,7 @@ import {
   COMMUNITY_RULES,
   CATEGORY_COLORS,
 } from './categories'
-import { PostCard, getInitials, displayName } from './post-card'
+import { PostCard, fmtCount, getInitials, displayName } from './post-card'
 import { ComposerDialog } from './composer-dialog'
 import { SearchBox } from './search-box'
 
@@ -210,7 +210,9 @@ export function ComunidadClient({ initialPosts, currentUser }: Props) {
               </div>
               <div className="hidden sm:flex items-center gap-2 text-xs text-muted-foreground">
                 <Users className="w-3.5 h-3.5" />
-                <span className="font-mono tabular-nums">{posts.length}</span>
+                <span className="font-mono tabular-nums">
+                  {fmtCount(posts.length)}
+                </span>
                 publicaciones
               </div>
             </div>
@@ -276,7 +278,7 @@ export function ComunidadClient({ initialPosts, currentUser }: Props) {
               </div>
               <div className="text-xs text-muted-foreground hidden sm:block">
                 <span className="font-mono tabular-nums">
-                  {filtered.length}
+                  {fmtCount(filtered.length)}
                 </span>{' '}
                 {filtered.length === 1 ? 'publicación' : 'publicaciones'}
               </div>
@@ -339,19 +341,21 @@ export function ComunidadClient({ initialPosts, currentUser }: Props) {
                 <div className="flex items-center justify-between py-1">
                   <span>Publicaciones</span>
                   <span className="font-mono tabular-nums text-foreground">
-                    {posts.length}
+                    {fmtCount(posts.length)}
                   </span>
                 </div>
                 <div className="flex items-center justify-between py-1">
                   <span>Tus publicaciones</span>
                   <span className="font-mono tabular-nums text-foreground">
-                    {posts.filter((p) => p.user_id === currentUser.id).length}
+                    {fmtCount(
+                      posts.filter((p) => p.user_id === currentUser.id).length,
+                    )}
                   </span>
                 </div>
                 <div className="flex items-center justify-between py-1">
                   <span>Guardadas</span>
                   <span className="font-mono tabular-nums text-foreground">
-                    {posts.filter((p) => p.saved).length}
+                    {fmtCount(posts.filter((p) => p.saved).length)}
                   </span>
                 </div>
               </div>

@@ -47,6 +47,7 @@ import type {
 import {
   PostCard,
   RelTime,
+  fmtCount,
   getInitials,
   displayName,
 } from '../post-card'
@@ -373,7 +374,8 @@ export function ThreadClient({
 
       <div className="mt-6 flex items-center justify-between">
         <h3 className="font-serif font-semibold text-base">
-          {liveCount} {liveCount === 1 ? 'comentario' : 'comentarios'}
+          {fmtCount(liveCount)}{' '}
+          {liveCount === 1 ? 'comentario' : 'comentarios'}
         </h3>
       </div>
 
@@ -589,7 +591,7 @@ function CommentNode({
                     className="w-3.5 h-3.5"
                     strokeWidth={myVote === 1 ? 2.4 : 1.8}
                   />
-                  {comment.vote_count}
+                  {fmtCount(comment.vote_count)}
                 </button>
                 <button
                   type="button"

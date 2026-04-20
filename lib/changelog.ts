@@ -6,6 +6,14 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.28.0',
+    date: '2026-04-20',
+    changes: [
+      'Editor WYSIWYG en composer de Comunidad (negrita, itálica, subrayado, código, listas, citas, colores, enlaces)',
+      'Marca (editado) en publicaciones modificadas después de publicar'
+    ]
+  },
+  {
     version: '0.27.0',
     date: '2026-04-20',
     changes: [

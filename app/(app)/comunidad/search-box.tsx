@@ -6,7 +6,7 @@ import { Search, X, ArrowBigUp, MessageSquare } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import type { CommunityPost } from '@/lib/types'
-import { CatChip, displayName, getInitials } from './post-card'
+import { CatChip, displayName, fmtCount, getInitials } from './post-card'
 
 interface Props {
   posts: CommunityPost[]
@@ -181,11 +181,11 @@ export function SearchBox({ posts }: Props) {
                         <span className="opacity-60">·</span>
                         <span className="inline-flex items-center gap-0.5 font-mono tabular-nums">
                           <ArrowBigUp className="w-3 h-3" />
-                          {post.vote_count}
+                          {fmtCount(post.vote_count)}
                         </span>
                         <span className="inline-flex items-center gap-0.5 font-mono tabular-nums">
                           <MessageSquare className="w-3 h-3" />
-                          {post.comment_count}
+                          {fmtCount(post.comment_count)}
                         </span>
                       </div>
                     </div>

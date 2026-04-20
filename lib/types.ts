@@ -252,6 +252,7 @@ export interface CommunityPost {
   vote_count: number
   comment_count: number
   created_at: string
+  edited_at: string | null
   deleted_at: string | null
   /** Joined profile (public fields + full_name for display). */
   author: CommunityAuthor

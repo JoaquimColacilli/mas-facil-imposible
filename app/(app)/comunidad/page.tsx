@@ -18,6 +18,7 @@ type PostRow = {
   vote_count: number
   comment_count: number
   created_at: string
+  edited_at: string | null
   deleted_at: string | null
 }
 
@@ -47,7 +48,7 @@ export default async function ComunidadPage() {
     supabase
       .from('community_posts')
       .select(
-        'id, user_id, category, title, body, embed, image_urls, vote_count, comment_count, created_at, deleted_at',
+        'id, user_id, category, title, body, embed, image_urls, vote_count, comment_count, created_at, edited_at, deleted_at',
       )
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
@@ -64,7 +65,12 @@ export default async function ComunidadPage() {
   ])
 
   if (postsRes.error) {
-    console.error('[comunidad] posts fetch error', postsRes.error)
+    console.error('[comunidad] posts fetch error', {
+      message: postsRes.error.message,
+      code: postsRes.error.code,
+      details: postsRes.error.details,
+      hint: postsRes.error.hint,
+    })
   }
 
   const rawPosts = (postsRes.data ?? []) as PostRow[]
@@ -134,6 +140,7 @@ export default async function ComunidadPage() {
     vote_count: p.vote_count,
     comment_count: p.comment_count,
     created_at: p.created_at,
+    edited_at: p.edited_at,
     deleted_at: p.deleted_at,
     author: authorMap.get(p.user_id) ?? FALLBACK_AUTHOR,
     myVote: (voteMap.get(p.id) ?? 0) as -1 | 0 | 1,
