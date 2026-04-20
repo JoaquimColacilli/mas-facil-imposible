@@ -235,6 +235,13 @@ function NotificationsPopover({ userId }: { userId: string }) {
                 const isLinkedLoan = n.data?.type === 'friend_loan_request'
                 const isLinkedDebt = n.data?.type === 'friend_debt_request'
                 const isLinked = isLinkedLoan || isLinkedDebt
+                const isCommunity =
+                  n.data?.type === 'community_vote' ||
+                  n.data?.type === 'community_comment' ||
+                  n.data?.type === 'community_reply'
+                const communityPostId = isCommunity
+                  ? (n.data as { post_id?: string })?.post_id
+                  : undefined
                 const preview = isLinked ? previews[n.id] : undefined
                 const linkedBusy = linkedActionId === n.id
                 const isInteractive = !isMonthly && !isLinked
@@ -253,6 +260,9 @@ function NotificationsPopover({ userId }: { userId: string }) {
                       if (isFriendRequest) {
                         setOpen(false)
                         router.push('/friends?tab=requests')
+                      } else if (isCommunity && communityPostId) {
+                        setOpen(false)
+                        router.push(`/comunidad/${communityPostId}`)
                       }
                     }}
                     role={isInteractive ? 'button' : undefined}

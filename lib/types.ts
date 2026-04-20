@@ -112,6 +112,36 @@ export interface FriendDebtRequestNotificationData {
   currency: Currency
 }
 
+/** Payload when type='community_vote' — alguien votó tu post o comentario. */
+export interface CommunityVoteNotificationData {
+  type: 'community_vote'
+  target_kind: 'post' | 'comment'
+  post_id: string
+  comment_id: string | null
+  actor_id: string
+  actor_name: string | null
+}
+
+/** Payload when type='community_comment' — alguien comentó tu publicación. */
+export interface CommunityCommentNotificationData {
+  type: 'community_comment'
+  post_id: string
+  comment_id: string
+  parent_comment_id: string | null
+  actor_id: string
+  actor_name: string | null
+}
+
+/** Payload when type='community_reply' — alguien respondió tu comentario. */
+export interface CommunityReplyNotificationData {
+  type: 'community_reply'
+  post_id: string
+  comment_id: string
+  parent_comment_id: string
+  actor_id: string
+  actor_name: string | null
+}
+
 // ─── Chat (Fase 4) ───────────────────────────────────────────────────────────
 
 export interface Conversation {
@@ -176,6 +206,93 @@ export interface ConversationSummary {
   my_last_read_at: string | null
   unread_count: number
   last_message: LastMessagePreview | null
+}
+
+// ─── Community (Fase 5) ──────────────────────────────────────────────────────
+
+export type CommunityCategoryId =
+  | 'inversiones'
+  | 'ahorros'
+  | 'dolar'
+  | 'plazosfijos'
+  | 'cripto'
+  | 'gastos'
+  | 'metas'
+  | 'preguntas'
+
+export type CommunityPostEmbed =
+  | {
+      kind: 'txn'
+      target_id: string
+      title: string
+      amount: number
+      currency: Currency
+      category: string | null
+      date: string
+    }
+  | {
+      kind: 'goal'
+      target_id: string
+      title: string
+      current_amount: number
+      target_amount: number
+      currency: Currency
+      months?: number
+      total_months?: number
+    }
+
+export interface CommunityPost {
+  id: string
+  user_id: string
+  category: CommunityCategoryId
+  title: string
+  body: string
+  embed: CommunityPostEmbed | null
+  image_urls: string[]
+  vote_count: number
+  comment_count: number
+  created_at: string
+  deleted_at: string | null
+  /** Joined profile (public fields + full_name for display). */
+  author: CommunityAuthor
+  /** Hydrated per viewer. */
+  myVote?: -1 | 0 | 1
+  /** Hydrated per viewer. */
+  saved?: boolean
+  /** Client-only: optimistic insert in-flight. */
+  pending?: boolean
+  failed?: boolean
+}
+
+export interface CommunityComment {
+  id: string
+  post_id: string
+  parent_comment_id: string | null
+  user_id: string
+  body: string
+  image_urls: string[]
+  vote_count: number
+  created_at: string
+  deleted_at: string | null
+  author: CommunityAuthor
+  myVote?: -1 | 0 | 1
+  /** Built client-side after fetching flat list. */
+  children?: CommunityComment[]
+  pending?: boolean
+  failed?: boolean
+}
+
+/**
+ * Slim author shape used by community cards — includes full_name for display
+ * fallback when nickname is null. Safe to expose: everything here is already
+ * in PublicProfile except full_name, which is harmless for rendering.
+ */
+export interface CommunityAuthor {
+  id: string
+  username: string | null
+  nickname: string | null
+  full_name: string | null
+  avatar_url: string | null
 }
 
 export interface Category {

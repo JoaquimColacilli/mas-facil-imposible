@@ -6,6 +6,54 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.27.0',
+    date: '2026-04-20',
+    changes: [
+      'Buscador en Comunidad con dropdown de resultados rankeados por votos',
+      'Pill Nuevo temporal en el nav item Comunidad',
+      'Notificaciones al votar, comentar o responder publicaciones propias',
+      'Arreglado filtro Guardadas que no se actualizaba al togglearlo'
+    ]
+  },
+  {
+    version: '0.26.0',
+    date: '2026-04-20',
+    changes: [
+      'Filtro Guardadas en Comunidad',
+      'Editar y eliminar publicaciones propias',
+      'Eliminar comentarios propios',
+      'Adjuntar imágenes a publicaciones (hasta 4) y comentarios (hasta 1) con lightbox'
+    ]
+  },
+  {
+    version: '0.25.3',
+    date: '2026-04-20',
+    changes: [
+      'Arreglado hydration error (anchor anidado) y persistencia de publicaciones al recargar Comunidad'
+    ]
+  },
+  {
+    version: '0.25.2',
+    date: '2026-04-20',
+    changes: [
+      'Scrollbar fino y discreto en chips de categoría de Comunidad'
+    ]
+  },
+  {
+    version: '0.25.1',
+    date: '2026-04-20',
+    changes: [
+      'Ocultado el scrollbar horizontal en chips de Comunidad y mobile bottom nav'
+    ]
+  },
+  {
+    version: '0.25.0',
+    date: '2026-04-20',
+    changes: [
+      'Agregada sección Comunidad con feed, categorías, votos, comentarios anidados, guardados y embeds de transacciones/metas'
+    ]
+  },
+  {
     version: '0.24.3',
     date: '2026-04-20',
     changes: [

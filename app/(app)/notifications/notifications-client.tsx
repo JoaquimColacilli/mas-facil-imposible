@@ -1,5 +1,6 @@
 'use client'
 
+import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 import type { Notification, NotificationType } from '@/lib/types'
 import { createClient } from '@/lib/supabase/client'
@@ -22,6 +23,7 @@ const TYPE_ICONS: Record<NotificationType, React.ReactNode> = {
 
 export function NotificationsClient({ notifications: initial }: NotificationsClientProps) {
   const supabase = createClient()
+  const router = useRouter()
   const [notifications, setNotifications] = useState<Notification[]>(initial)
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
 
@@ -95,10 +97,25 @@ export function NotificationsClient({ notifications: initial }: NotificationsCli
           <CardContent className="p-0">
             {notifications.map((n, i) => {
               const isMonthly = n.data?.type === 'monthly_summary'
+              const isFriendRequest = n.data?.type === 'friend_request_received'
+              const isCommunity =
+                n.data?.type === 'community_vote' ||
+                n.data?.type === 'community_comment' ||
+                n.data?.type === 'community_reply'
+              const communityPostId = isCommunity
+                ? (n.data as { post_id?: string })?.post_id
+                : undefined
               return (
                 <div
                   key={n.id}
-                  onClick={() => markRead(n.id)}
+                  onClick={() => {
+                    markRead(n.id)
+                    if (isFriendRequest) {
+                      router.push('/friends?tab=requests')
+                    } else if (isCommunity && communityPostId) {
+                      router.push(`/comunidad/${communityPostId}`)
+                    }
+                  }}
                   className={cn(
                     'w-full flex items-start gap-3 px-4 py-3 text-left transition-colors cursor-pointer hover:bg-muted/40',
                     i < notifications.length - 1 && 'border-b border-border',

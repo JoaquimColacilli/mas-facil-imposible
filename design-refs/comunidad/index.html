@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MFI · Comunidad</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        fontFamily: {
+          sora: ['Sora', 'ui-sans-serif', 'system-ui'],
+          sans: ['"DM Sans"', 'ui-sans-serif', 'system-ui'],
+          mono: ['"DM Mono"', 'ui-monospace', 'monospace'],
+        },
+        colors: {
+          // surfaces
+          parchment: 'oklch(0.972 0.006 80)',
+          parchment2: 'oklch(0.955 0.008 80)',
+          charcoal: 'oklch(0.25 0.012 260)',
+          charcoal2: 'oklch(0.29 0.012 260)',
+          ink: 'oklch(0.22 0.014 260)',
+          mist: 'oklch(0.92 0.006 80)',
+          // brand
+          sage: {
+            DEFAULT: 'oklch(0.50 0.10 155)',
+            600: 'oklch(0.46 0.10 155)',
+            500: 'oklch(0.52 0.10 155)',
+            400: 'oklch(0.58 0.10 155)',
+            50:  'oklch(0.95 0.03 155)',
+            900: 'oklch(0.32 0.06 155)',
+          },
+          copper: {
+            DEFAULT: 'oklch(0.60 0.10 65)',
+            600: 'oklch(0.56 0.10 65)',
+            500: 'oklch(0.62 0.10 65)',
+            50:  'oklch(0.95 0.03 65)',
+          },
+          border: {
+            DEFAULT: 'oklch(0.88 0.006 80)',
+            dark:    'oklch(0.33 0.014 260)',
+          },
+          muted: {
+            DEFAULT: 'oklch(0.55 0.008 260)',
+            dark:    'oklch(0.68 0.010 260)',
+          },
+          // transaction semantic
+          rose500:    'oklch(0.65 0.18 15)',
+          emerald500: 'oklch(0.68 0.16 155)',
+          sky500:     'oklch(0.70 0.13 230)',
+          violet500:  'oklch(0.62 0.17 295)',
+        },
+        borderRadius: {
+          xl: '14px',
+        },
+        boxShadow: {
+          card: '0 1px 2px 0 oklch(0.2 0.02 260 / 0.04), 0 1px 1px 0 oklch(0.2 0.02 260 / 0.03)',
+          pop:  '0 8px 28px -12px oklch(0.2 0.02 260 / 0.18), 0 2px 6px -2px oklch(0.2 0.02 260 / 0.08)',
+        }
+      }
+    }
+  }
+</script>
+
+<style>
+  html, body { height: 100%; }
+  body {
+    font-family: 'DM Sans', ui-sans-serif, system-ui, -apple-system, sans-serif;
+    background: oklch(0.972 0.006 80);
+    color: oklch(0.22 0.014 260);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  .dark body { background: oklch(0.25 0.012 260); color: oklch(0.94 0.006 80); }
+
+  /* scrollbar */
+  .scrollbar-thin::-webkit-scrollbar { width: 10px; height: 10px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: oklch(0.85 0.006 80); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+  .dark .scrollbar-thin::-webkit-scrollbar-thumb { background: oklch(0.35 0.012 260); border: 2px solid transparent; background-clip: padding-box; }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+
+  /* no-scrollbar for chip rows */
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* focus ring */
+  .focus-ring:focus-visible { outline: 2px solid oklch(0.50 0.10 155); outline-offset: 2px; }
+
+  /* subtle animation */
+  @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+  .fadein { animation: fadein .22s ease-out both; }
+  @keyframes sheetin { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+  .sheetin { animation: sheetin .24s cubic-bezier(.2,.7,.2,1) both; }
+  @keyframes backdropin { from { opacity: 0; } to { opacity: 1; } }
+  .backdropin { animation: backdropin .2s ease-out both; }
+
+  /* loading skel */
+  @keyframes shimmer { 0% { background-position: -400px 0; } 100% { background-position: 400px 0; } }
+
+  /* vote bar thumb */
+  .vote-btn { transition: transform .12s ease, color .12s ease, background-color .12s ease; }
+  .vote-btn:active { transform: scale(0.92); }
+
+  /* placeholder stripes */
+  .stripes-light {
+    background-image: repeating-linear-gradient(135deg, oklch(0.93 0.006 80) 0 10px, oklch(0.96 0.006 80) 10px 20px);
+  }
+  .stripes-dark {
+    background-image: repeating-linear-gradient(135deg, oklch(0.30 0.012 260) 0 10px, oklch(0.33 0.012 260) 10px 20px);
+  }
+
+  /* hover subtle */
+  .hover-raise { transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; }
+  .hover-raise:hover { transform: translateY(-1px); }
+</style>
+</head>
+<body class="antialiased">
+
+<div id="root"></div>
+
+<!-- React -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<!-- Lucide icons -->
+<script src="https://unpkg.com/lucide@0.453.0/dist/umd/lucide.min.js"></script>
+
+<!-- Components in load order -->
+<script type="text/babel" src="src/icons.jsx"></script>
+<script type="text/babel" src="src/data.jsx"></script>
+<script type="text/babel" src="src/primitives.jsx"></script>
+<script type="text/babel" src="src/shell.jsx"></script>
+<script type="text/babel" src="src/feed.jsx"></script>
+<script type="text/babel" src="src/thread.jsx"></script>
+<script type="text/babel" src="src/composer.jsx"></script>
+<script type="text/babel" src="src/tweaks.jsx"></script>
+<script type="text/babel" src="src/app.jsx"></script>
+
+</body>
+</html>

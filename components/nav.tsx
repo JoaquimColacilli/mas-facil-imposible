@@ -15,13 +15,24 @@ import {
   Search,
   Users,
   MessageCircle,
+  MessageSquare,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { useEffect, useState } from 'react'
 import type { Profile } from '@/lib/types'
 
-export const navItems = [
+/** Items with `newUntil` render a "NUEVO" pill in the sidebar while the
+ *  current date is before the threshold (ISO YYYY-MM-DD). Purely static —
+ *  no DB round-trip needed. */
+type NavItem = {
+  href: string
+  label: string
+  icon: typeof LayoutDashboard
+  newUntil?: string
+}
+
+export const navItems: NavItem[] = [
   { href: '/dashboard',    label: 'Inicio',      icon: LayoutDashboard },
   { href: '/transactions', label: 'Movimientos', icon: ArrowLeftRight  },
   { href: '/goals',        label: 'Metas',       icon: Target          },
@@ -29,7 +40,14 @@ export const navItems = [
   { href: '/investments',  label: 'Inversiones',  icon: TrendingUp      },
   { href: '/friends',      label: 'Amigos',       icon: Users           },
   { href: '/chat',         label: 'Mensajes',     icon: MessageCircle   },
+  { href: '/comunidad',    label: 'Comunidad',    icon: MessageSquare, newUntil: '2026-04-27' },
 ]
+
+function isNew(item: NavItem): boolean {
+  if (!item.newUntil) return false
+  const today = new Date().toISOString().slice(0, 10)
+  return today <= item.newUntil
+}
 
 export function DesktopSidebar() {
   const pathname = usePathname()
@@ -105,7 +123,8 @@ export function DesktopSidebar() {
 
       {/* Nav links */}
       <nav className="flex-1 px-2.5 py-3 flex flex-col gap-0.5" aria-label="Navegación principal">
-        {navItems.map(({ href, label, icon: Icon }) => {
+        {navItems.map((item) => {
+          const { href, label, icon: Icon } = item
           const active = pathname === href || pathname.startsWith(href + '/')
           return (
             <Link
@@ -130,7 +149,12 @@ export function DesktopSidebar() {
                     : 'text-sidebar-foreground/40 group-hover:text-sidebar-foreground/70',
                 )}
               />
-              {label}
+              <span className="flex-1">{label}</span>
+              {isNew(item) && (
+                <span className="text-[9px] font-mono font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-accent/20 text-accent">
+                  Nuevo
+                </span>
+              )}
             </Link>
           )
         })}
@@ -198,14 +222,15 @@ export function MobileBottomNav() {
       aria-label="Navegación principal"
     >
       <div className="flex items-center overflow-x-auto scrollbar-none px-1 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom,0px))] gap-1">
-        {[...navItems, { href: '/settings', label: 'Ajustes', icon: Settings }].map(({ href, label, icon: Icon }) => {
+        {[...navItems, { href: '/settings', label: 'Ajustes', icon: Settings } as NavItem].map((item) => {
+          const { href, label, icon: Icon } = item
           const active = pathname === href || pathname.startsWith(href + '/')
           return (
             <Link
               key={href}
               href={href}
               className={cn(
-                'flex flex-col items-center gap-1 px-3 py-1 rounded-xl shrink-0 min-w-[64px] transition-colors duration-150',
+                'relative flex flex-col items-center gap-1 px-3 py-1 rounded-xl shrink-0 min-w-[64px] transition-colors duration-150',
                 active ? 'text-primary' : 'text-muted-foreground/60 hover:text-muted-foreground',
               )}
               aria-current={active ? 'page' : undefined}
@@ -214,6 +239,9 @@ export function MobileBottomNav() {
               <span className={cn('text-[9.5px] font-medium leading-none tracking-wide', active ? 'text-primary' : 'text-muted-foreground/60')}>
                 {label}
               </span>
+              {isNew(item) && (
+                <span className="absolute top-0 right-1 w-1.5 h-1.5 rounded-full bg-accent" aria-label="Nuevo" />
+              )}
             </Link>
           )
         })}
