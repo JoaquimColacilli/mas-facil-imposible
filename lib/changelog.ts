@@ -6,6 +6,13 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.23.0',
+    date: '2026-04-20',
+    changes: [
+      'Agregadas respuestas a mensajes en el chat (estilo WhatsApp) y picker de emojis con búsqueda.'
+    ]
+  },
+  {
     version: '0.22.6',
     date: '2026-04-20',
     changes: [

@@ -10,7 +10,8 @@ import { useIsMobile } from '@/hooks/use-mobile'
 import { usePresence } from '@/hooks/use-presence'
 import { useTyping } from '@/hooks/use-typing'
 import { MessageBubble } from '@/components/message-bubble'
-import { ChatComposer } from '@/components/chat-composer'
+import { ChatComposer, type ReplyingTo } from '@/components/chat-composer'
+import { toast } from 'sonner'
 import { DaySeparator } from '@/components/day-separator'
 import { PresenceDot } from '@/components/presence-dot'
 import { TypingIndicator } from '@/components/typing-indicator'
@@ -71,6 +72,46 @@ export function ConversationClient({
   const lastOwnSendIdRef = useRef<string | null>(null)
   const [newCount, setNewCount] = useState(0)
   const [initialScrolled, setInitialScrolled] = useState(false)
+  const [replyingToMsg, setReplyingToMsg] = useState<Message | null>(null)
+  const [highlightedId, setHighlightedId] = useState<string | null>(null)
+
+  const peerLabel = peer.nickname ?? (peer.username ? `@${peer.username}` : 'el usuario')
+
+  // Compone el preview bar del composer cuando hay un reply activo.
+  const replyingTo: ReplyingTo | null = useMemo(() => {
+    if (!replyingToMsg) return null
+    const isOwn = replyingToMsg.sender_id === viewerId
+    const label = isOwn ? 'Respondiendo a vos' : `Respondiendo a ${peerLabel}`
+    const preview =
+      replyingToMsg.deleted_at !== null
+        ? 'Mensaje eliminado'
+        : (replyingToMsg.body || '').slice(0, 160)
+    return { id: replyingToMsg.id, label, preview }
+  }, [replyingToMsg, viewerId, peerLabel])
+
+  const handleStartReply = useCallback((m: Message) => {
+    setReplyingToMsg(m)
+  }, [])
+
+  const handleCancelReply = useCallback(() => {
+    setReplyingToMsg(null)
+  }, [])
+
+  // Scroll a un mensaje quoted. Si está en el DOM → scroll + highlight 1s.
+  // Si no está cargado (paginado hacia arriba) → toast. En v2.1 podemos sumar
+  // loadMore-hasta-encontrar con cap.
+  const handleQuoteClick = useCallback((messageId: string) => {
+    const el = document.getElementById(`msg-${messageId}`)
+    if (!el) {
+      toast.info('El mensaje original no está cargado. Cargá más arriba para verlo.')
+      return
+    }
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setHighlightedId(messageId)
+    setTimeout(() => {
+      setHighlightedId((current) => (current === messageId ? null : current))
+    }, 1000)
+  }, [])
 
   // Threshold for "close enough to bottom to count as following the chat".
   // Mobile uses 200px to accommodate the virtual keyboard shifting the viewport.
@@ -299,7 +340,16 @@ export function ConversationClient({
                 <div key={group.key} className="flex flex-col gap-1">
                   <DaySeparator label={group.label} />
                   {group.items.map((m) => (
-                    <MessageBubble key={m.id} message={m} isOwn={m.sender_id === viewerId} />
+                    <MessageBubble
+                      key={m.id}
+                      message={m}
+                      isOwn={m.sender_id === viewerId}
+                      viewerId={viewerId}
+                      peerLabel={peerLabel}
+                      highlighted={highlightedId === m.id}
+                      onReply={handleStartReply}
+                      onQuoteClick={handleQuoteClick}
+                    />
                   ))}
                 </div>
               ))}
@@ -330,6 +380,8 @@ export function ConversationClient({
           disabled={composerDisabled}
           onTyping={channelLive ? notifyTyping : undefined}
           onStopTyping={channelLive ? notifyStop : undefined}
+          replyingTo={replyingTo}
+          onCancelReply={handleCancelReply}
         />
       </div>
     </div>

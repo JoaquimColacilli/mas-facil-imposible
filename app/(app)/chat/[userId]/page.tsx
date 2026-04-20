@@ -1,7 +1,7 @@
 import { notFound, redirect } from 'next/navigation'
 import { createClient, createAdminClient } from '@/lib/supabase/server'
 import { getRelationshipState } from '@/lib/social/relationship'
-import type { Message, PublicProfile } from '@/lib/types'
+import type { Message, PublicProfile, ReplyToSnapshot } from '@/lib/types'
 import { ConversationClient } from './conversation-client'
 import { PAGE_SIZE } from '@/hooks/use-messages'
 
@@ -76,14 +76,30 @@ export default async function ConversationPage({ params }: PageProps) {
   }
 
   // Initial page of messages (newest-first from DB → reversed to chronological).
+  // `reply_to:reply_to_message_id(...)` embeds the quoted message snapshot in a
+  // single round-trip; safe because Supabase does LEFT JOIN automatically and
+  // messages_pkey is indexed. Keeps reply renders free of N+1.
   const { data: pageRaw = [] } = await supabase
     .from('messages')
-    .select('id, conversation_id, sender_id, body, created_at, deleted_at, edited_at, read_at')
+    .select(
+      'id, conversation_id, sender_id, body, created_at, deleted_at, edited_at, read_at, reply_to_message_id, reply_to:reply_to_message_id (id, sender_id, body, deleted_at)',
+    )
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: false })
     .limit(PAGE_SIZE)
 
-  const initialMessages = ((pageRaw ?? []) as Message[]).slice().reverse()
+  // Normalize reply_to shape (Supabase typed embed infers array; at runtime
+  // a 1:1 FK returns a single object). See comment in chat/actions.ts.
+  const initialMessages = ((pageRaw ?? []) as unknown as Array<
+    Omit<Message, 'reply_to'> & { reply_to: ReplyToSnapshot | ReplyToSnapshot[] | null }
+  >)
+    .map((row) => {
+      const rt = row.reply_to
+      const resolved = Array.isArray(rt) ? (rt[0] ?? null) : (rt ?? null)
+      return { ...row, reply_to: resolved } as Message
+    })
+    .slice()
+    .reverse()
 
   // Mark as read on arrival (best-effort; rpc returns {data, error} — no throw).
   // A client-side effect also re-runs when new messages arrive while the tab is open.

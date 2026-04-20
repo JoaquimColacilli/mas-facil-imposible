@@ -1,7 +1,7 @@
 'use client'
 
-import { useState } from 'react'
-import { MoreVertical, Trash2, Loader2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { MoreVertical, Trash2, Loader2, Reply, Copy } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,12 +29,38 @@ import type { Message } from '@/lib/types'
 interface MessageBubbleProps {
   message: Message
   isOwn: boolean
+  /** Viewer id — para decidir "Vos" vs peer label en el quote header. */
+  viewerId: string
+  /** Label del peer para mostrar en el quote header cuando quoteó al peer. */
+  peerLabel: string
+  /** True mientras dura la ventana de highlight post scrollToMessage. */
+  highlighted?: boolean
+  /** Trigger para empezar a responder este mensaje. Parent levanta el state. */
+  onReply?: (message: Message) => void
+  /** Click en el quote box → scroll al mensaje original. */
+  onQuoteClick?: (messageId: string) => void
 }
 
-export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
+export function MessageBubble({
+  message,
+  isOwn,
+  viewerId,
+  peerLabel,
+  highlighted,
+  onReply,
+  onQuoteClick,
+}: MessageBubbleProps) {
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [copied, setCopied] = useState(false)
   const isDeleted = message.deleted_at !== null
+
+  // Auto-clear "copied" flag — not functional, just UX nicety for the toast.
+  useEffect(() => {
+    if (!copied) return
+    const t = setTimeout(() => setCopied(false), 1500)
+    return () => clearTimeout(t)
+  }, [copied])
 
   async function handleDelete() {
     setDeleting(true)
@@ -47,16 +73,102 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
     // Realtime UPDATE comes back; no local state change needed here.
   }
 
+  async function handleCopy() {
+    if (isDeleted) return
+    try {
+      await navigator.clipboard.writeText(message.body)
+      setCopied(true)
+      toast.success('Mensaje copiado.')
+    } catch {
+      toast.error('No se pudo copiar.')
+    }
+  }
+
+  function handleReply() {
+    if (isDeleted) return
+    onReply?.(message)
+  }
+
+  // Quote header: "Vos" si el mensaje quoted lo mandé yo, sino el peerLabel.
+  const hasQuote = message.reply_to_message_id !== null
+  const quotedSnapshot = message.reply_to
+  const quotedSenderLabel = quotedSnapshot
+    ? quotedSnapshot.sender_id === viewerId
+      ? 'Vos'
+      : peerLabel
+    : null
+
   return (
-    <div className={cn('flex w-full', isOwn ? 'justify-end' : 'justify-start')}>
+    <div
+      id={`msg-${message.id}`}
+      data-message-id={message.id}
+      className={cn(
+        'flex w-full scroll-mt-16 transition-shadow duration-300',
+        isOwn ? 'justify-end' : 'justify-start',
+      )}
+    >
       <div
         className={cn(
           'group relative flex flex-col gap-0.5 max-w-[75%] sm:max-w-[65%] rounded-2xl px-3 py-2 shadow-sm',
           isOwn
             ? 'bg-primary text-primary-foreground rounded-br-sm'
             : 'bg-muted text-foreground rounded-bl-sm',
+          highlighted && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
         )}
       >
+        {/* Quote box — renderizado arriba del body si el mensaje responde a otro. */}
+        {hasQuote && (
+          <button
+            type="button"
+            onClick={() =>
+              message.reply_to_message_id && onQuoteClick?.(message.reply_to_message_id)
+            }
+            className={cn(
+              'mb-1.5 w-full text-left rounded-md px-2 py-1 border-l-2 transition',
+              'hover:brightness-110 cursor-pointer',
+              isOwn
+                ? 'bg-primary-foreground/15 border-primary-foreground/60'
+                : 'bg-primary/10 border-primary',
+            )}
+          >
+            {quotedSnapshot ? (
+              <>
+                <p
+                  className={cn(
+                    'text-[11px] font-semibold',
+                    isOwn ? 'text-primary-foreground/90' : 'text-primary',
+                  )}
+                >
+                  {quotedSenderLabel}
+                </p>
+                <p
+                  className={cn(
+                    'text-[12px] line-clamp-2 break-words',
+                    quotedSnapshot.deleted_at
+                      ? 'italic opacity-70'
+                      : isOwn
+                        ? 'text-primary-foreground/80'
+                        : 'text-foreground/80',
+                  )}
+                >
+                  {quotedSnapshot.deleted_at
+                    ? 'Mensaje eliminado'
+                    : (quotedSnapshot.body ?? 'Mensaje eliminado')}
+                </p>
+              </>
+            ) : (
+              <p
+                className={cn(
+                  'text-[12px] italic opacity-70',
+                  isOwn ? 'text-primary-foreground' : 'text-muted-foreground',
+                )}
+              >
+                Mensaje eliminado
+              </p>
+            )}
+          </button>
+        )}
+
         {isDeleted ? (
           <p
             className={cn(
@@ -81,27 +193,38 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
               can safely suppress because the rendered timestamp is the same. */}
           <span suppressHydrationWarning>{timeLabel(message.created_at)}</span>
           {isOwn && !isDeleted && <ReadReceipt readAt={message.read_at} />}
-          {isOwn && !isDeleted && (
+          {!isDeleted && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
                   aria-label="Opciones del mensaje"
                   className={cn(
                     'opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity',
-                    'rounded-full p-0.5 hover:bg-white/20 cursor-pointer',
+                    'rounded-full p-0.5 cursor-pointer',
+                    isOwn ? 'hover:bg-white/20' : 'hover:bg-foreground/10',
                   )}
                 >
                   <MoreVertical className="w-3 h-3" />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-36">
-                <DropdownMenuItem
-                  onClick={() => setConfirmOpen(true)}
-                  className="text-destructive focus:text-destructive cursor-pointer"
-                >
-                  <Trash2 className="w-3.5 h-3.5 mr-2" />
-                  Eliminar
+              <DropdownMenuContent align="end" className="w-40">
+                <DropdownMenuItem onClick={handleReply} className="cursor-pointer">
+                  <Reply className="w-3.5 h-3.5 mr-2" />
+                  Responder
                 </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleCopy} className="cursor-pointer">
+                  <Copy className="w-3.5 h-3.5 mr-2" />
+                  {copied ? 'Copiado' : 'Copiar'}
+                </DropdownMenuItem>
+                {isOwn && (
+                  <DropdownMenuItem
+                    onClick={() => setConfirmOpen(true)}
+                    className="text-destructive focus:text-destructive cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 mr-2" />
+                    Eliminar
+                  </DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           )}
@@ -117,10 +240,7 @@ export function MessageBubble({ message, isOwn }: MessageBubbleProps) {
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
-              <AlertDialogAction
-                asChild
-                disabled={deleting}
-              >
+              <AlertDialogAction asChild disabled={deleting}>
                 <Button
                   className="bg-destructive text-white hover:bg-destructive/90"
                   onClick={handleDelete}

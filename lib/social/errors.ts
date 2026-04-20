@@ -16,6 +16,8 @@ export const SOCIAL_ERROR_MESSAGES_ES_AR: Record<string, string> = {
   rate_limited: 'Estás enviando mensajes muy seguido. Esperá un momento.',
   empty: 'El mensaje no puede estar vacío.',
   too_long: 'El mensaje supera el límite de 4000 caracteres.',
+  // Chat reply (Fase 8)
+  invalid_reply_target: 'El mensaje al que querés responder ya no existe.',
 }
 
 export function getSocialErrorMessage(code: string | null | undefined): string {

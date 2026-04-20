@@ -133,6 +133,18 @@ export interface Message {
   deleted_at: string | null
   edited_at: string | null
   read_at: string | null
+  reply_to_message_id: string | null
+  /** Snapshot del mensaje quoted. Null si no hay reply, o si el quoted fue
+   *  hard-deleted (FK ON DELETE SET NULL → reply_to_message_id = null). */
+  reply_to: ReplyToSnapshot | null
+}
+
+export interface ReplyToSnapshot {
+  id: string
+  sender_id: string
+  /** Null si el mensaje quoted está soft-deleted (deleted_at != null). */
+  body: string | null
+  deleted_at: string | null
 }
 
 /**
