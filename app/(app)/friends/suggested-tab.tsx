@@ -11,6 +11,7 @@ import { PresenceDot } from '@/components/presence-dot'
 import { isOnlineFromLastSeen } from '@/lib/social/presence'
 import { createClient } from '@/lib/supabase/client'
 import { broadcastSocialEvent } from '@/lib/social/broadcast'
+import { getInitials } from '@/lib/social/initials'
 import { sendFriendRequest } from './actions'
 import type { PublicProfile } from '@/lib/types'
 

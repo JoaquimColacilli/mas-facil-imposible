@@ -4,12 +4,10 @@ interface DaySeparatorProps {
 
 export function DaySeparator({ label }: DaySeparatorProps) {
   return (
-    <div className="flex items-center gap-2 py-2">
-      <div className="flex-1 h-px bg-border" />
-      <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">
+    <div className="flex justify-center my-3">
+      <span className="text-[11px] font-medium text-muted-foreground bg-background/90 backdrop-blur-sm rounded-full px-3 py-1 border border-border/50">
         {label}
       </span>
-      <div className="flex-1 h-px bg-border" />
     </div>
   )
 }

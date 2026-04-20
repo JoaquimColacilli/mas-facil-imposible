@@ -109,7 +109,7 @@ export function MessageBubble({
     >
       <div
         className={cn(
-          'group relative flex flex-col gap-0.5 max-w-[75%] sm:max-w-[65%] rounded-2xl px-3 py-2 shadow-sm',
+          'group relative flex flex-col gap-0.5 max-w-[75%] sm:max-w-[65%] rounded-2xl px-3.5 py-2.5 shadow-sm',
           isOwn
             ? 'bg-primary text-primary-foreground rounded-br-sm'
             : 'bg-muted text-foreground rounded-bl-sm',
@@ -126,8 +126,11 @@ export function MessageBubble({
             className={cn(
               'mb-1.5 w-full text-left rounded-md px-2 py-1 border-l-2 transition',
               'hover:brightness-110 cursor-pointer',
+              // En own (sobre bg-primary) subimos el bg del quote y reforzamos
+              // el border para que el quote sea claramente legible, no un
+              // adorno tenue. En peer mantenemos el tinte primary suave.
               isOwn
-                ? 'bg-primary-foreground/15 border-primary-foreground/60'
+                ? 'bg-black/15 border-primary-foreground'
                 : 'bg-primary/10 border-primary',
             )}
           >
@@ -136,7 +139,7 @@ export function MessageBubble({
                 <p
                   className={cn(
                     'text-[11px] font-semibold',
-                    isOwn ? 'text-primary-foreground/90' : 'text-primary',
+                    isOwn ? 'text-primary-foreground' : 'text-primary',
                   )}
                 >
                   {quotedSenderLabel}
@@ -147,7 +150,7 @@ export function MessageBubble({
                     quotedSnapshot.deleted_at
                       ? 'italic opacity-70'
                       : isOwn
-                        ? 'text-primary-foreground/80'
+                        ? 'text-primary-foreground/90'
                         : 'text-foreground/80',
                   )}
                 >

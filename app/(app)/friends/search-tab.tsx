@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import type { PublicProfile } from '@/lib/types'
 import { broadcastSocialEvent } from '@/lib/social/broadcast'
+import { getInitials } from '@/lib/social/initials'
 import { normalizeUsername } from '@/lib/social/normalize-username'
 import { sendFriendRequest } from './actions'
 
@@ -190,7 +191,7 @@ export function SearchTab({ userId, friendIds, pendingByCounterparty }: SearchTa
 }
 
 function SelfMatchCard({ profile }: { profile: PublicProfile }) {
-  const initials = (profile.nickname ?? profile.username ?? '?').slice(0, 2).toUpperCase()
+  const initials = getInitials(profile.nickname ?? profile.username)
   return (
     <Card className="p-4 flex items-center gap-3 border-primary/30 bg-primary/5">
       <Avatar className="w-12 h-12 shrink-0">
@@ -223,7 +224,7 @@ function ResultCard({
   sending: boolean
   onSend: (username: string) => void
 }) {
-  const initials = (profile.nickname ?? profile.username ?? '?').slice(0, 2).toUpperCase()
+  const initials = getInitials(profile.nickname ?? profile.username)
 
   return (
     <Card className="p-4 flex items-center gap-3">

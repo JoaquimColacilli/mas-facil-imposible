@@ -5,6 +5,7 @@ import { ArrowLeft, LogIn } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/server'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { getInitials } from '@/lib/social/initials'
 import type { PublicProfile } from '@/lib/types'
 import { getRelationshipState } from '@/lib/social/relationship'
 import { FriendRequestButton } from '@/components/friend-request-button'
@@ -57,9 +58,7 @@ export default async function AddUsernamePage({ params }: PageProps) {
 
   const isAuthenticated = !!user
 
-  const initials = (publicProfile.nickname ?? publicProfile.username ?? '?')
-    .slice(0, 2)
-    .toUpperCase()
+  const initials = getInitials(publicProfile.nickname ?? publicProfile.username)
 
   return (
     <div className="min-h-svh bg-background text-foreground flex flex-col">

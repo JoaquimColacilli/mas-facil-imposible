@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import type { PublicProfile } from '@/lib/types'
 import { broadcastSocialEvent, type SocialEventType } from '@/lib/social/broadcast'
+import { getInitials } from '@/lib/social/initials'
 import {
   acceptFriendRequest,
   rejectFriendRequest,
@@ -63,19 +64,19 @@ export function RequestRow({ requestId, profile, direction, createdAt }: Request
     })
   }
 
-  const initials = (profile.nickname ?? profile.username ?? '?').slice(0, 2).toUpperCase()
+  const initials = getInitials(profile.nickname ?? profile.username)
 
   return (
-    <div className="flex items-center gap-3 px-3 py-3 border-b border-border last:border-b-0">
-      <Avatar className="w-10 h-10 shrink-0">
+    <div className="flex items-center gap-3 px-3 py-3.5 border-b border-border last:border-b-0">
+      <Avatar className="w-11 h-11 shrink-0">
         {profile.avatar_url && <AvatarImage src={profile.avatar_url} alt={`@${profile.username}`} />}
         <AvatarFallback>{initials}</AvatarFallback>
       </Avatar>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-foreground truncate">
+        <p className="text-[15px] font-medium text-foreground truncate leading-tight">
           {profile.nickname ?? profile.username}
         </p>
-        <p className="text-xs text-muted-foreground truncate">
+        <p className="text-xs text-muted-foreground truncate mt-0.5">
           @{profile.username} · {timeAgo(createdAt)}
         </p>
       </div>

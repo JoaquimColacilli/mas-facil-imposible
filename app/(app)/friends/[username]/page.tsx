@@ -11,6 +11,7 @@ import { getPublicStreak } from '@/lib/social/public-stats'
 import { FriendRequestButton } from '@/components/friend-request-button'
 import { PresenceDot } from '@/components/presence-dot'
 import { isOnlineFromLastSeen } from '@/lib/social/presence'
+import { getInitials } from '@/lib/social/initials'
 import { AccountsOpenCard } from './accounts-open-card'
 import type { PublicProfile } from '@/lib/types'
 
@@ -68,9 +69,7 @@ export default async function FriendProfilePage({ params }: PageProps) {
   const streak = publicProfile.show_streak ? await getPublicStreak(publicProfile.id) : null
 
   const isSelf = relationship.state === 'self'
-  const initials = (publicProfile.nickname ?? publicProfile.username ?? '?')
-    .slice(0, 2)
-    .toUpperCase()
+  const initials = getInitials(publicProfile.nickname ?? publicProfile.username)
 
   return (
     <div className="flex flex-col gap-4 max-w-4xl mx-auto w-full">

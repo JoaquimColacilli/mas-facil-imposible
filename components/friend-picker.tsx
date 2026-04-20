@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import { normalizeUsername } from '@/lib/social/normalize-username'
+import { getInitials } from '@/lib/social/initials'
 import type { PublicProfile } from '@/lib/types'
 
 interface FriendPickerProps {
@@ -140,7 +141,7 @@ export function FriendPicker({
           ) : (
             filtered.map((f) => {
               const isSel = selected?.id === f.id
-              const initials = (f.nickname ?? f.username ?? '?').slice(0, 2).toUpperCase()
+              const initials = getInitials(f.nickname ?? f.username)
               return (
                 <button
                   key={f.id}

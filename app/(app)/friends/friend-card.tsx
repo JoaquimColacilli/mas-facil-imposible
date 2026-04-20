@@ -26,6 +26,8 @@ import { User, MessageCircle, UserMinus, Ban } from 'lucide-react'
 import { toast } from 'sonner'
 import { PresenceDot } from '@/components/presence-dot'
 import { isOnlineFromLastSeen } from '@/lib/social/presence'
+import { getInitials } from '@/lib/social/initials'
+import { cn } from '@/lib/utils'
 import type { PublicProfile } from '@/lib/types'
 import { removeFriend, blockUser } from './actions'
 
@@ -50,27 +52,36 @@ export function FriendCard({ friend }: FriendCardProps) {
     })
   }
 
-  const initials = (friend.nickname ?? friend.username ?? '?').slice(0, 2).toUpperCase()
+  const initials = getInitials(friend.nickname ?? friend.username)
 
   return (
     <Card className="p-4 flex items-center gap-3">
       <div className="relative shrink-0">
-        <Avatar className="w-12 h-12">
+        <Avatar
+          className={cn(
+            'w-14 h-14',
+            // Ring sutil solo cuando cae al fallback — evita halo sobre la
+            // imagen real cuando existe avatar_url.
+            '[&:has([data-slot=avatar-fallback])]:ring-1 [&:has([data-slot=avatar-fallback])]:ring-border/50',
+          )}
+        >
           {friend.avatar_url && <AvatarImage src={friend.avatar_url} alt={`@${friend.username}`} />}
           <AvatarFallback>{initials}</AvatarFallback>
         </Avatar>
         <PresenceDot
           online={isOnlineFromLastSeen(friend.last_seen_at)}
           size="sm"
-          className="absolute bottom-0 right-0"
+          className="absolute bottom-0 right-0 ring-card"
         />
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-foreground truncate">
+        <p className="text-[15px] font-semibold text-foreground truncate leading-tight">
           {friend.nickname ?? friend.username}
         </p>
-        <p className="text-xs text-muted-foreground truncate">@{friend.username}</p>
+        <p className="text-xs text-muted-foreground font-mono tracking-tight truncate mt-0.5">
+          @{friend.username}
+        </p>
       </div>
 
       {/* Action buttons — 1 row on desktop + wide mobile; auto 2x2 on very

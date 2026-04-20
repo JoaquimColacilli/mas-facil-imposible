@@ -22,6 +22,7 @@ import {
 import { ChevronDown, Ban } from 'lucide-react'
 import { toast } from 'sonner'
 import type { PublicProfile } from '@/lib/types'
+import { getInitials } from '@/lib/social/initials'
 import { unblockUser } from './actions'
 
 interface BlockedUsersSectionProps {
@@ -81,7 +82,7 @@ export function BlockedUsersSection({ blocked }: BlockedUsersSectionProps) {
 
           <div className="rounded-lg border border-border overflow-hidden">
             {blocked.map((b) => {
-              const initials = (b.nickname ?? b.username ?? '?').slice(0, 2).toUpperCase()
+              const initials = getInitials(b.nickname ?? b.username)
               return (
                 <div
                   key={b.id}

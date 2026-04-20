@@ -18,6 +18,7 @@ import { TypingIndicator } from '@/components/typing-indicator'
 import { dayLabel, canSendMessage, newMessagesChipLabel } from '@/lib/social/chat'
 import { markConversationRead } from '@/app/(app)/chat/actions'
 import { isOnlineFromLastSeen } from '@/lib/social/presence'
+import { getInitials } from '@/lib/social/initials'
 import { broadcastSocialEvent } from '@/lib/social/broadcast'
 import { mutate as swrMutate } from 'swr'
 import type { Message, PublicProfile } from '@/lib/types'
@@ -251,7 +252,7 @@ export function ConversationClient({
 
   const composerDisabled = !canSendMessage(relationshipState)
 
-  const initials = (peer.nickname ?? peer.username ?? '?').slice(0, 2).toUpperCase()
+  const initials = getInitials(peer.nickname ?? peer.username)
 
   // Bucket messages by day for rendering separators.
   const grouped = useMemo(() => groupByDay(messages), [messages])

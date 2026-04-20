@@ -6,6 +6,13 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.24.0',
+    date: '2026-04-20',
+    changes: [
+      'Rediseño visual de /friends, /chat y /chat/:id — avatares más prominentes, mejor jerarquía tipográfica, separadores de día estilo píldora y consistencia en iniciales de avatares.'
+    ]
+  },
+  {
     version: '0.23.0',
     date: '2026-04-20',
     changes: [

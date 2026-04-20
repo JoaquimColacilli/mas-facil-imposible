@@ -75,7 +75,7 @@ export function FriendsClient({
           <TabsTrigger value="requests" className="gap-1.5">
             Solicitudes
             {received.length > 0 && (
-              <span className="text-[10px] font-bold bg-primary text-primary-foreground rounded-full px-1.5 py-0.5 leading-none">
+              <span className="text-[10px] font-bold bg-primary text-primary-foreground rounded-full min-w-[1.25rem] h-5 inline-flex items-center justify-center px-1 leading-none">
                 {received.length}
               </span>
             )}
