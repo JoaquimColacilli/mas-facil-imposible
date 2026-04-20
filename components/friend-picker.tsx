@@ -6,6 +6,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
+import { normalizeUsername } from '@/lib/social/normalize-username'
 import type { PublicProfile } from '@/lib/types'
 
 interface FriendPickerProps {
@@ -64,9 +65,10 @@ export function FriendPicker({
     })
   }, [open, friends.length, loading])
 
-  const filtered = query.trim()
+  const normalizedQuery = normalizeUsername(query).toLowerCase()
+  const filtered = normalizedQuery
     ? friends.filter((f) =>
-        `${f.nickname ?? ''} ${f.username ?? ''}`.toLowerCase().includes(query.trim().toLowerCase()),
+        `${f.nickname ?? ''} ${f.username ?? ''}`.toLowerCase().includes(normalizedQuery),
       )
     : friends
 

@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Check, Loader2, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
+import { normalizeUsername } from '@/lib/social/normalize-username'
 import { validateUsername } from '@/lib/social/validate-username'
 
 type Status =
@@ -114,7 +115,9 @@ export function UsernamePicker({
         <Input
           id={id}
           value={value}
-          onChange={(e) => setValue(e.target.value.toLowerCase().replace(/\s/g, ''))}
+          onChange={(e) =>
+            setValue(normalizeUsername(e.target.value).toLowerCase().replace(/\s/g, ''))
+          }
           placeholder="joaquim_colacilli"
           maxLength={20}
           autoComplete="off"

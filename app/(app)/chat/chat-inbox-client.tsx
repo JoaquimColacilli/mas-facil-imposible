@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils'
 import { relativeInboxTime } from '@/lib/social/chat'
 import { isOnlineFromLastSeen } from '@/lib/social/presence'
 import { PresenceDot } from '@/components/presence-dot'
+import { normalizeUsername } from '@/lib/social/normalize-username'
 import type { ConversationSummary, PublicProfile } from '@/lib/types'
 
 export interface InboxItem {
@@ -26,7 +27,7 @@ export function ChatInboxClient({ items, userId }: ChatInboxClientProps) {
   const [query, setQuery] = useState('')
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
+    const q = normalizeUsername(query).toLowerCase()
     if (!q) return items
     return items.filter((it) => {
       if (!it.peer) return false

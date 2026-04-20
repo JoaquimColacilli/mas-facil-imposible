@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { AtSign, Save, CheckCircle2, Copy, Share2, Link2 } from 'lucide-react'
+import { AtSign, Save, CheckCircle2, Copy, Share2, Link2, Info } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Profile } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -146,19 +146,33 @@ export function SocialProfileCard({ profile, userId }: SocialProfileCardProps) {
         />
 
         {/* Discoverable toggle */}
-        <div className="flex items-start justify-between gap-4 pt-2 border-t border-border">
-          <div className="flex-1">
-            <p className="text-sm font-medium text-foreground">Permitir que otros te encuentren</p>
-            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-              Si lo activás, cualquiera puede encontrarte buscando tu username y enviarte solicitudes
-              de amistad. Si lo desactivás, solo te podés agregar mediante link directo.
-            </p>
+        <div className="pt-2 border-t border-border">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1">
+              <p className="text-sm font-medium text-foreground">Permitir que otros te encuentren</p>
+              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                Si lo activás, cualquiera puede encontrarte buscando tu username y enviarte solicitudes
+                de amistad. Si lo desactivás, solo te podés agregar mediante link directo.
+              </p>
+            </div>
+            <Switch
+              checked={isDiscoverable}
+              onCheckedChange={setIsDiscoverable}
+              disabled={saving}
+            />
           </div>
-          <Switch
-            checked={isDiscoverable}
-            onCheckedChange={setIsDiscoverable}
-            disabled={saving}
-          />
+          {/* Nudge — shown only when the persisted profile is hidden. Reflects the
+              saved state (not the unsaved toggle) so it disappears right after save. */}
+          {profile.is_discoverable === false && (
+            <div className="mt-3 flex items-start gap-2 rounded-lg border border-border/60 bg-muted/40 p-3">
+              <Info className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+              <p className="text-[12px] text-muted-foreground leading-relaxed">
+                Tenés el perfil oculto. Los usuarios no pueden encontrarte buscando tu username ni
+                aparecerás en Sugeridos. Igualmente podés ser agregado con tu link directo de
+                invitación.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Bio */}

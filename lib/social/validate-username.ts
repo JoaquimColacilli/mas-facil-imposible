@@ -1,3 +1,4 @@
+import { normalizeUsername } from './normalize-username'
 import { isReservedUsername } from './reserved-usernames'
 
 export type UsernameValidationError =
@@ -23,7 +24,7 @@ const ALLOWED_CHARS_REGEX = /^[a-z0-9_]+$/
  * Pure: no DB calls. Availability is checked separately against profiles_public.
  */
 export function validateUsername(raw: string): UsernameValidationResult {
-  const value = raw.trim().toLowerCase()
+  const value = normalizeUsername(raw).toLowerCase()
 
   if (value.length < 3) {
     return { ok: false, code: 'too_short', error: 'Mínimo 3 caracteres.' }

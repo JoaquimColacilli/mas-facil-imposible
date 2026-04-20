@@ -6,6 +6,13 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.22.5',
+    date: '2026-04-20',
+    changes: [
+      'Nuevo paso en onboarding para elegir visibilidad del perfil, aviso recordatorio en Ajustes cuando el perfil está oculto, corregido bug que impedía ver solicitudes de amistad de usuarios con perfil oculto, y tolerancia a @ al inicio en todos los inputs de username.'
+    ]
+  },
+  {
     version: '0.22.4',
     date: '2026-04-19',
     changes: [

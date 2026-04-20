@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import type { PublicProfile } from '@/lib/types'
 import { broadcastSocialEvent } from '@/lib/social/broadcast'
+import { normalizeUsername } from '@/lib/social/normalize-username'
 import { sendFriendRequest } from './actions'
 
 const MIN_CHARS = 3
@@ -48,10 +49,7 @@ export function SearchTab({ userId, friendIds, pendingByCounterparty }: SearchTa
   const abortRef = useRef<AbortController | null>(null)
 
   useEffect(() => {
-    // Input already shows a contextual "@" prefix in copy; tolerate users who
-    // still type one (or many) leading "@" by stripping them before the query.
-    // Idempotente: "joaco" → "joaco", "@joaco" → "joaco", "@@joaco" → "joaco".
-    const trimmed = value.trim().replace(/^@+/, '').toLowerCase()
+    const trimmed = normalizeUsername(value).toLowerCase()
 
     if (trimmed.length === 0) {
       setState({ kind: 'idle' })

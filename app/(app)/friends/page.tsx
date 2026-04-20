@@ -45,13 +45,43 @@ export default async function FriendsPage({ searchParams }: PageProps) {
     new Set((pendingReqs ?? []).map((r) => (r.sender_id === user.id ? r.receiver_id : r.sender_id))),
   )
 
+  // Resolve sender/receiver profiles via admin client. A pending request is an
+  // explicit action directed at the viewer (or from the viewer), so filtering by
+  // is_discoverable here is semantically wrong — we'd drop valid requests whose
+  // counterparty has a hidden profile. No data leak: the viewer only sees
+  // profiles of users they share a pending request with.
   let counterpartyProfiles: PublicProfile[] = []
   if (counterpartyIds.length > 0) {
-    const { data } = await supabase
-      .from('friends_visible_profiles')
+    const admin = createAdminClient()
+    const { data: profilesData } = await admin
+      .from('profiles')
       .select('id, username, nickname, avatar_url, bio, is_discoverable, last_seen_at, created_at')
       .in('id', counterpartyIds)
-    counterpartyProfiles = (data ?? []) as PublicProfile[]
+
+    // Defense in depth: exclude bidirectional blocks even if friend_requests rows
+    // leaked through (the block flow cancels pending requests, but an extra check
+    // is cheap and prevents surfacing a blocked user in the Solicitudes tab).
+    // Two queries — simpler than a nested .or() and easier to reason about.
+    const [outBlocksRes, inBlocksRes] = await Promise.all([
+      admin
+        .from('blocks')
+        .select('blocked_id')
+        .eq('blocker_id', user.id)
+        .in('blocked_id', counterpartyIds),
+      admin
+        .from('blocks')
+        .select('blocker_id')
+        .eq('blocked_id', user.id)
+        .in('blocker_id', counterpartyIds),
+    ])
+
+    const blockedIds = new Set<string>()
+    for (const b of outBlocksRes.data ?? []) blockedIds.add(b.blocked_id)
+    for (const b of inBlocksRes.data ?? []) blockedIds.add(b.blocker_id)
+
+    counterpartyProfiles = ((profilesData ?? []) as PublicProfile[]).filter(
+      (p) => !blockedIds.has(p.id),
+    )
   }
 
   const profileById = new Map(counterpartyProfiles.map((p) => [p.id, p]))

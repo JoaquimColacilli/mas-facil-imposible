@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { LayoutDashboard, Table2, Check } from 'lucide-react'
+import { LayoutDashboard, Table2, Check, Eye, EyeOff } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Switch } from '@/components/ui/switch'
 import { Separator } from '@/components/ui/separator'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
@@ -18,7 +19,7 @@ import { toast } from 'sonner'
 
 type Mode = 'classic' | 'mfi'
 type Currency = 'ARS' | 'USD'
-type Step = 0 | 1 | 2 | 3 | 4
+type Step = 0 | 1 | 2 | 3 | 4 | 5
 
 interface Profile {
   full_name?: string | null
@@ -481,6 +482,94 @@ function StepConfig({
   )
 }
 
+function StepDiscoverability({
+  discoverable,
+  onChange,
+  onNext,
+  onBack,
+}: {
+  discoverable: boolean
+  onChange: (v: boolean) => void
+  onNext: () => void
+  onBack: () => void
+}) {
+  return (
+    <div className="animate-in fade-in slide-in-from-right-4 duration-300 min-h-svh flex flex-col items-center justify-center py-12 px-4">
+      <div className="w-full max-w-lg bg-card border border-border/50 shadow-2xl shadow-primary/5 sm:rounded-[2.5rem] rounded-3xl p-6 sm:p-12 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-50 pointer-events-none" />
+
+        <div className="relative z-10">
+          {/* Back */}
+          <div className="mb-8 flex justify-start">
+            <button
+              type="button"
+              onClick={onBack}
+              className="text-[13px] font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1.5 px-3 py-1.5 -ml-3 rounded-full hover:bg-muted/50"
+            >
+              ← Atrás
+            </button>
+          </div>
+
+          {/* Header */}
+          <div className="mb-8 text-center">
+            <h2 className="text-[24px] sm:text-[28px] font-bold tracking-tight text-foreground">
+              ¿Querés que otros usuarios te puedan encontrar?
+            </h2>
+            <p className="text-muted-foreground mt-2 text-[14px] sm:text-[15px] leading-relaxed">
+              Con esta opción activada, otros usuarios van a poder encontrarte buscando tu username y
+              aparecerás en la sección Sugeridos. Podés cambiar esto en cualquier momento desde
+              Ajustes.
+            </p>
+          </div>
+
+          {/* Toggle card */}
+          <div className="rounded-2xl border border-border/60 bg-background/60 p-4 sm:p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3 min-w-0 flex-1">
+                <div
+                  className={cn(
+                    'w-9 h-9 rounded-xl shrink-0 flex items-center justify-center transition-colors duration-200',
+                    discoverable
+                      ? 'bg-primary/15 text-primary'
+                      : 'bg-muted text-muted-foreground',
+                  )}
+                >
+                  {discoverable ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[14px] font-semibold text-foreground">
+                    Permitir que otros te encuentren
+                  </p>
+                  <p className="text-[12px] text-muted-foreground mt-1 leading-relaxed">
+                    {discoverable
+                      ? 'Tu perfil será visible para otros usuarios en búsquedas y sugeridos.'
+                      : 'Tu perfil estará oculto. Solo te podrán agregar con tu link directo.'}
+                  </p>
+                </div>
+              </div>
+              <Switch
+                checked={discoverable}
+                onCheckedChange={onChange}
+                aria-label="Permitir que otros te encuentren"
+              />
+            </div>
+          </div>
+
+          {/* CTA */}
+          <div className="mt-10 flex justify-center w-full">
+            <Button
+              onClick={onNext}
+              className="h-14 w-full rounded-2xl text-[15px] font-semibold transition-all hover:scale-[1.02] active:scale-[0.98] disabled:hover:scale-100"
+            >
+              Continuar →
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function StepDone({ name }: { name: string }) {
   const displayName = name.trim() ? name.trim().split(' ')[0] : 'vos'
 
@@ -519,15 +608,16 @@ export default function OnboardingClient({ profile, userId }: OnboardingClientPr
     (profile?.default_currency as Currency) ?? 'ARS',
   )
   const [acceptedLegal, setAcceptedLegal] = useState(false)
+  const [discoverable, setDiscoverable] = useState(true)
   const [usernameValidity, setUsernameValidity] = useState<StepUsernameValidity>({
     canSubmit: !!profile?.username,
     normalized: profile?.username ?? null,
   })
   const [saving, setSaving] = useState(false)
 
-  // Auto-navigate after step 4 (Done)
+  // Auto-navigate after step 5 (Done)
   useEffect(() => {
-    if (step === 4) {
+    if (step === 5) {
       const timer = setTimeout(() => {
         router.push(selectedMode === 'mfi' ? '/mfi' : '/dashboard')
       }, 1500)
@@ -536,7 +626,7 @@ export default function OnboardingClient({ profile, userId }: OnboardingClientPr
   }, [step, selectedMode, router])
 
   const handleConfigContinue = () => {
-    // No DB writes here — defer to step 3 (Username) so the whole onboarding
+    // No DB writes here — defer to the Username step so the whole onboarding
     // commits atomically only when the user finishes the flow.
     setStep(3)
   }
@@ -561,6 +651,7 @@ export default function OnboardingClient({ profile, userId }: OnboardingClientPr
           full_name: name.trim() || null,
           default_currency: currency,
           preferred_mode: selectedMode,
+          is_discoverable: discoverable,
           onboarding_completed: true,
           tos_accepted_at: now,
           tos_version: TOS_VERSION,
@@ -569,7 +660,7 @@ export default function OnboardingClient({ profile, userId }: OnboardingClientPr
         })
         .eq('id', userId)
 
-      setStep(4)
+      setStep(5)
     } finally {
       setSaving(false)
     }
@@ -608,8 +699,18 @@ export default function OnboardingClient({ profile, userId }: OnboardingClientPr
         />
       )}
 
-      {/* Step 3 — Username */}
+      {/* Step 3 — Discoverability */}
       {step === 3 && (
+        <StepDiscoverability
+          discoverable={discoverable}
+          onChange={setDiscoverable}
+          onNext={() => setStep(4)}
+          onBack={() => setStep(2)}
+        />
+      )}
+
+      {/* Step 4 — Username */}
+      {step === 4 && (
         <StepUsername
           userId={userId}
           initialValue={profile?.username ?? null}
@@ -617,15 +718,15 @@ export default function OnboardingClient({ profile, userId }: OnboardingClientPr
           canSubmit={usernameValidity.canSubmit}
           onValidityChange={setUsernameValidity}
           onNext={handleUsernameContinue}
-          onBack={() => setStep(2)}
+          onBack={() => setStep(3)}
         />
       )}
 
-      {/* Step 4 — Done */}
-      {step === 4 && <StepDone name={name} />}
+      {/* Step 5 — Done */}
+      {step === 5 && <StepDone name={name} />}
 
       {/* Progress dots — hidden on welcome and done screens */}
-      {step !== 0 && step !== 4 && (
+      {step !== 0 && step !== 5 && (
         <div className="fixed bottom-8 left-0 right-0 flex justify-center animate-in fade-in duration-300">
           <ProgressDots current={step} total={5} />
         </div>
