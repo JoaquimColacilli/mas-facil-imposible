@@ -6,6 +6,14 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.24.1',
+    date: '2026-04-20',
+    changes: [
+      'Sincronizado pnpm-lock.yaml con dependencias de emoji-mart (fix build en Netlify)',
+      'Cambiado el color del doble tick \'enviado\' (no leído) a negro para mejor contraste sobre el verde del mensaje propio'
+    ]
+  },
+  {
     version: '0.24.0',
     date: '2026-04-20',
     changes: [

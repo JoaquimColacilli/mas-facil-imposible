@@ -27,7 +27,7 @@ export function ReadReceipt({ readAt, className }: ReadReceiptProps) {
   return (
     <CheckCheck
       aria-label="Enviado"
-      className={cn('w-3.5 h-3.5 shrink-0 text-muted-foreground', className)}
+      className={cn('w-3.5 h-3.5 shrink-0 text-black', className)}
     />
   )
 }
