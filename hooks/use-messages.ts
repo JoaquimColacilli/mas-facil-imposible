@@ -25,16 +25,16 @@ interface UseMessagesResult {
   /** The last INSERT received via Realtime — drives auto-scroll / new-chip logic. */
   latestRealtimeInsertId: string | null
   /** Append an optimistic (not-yet-acked) own message to local state.
-   *  Temp ids MUST be prefixed with `temp-` so the realtime dedupe in ingest()
-   *  never collides with them. The real Message replaces it via replaceOptimistic. */
+   *  With client-generated UUIDs, `temp.id` equals the final DB id — so the
+   *  Realtime INSERT that comes back will match via seenIds and merge in place
+   *  (no reordering). Server response resolves via setOptimisticStatus. */
   pushOptimistic: (temp: Message) => void
-  /** Swap a temp message for the real one returned by the server. Handles the
-   *  race where the Realtime INSERT landed before the server response (rare but
-   *  possible): in that case the real row is already in local state and we just
-   *  drop the temp. */
+  /** Merge the canonical Message returned by the server into the optimistic
+   *  row. Same id as the temp (client UUID) → in-place merge; preserves reply_to
+   *  embed and clears pending/failed. */
   replaceOptimistic: (tempId: string, real: Message) => void
-  /** Patch the client-only flags (pending/failed) on a temp message in place.
-   *  Used to flip a failed temp back to pending on retry, or mark pending → failed. */
+  /** Patch the client-only flags (pending/failed) on a message in place.
+   *  Used to flip a failed bubble back to pending on retry, or mark pending → failed. */
   setOptimisticStatus: (tempId: string, patch: { pending?: boolean; failed?: boolean }) => void
 }
 
@@ -102,18 +102,16 @@ export function useMessages({
   }, [])
 
   const replaceOptimistic = useCallback((tempId: string, real: Message) => {
-    const realAlreadyIngested = seenIds.current.has(real.id)
-    seenIds.current.delete(tempId)
-    if (realAlreadyIngested) {
-      // Realtime INSERT landed before the server response — the real row is
-      // already in messages. Drop the temp; keep the real (canonical) one.
-      setMessages((prev) => prev.filter((m) => m.id !== tempId))
-      return
-    }
-    seenIds.current.add(real.id)
-    // Seed reply cache from the real row's embed so future quoters resolve instantly.
+    // With client-generated UUIDs, tempId === real.id. The row may have already
+    // been merged in-place by the earlier Realtime INSERT (our own echo) — that
+    // merge preserved pending=true. This call now brings in canonical DB state
+    // plus the reply_to embed the server response carries, and clears pending.
     if (real.reply_to) replySnapshotCache.current.set(real.reply_to.id, real.reply_to)
-    setMessages((prev) => prev.map((m) => (m.id === tempId ? real : m)))
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === tempId ? { ...real, pending: false, failed: false } : m,
+      ),
+    )
   }, [])
 
   const setOptimisticStatus = useCallback(
@@ -183,7 +181,23 @@ export function useMessages({
     // del snapshot y después ingest. Peor caso: ~150ms sin quote. Si la
     // fetch falla, el mensaje igual entra con reply_to: null y se renderiza
     // como "Mensaje eliminado" (safe fallback).
+    //
+    // Own-echo path (raw.id ya está en seenIds): es nuestro propio send que
+    // volvió por realtime. No appendeamos — mergeamos en el lugar del temp,
+    // preservando el reply_to que ya habíamos armado del snapshot local y
+    // limpiando el flag pending. Así, bajo ráfagas 1-2-3-4, el orden visual
+    // se mantiene (client-generated UUID garantiza que temp.id === real.id).
     async function handleInsert(raw: Message) {
+      if (seenIds.current.has(raw.id)) {
+        setMessages((prev) =>
+          prev.map((x) =>
+            x.id === raw.id
+              ? { ...raw, reply_to: x.reply_to, pending: false, failed: false }
+              : x,
+          ),
+        )
+        return
+      }
       const replyId = raw.reply_to_message_id
       if (!replyId) {
         ingest({ ...raw, reply_to: null }, 'realtime_insert')

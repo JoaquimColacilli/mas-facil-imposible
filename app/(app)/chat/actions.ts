@@ -61,12 +61,14 @@ export async function sendMessage(
   conversationId: string,
   body: string,
   replyToMessageId?: string | null,
+  clientId?: string | null,
 ): Promise<ActionResult<Message>> {
   const supabase = await createClient()
   const { data: msgId, error } = await supabase.rpc('send_message', {
     p_conversation_id: conversationId,
     p_body: body,
     p_reply_to_message_id: replyToMessageId ?? null,
+    p_client_id: clientId ?? null,
   })
   if (error) return fail(extractRpcCode(error))
 

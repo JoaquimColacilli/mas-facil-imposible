@@ -6,6 +6,14 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.24.3',
+    date: '2026-04-20',
+    changes: [
+      'Fix orden de mensajes bajo ráfagas (spam 1-2-3-4): el cliente ahora genera el UUID del mensaje antes de enviarlo, así la llegada por Realtime matchea el temp por id y se mergea en el lugar en vez de reordenarse',
+      'Migración SQL 023: send_message acepta p_client_id opcional + ON CONFLICT DO NOTHING para retry idempotente'
+    ]
+  },
+  {
     version: '0.24.2',
     date: '2026-04-20',
     changes: [

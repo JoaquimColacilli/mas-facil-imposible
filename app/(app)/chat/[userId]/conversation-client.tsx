@@ -263,7 +263,7 @@ export function ConversationClient({
         .catch(() => {
           // Previous link may have rejected; swallow so the chain keeps moving.
         })
-        .then(() => sendMessage(conversationId, body, replyToMessageId))
+        .then(() => sendMessage(conversationId, body, replyToMessageId, tempId))
         .then((res) => {
           if (!mountedRef.current) return
           if (res.ok && res.data) {
@@ -283,7 +283,10 @@ export function ConversationClient({
 
   const handleOptimisticSend = useCallback(
     (body: string, replyToMessageId: string | null) => {
-      const tempId = `temp-${crypto.randomUUID()}`
+      // Client-generated UUID IS the final DB id — so the Realtime INSERT that
+      // returns our own send matches the temp via seenIds and merges in place
+      // instead of appending. That's what keeps 1-2-3-4 rapid sends in order.
+      const tempId = crypto.randomUUID()
       const now = new Date().toISOString()
       // Resolve reply snapshot from the current messages array so the temp
       // bubble renders the quote box immediately (no flicker on server ack).
