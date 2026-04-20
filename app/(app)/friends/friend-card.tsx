@@ -7,11 +7,11 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,7 +22,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { MoreVertical, User, MessageCircle, UserMinus, Ban } from 'lucide-react'
+import { User, MessageCircle, UserMinus, Ban } from 'lucide-react'
 import { toast } from 'sonner'
 import { PresenceDot } from '@/components/presence-dot'
 import { isOnlineFromLastSeen } from '@/lib/social/presence'
@@ -73,47 +73,79 @@ export function FriendCard({ friend }: FriendCardProps) {
         <p className="text-xs text-muted-foreground truncate">@{friend.username}</p>
       </div>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 shrink-0"
-            aria-label="Más opciones"
-            disabled={pending}
-          >
-            <MoreVertical className="w-4 h-4" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-44">
-          <DropdownMenuItem asChild className="cursor-pointer">
-            <Link href={`/friends/${friend.username}`}>
-              <User className="w-4 h-4 mr-2" />
-              Ver perfil
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild className="cursor-pointer">
-            <Link href={`/chat/${friend.id}`}>
-              <MessageCircle className="w-4 h-4 mr-2" />
-              Enviar mensaje
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => setConfirm('remove')}
-            className="cursor-pointer"
-          >
-            <UserMinus className="w-4 h-4 mr-2" />
-            Eliminar amistad
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onClick={() => setConfirm('block')}
-            className="text-destructive focus:text-destructive cursor-pointer"
-          >
-            <Ban className="w-4 h-4 mr-2" />
-            Bloquear
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {/* Action buttons — 1 row on desktop + wide mobile; auto 2x2 on very
+          tight mobile if the nickname above pushes them. */}
+      <TooltipProvider delayDuration={300}>
+        <div className="flex items-center gap-1 shrink-0 max-md:flex-wrap max-md:justify-end max-md:max-w-[112px]">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                asChild
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 hover:bg-muted"
+                aria-label="Ver perfil"
+                disabled={pending}
+              >
+                <Link href={`/friends/${friend.username}`}>
+                  <User className="w-4 h-4" />
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Ver perfil</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                asChild
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 hover:bg-muted"
+                aria-label="Enviar mensaje"
+                disabled={pending}
+              >
+                <Link href={`/chat/${friend.id}`}>
+                  <MessageCircle className="w-4 h-4" />
+                </Link>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Enviar mensaje</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 hover:bg-muted text-muted-foreground hover:text-foreground"
+                aria-label="Eliminar amistad"
+                disabled={pending}
+                onClick={() => setConfirm('remove')}
+              >
+                <UserMinus className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Eliminar amistad</TooltipContent>
+          </Tooltip>
+
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9 text-destructive hover:text-destructive hover:bg-destructive/10"
+                aria-label="Bloquear"
+                disabled={pending}
+                onClick={() => setConfirm('block')}
+              >
+                <Ban className="w-4 h-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">Bloquear</TooltipContent>
+          </Tooltip>
+        </div>
+      </TooltipProvider>
 
       {/* Remove confirmation */}
       <AlertDialog open={confirm === 'remove'} onOpenChange={(o) => !o && setConfirm(null)}>

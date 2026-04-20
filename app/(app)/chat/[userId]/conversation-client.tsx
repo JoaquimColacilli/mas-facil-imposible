@@ -223,7 +223,7 @@ export function ConversationClient({
     // Mobile: edge-to-edge sin borde.
     // Header y composer llevan rounded-t/b-xl matching para que el sticky no
     // asome más allá del corner del wrapper en md+.
-    <div className="flex flex-col max-w-3xl mx-auto w-full h-[calc(100svh-172px)] md:h-[calc(100svh-108px)] md:border md:border-border md:rounded-xl md:shadow-sm md:bg-background">
+    <div className="flex flex-col max-w-3xl mx-auto w-full h-[calc(100svh-172px)] md:h-[calc(100svh-108px)] md:border md:border-border md:rounded-xl md:shadow-sm md:bg-background md:overflow-hidden">
       {/* Header */}
       <header className="flex items-center gap-3 px-3 md:px-4 py-2.5 border-b border-border bg-background/95 backdrop-blur-sm sticky top-0 z-20 md:rounded-t-xl">
         <Link

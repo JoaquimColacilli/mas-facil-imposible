@@ -6,6 +6,13 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.22.6',
+    date: '2026-04-20',
+    changes: [
+      'Rediseñados los botones de la tarjeta de amigos en /friends (antes menú desplegable, ahora accesos directos con tooltips) y corregido un bug visual de bordes inferiores en el chat de desktop.'
+    ]
+  },
+  {
     version: '0.22.5',
     date: '2026-04-20',
     changes: [
