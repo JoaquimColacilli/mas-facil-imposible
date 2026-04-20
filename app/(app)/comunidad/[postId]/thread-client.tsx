@@ -54,6 +54,15 @@ import {
 import { ComposerDialog } from '../composer-dialog'
 import { ImageGrid } from '../image-grid'
 import { uploadCommunityImage, deleteCommunityImageByUrl } from '../upload-image'
+import { BadgePill } from '../badge-pill'
+import { InlineEditor } from '../inline-editor'
+import { RichTextView } from '../rich-text-view'
+
+/** True when HTML has no visible text / inline content (only empty paragraphs). */
+function isHtmlEmpty(html: string): boolean {
+  const stripped = html.replace(/<[^>]+>/g, '').trim()
+  return stripped.length === 0
+}
 
 interface Props {
   initialPost: CommunityPost
@@ -246,7 +255,8 @@ export function ThreadClient({
     replyTo: string | null,
     imageUrls: string[],
   ) => {
-    if (!text.trim() && imageUrls.length === 0) return
+    const body = isHtmlEmpty(text) ? '' : text
+    if (!body && imageUrls.length === 0) return
     const parent_comment_id = replyTo
       ? resolveReplyParent(comments, replyTo)
       : null
@@ -256,7 +266,7 @@ export function ThreadClient({
       post_id: post.id,
       parent_comment_id,
       user_id: currentUser.id,
-      body: text.trim(),
+      body,
       image_urls: imageUrls,
       vote_count: 0,
       created_at: new Date().toISOString(),
@@ -275,7 +285,7 @@ export function ThreadClient({
         post_id: post.id,
         parent_comment_id,
         user_id: currentUser.id,
-        body: text.trim(),
+        body,
         image_urls: imageUrls,
       })
       .select(
@@ -522,6 +532,7 @@ function CommentNode({
             <span className="font-medium text-foreground/90">
               {displayName(author)}
             </span>
+            <BadgePill karma={author.karma} />
             {author.username && (
               <span className="font-mono text-[11px] text-muted-foreground">
                 @{author.username}
@@ -563,12 +574,9 @@ function CommentNode({
           {!collapsed ? (
             <>
               {comment.body && (
-                <p
-                  className="mt-1 text-[14px] leading-relaxed text-foreground/85 whitespace-pre-line"
-                  style={{ textWrap: 'pretty' }}
-                >
-                  {comment.body}
-                </p>
+                <div className="mt-1">
+                  <RichTextView html={comment.body} variant="compact" />
+                </div>
               )}
               {comment.image_urls?.length > 0 && (
                 <div className="mt-2">
@@ -734,9 +742,9 @@ function ReplyComposer({
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const submit = () => {
-    const t = text.trim()
-    if (!t && images.length === 0) return
-    onSubmit(t, images)
+    const empty = isHtmlEmpty(text)
+    if (empty && images.length === 0) return
+    onSubmit(empty ? '' : text, images)
     setText('')
     setImages([])
   }
@@ -792,12 +800,17 @@ function ReplyComposer({
           </AvatarFallback>
         </Avatar>
         <div className="flex-1 min-w-0">
-          <textarea
+          <InlineEditor
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={setText}
+            onSubmit={(html) => {
+              if (!html.trim() && images.length === 0) return
+              onSubmit(html, images)
+              setText('')
+              setImages([])
+            }}
             placeholder={placeholder}
-            rows={3}
-            className="w-full resize-none bg-transparent text-[14px] focus:outline-none placeholder:text-muted-foreground"
+            minHeight={64}
           />
           {images.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-2">
@@ -854,9 +867,7 @@ function ReplyComposer({
               <Button
                 size="sm"
                 onClick={submit}
-                disabled={
-                  uploading || (!text.trim() && images.length === 0)
-                }
+                disabled={uploading || (isHtmlEmpty(text) && images.length === 0)}
               >
                 {replyingTo ? 'Responder' : 'Comentar'}
               </Button>

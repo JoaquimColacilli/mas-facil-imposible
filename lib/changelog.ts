@@ -6,6 +6,51 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.30.4',
+    date: '2026-04-20',
+    changes: [
+      'Dropdown de menciones se posiciona correctamente al lado del arroba dentro del dialog del composer'
+    ]
+  },
+  {
+    version: '0.30.3',
+    date: '2026-04-20',
+    changes: [
+      'Dropdown de menciones ahora acepta click del mouse (renderizado como JSX dentro del editor)'
+    ]
+  },
+  {
+    version: '0.30.2',
+    date: '2026-04-20',
+    changes: [
+      'Click del mouse funciona correctamente en el dropdown de menciones'
+    ]
+  },
+  {
+    version: '0.30.1',
+    date: '2026-04-20',
+    changes: [
+      'Arreglados iconos de insignias que no se renderizaban (Lucide en lugar de mask remoto)',
+      'Click con mouse ahora funciona en el dropdown de menciones'
+    ]
+  },
+  {
+    version: '0.30.0',
+    date: '2026-04-20',
+    changes: [
+      'Menciones con @ en publicaciones y comentarios de Comunidad con dropdown de usuarios y notificaciones',
+      'Comentarios ahora soportan texto enriquecido y @menciones',
+      'Removido atajo Ctrl+K inactivo del buscador de Comunidad'
+    ]
+  },
+  {
+    version: '0.29.0',
+    date: '2026-04-20',
+    changes: [
+      'Sistema de karma e insignias en Comunidad (Novato, Ahorrista, Inversor, Veterano, Mentor) con íconos de game-icons.net'
+    ]
+  },
+  {
     version: '0.28.0',
     date: '2026-04-20',
     changes: [

@@ -26,6 +26,7 @@ import { CATEGORY_BY_ID, CATEGORY_COLORS } from './categories'
 import { MfiEmbed } from './mfi-embed'
 import { ImageGrid } from './image-grid'
 import { RichTextView } from './rich-text-view'
+import { BadgePill } from './badge-pill'
 
 function getInitials(author: CommunityAuthor) {
   const display = author.nickname || author.full_name || author.username || '?'
@@ -233,6 +234,7 @@ export function PostCard({
           <span className="font-medium text-foreground/85">
             {displayName(post.author)}
           </span>
+          <BadgePill karma={post.author.karma} />
           {post.author.username && (
             <span className="font-mono text-[11px] text-muted-foreground hidden sm:inline">
               @{post.author.username}

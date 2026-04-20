@@ -40,6 +40,7 @@ type PublicProfileRow = {
   username: string | null
   nickname: string | null
   avatar_url: string | null
+  karma: number | null
 }
 
 const FALLBACK_AUTHOR: CommunityAuthor = {
@@ -93,7 +94,7 @@ export default async function ThreadPage({
       .order('created_at', { ascending: true }),
     supabase
       .from('profiles')
-      .select('id, username, nickname, full_name, avatar_url')
+      .select('id, username, nickname, full_name, avatar_url, karma')
       .eq('id', user.id)
       .single(),
     supabase
@@ -132,7 +133,7 @@ export default async function ThreadPage({
     authorIds.length
       ? supabase
           .from('profiles_public')
-          .select('id, username, nickname, avatar_url')
+          .select('id, username, nickname, avatar_url, karma')
           .in('id', authorIds)
       : Promise.resolve({ data: [] as PublicProfileRow[], error: null }),
   ])
@@ -152,6 +153,7 @@ export default async function ThreadPage({
       nickname: p.nickname,
       full_name: null,
       avatar_url: p.avatar_url,
+      karma: p.karma,
     })
   }
   // Enrich own author with full_name from profiles.
@@ -162,6 +164,7 @@ export default async function ThreadPage({
       nickname: meRes.data.nickname,
       full_name: meRes.data.full_name,
       avatar_url: meRes.data.avatar_url,
+      karma: meRes.data.karma ?? 0,
     })
   }
 
@@ -208,6 +211,7 @@ export default async function ThreadPage({
     nickname: meProfile?.nickname ?? null,
     full_name: meProfile?.full_name ?? null,
     avatar_url: meProfile?.avatar_url ?? null,
+    karma: meProfile?.karma ?? 0,
   }
 
   return (

@@ -238,7 +238,8 @@ function NotificationsPopover({ userId }: { userId: string }) {
                 const isCommunity =
                   n.data?.type === 'community_vote' ||
                   n.data?.type === 'community_comment' ||
-                  n.data?.type === 'community_reply'
+                  n.data?.type === 'community_reply' ||
+                  n.data?.type === 'community_mention'
                 const communityPostId = isCommunity
                   ? (n.data as { post_id?: string })?.post_id
                   : undefined

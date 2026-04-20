@@ -142,6 +142,16 @@ export interface CommunityReplyNotificationData {
   actor_name: string | null
 }
 
+/** Payload when type='community_mention' — te @arrobaron en un post o comentario. */
+export interface CommunityMentionNotificationData {
+  type: 'community_mention'
+  source: 'post' | 'comment'
+  post_id: string
+  comment_id?: string
+  actor_id: string
+  actor_name: string | null
+}
+
 // ─── Chat (Fase 4) ───────────────────────────────────────────────────────────
 
 export interface Conversation {
@@ -294,6 +304,9 @@ export interface CommunityAuthor {
   nickname: string | null
   full_name: string | null
   avatar_url: string | null
+  /** Accumulated community vote score. Null when the user has
+   *  disabled `show_badges`. Undefined means not hydrated yet. */
+  karma?: number | null
 }
 
 export interface Category {

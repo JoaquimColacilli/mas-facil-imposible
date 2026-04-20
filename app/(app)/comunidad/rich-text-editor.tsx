@@ -8,6 +8,8 @@ import Link from '@tiptap/extension-link'
 import { TextStyle } from '@tiptap/extension-text-style'
 import { Color } from '@tiptap/extension-color'
 import Placeholder from '@tiptap/extension-placeholder'
+import Mention from '@tiptap/extension-mention'
+import { useMention } from './use-mention'
 import {
   Bold as BoldIcon,
   Italic as ItalicIcon,
@@ -74,6 +76,8 @@ export function RichTextEditor({
   placeholder,
   className,
 }: Props) {
+  const { suggestion, popover, containerRef } = useMention()
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -89,6 +93,12 @@ export function RichTextEditor({
       }),
       TextStyle,
       Color,
+      Mention.configure({
+        HTMLAttributes: { class: 'mention', 'data-type': 'mention' },
+        renderText: ({ node }) =>
+          `@${node.attrs.label ?? node.attrs.id ?? 'usuario'}`,
+        suggestion,
+      }),
       Placeholder.configure({
         placeholder: placeholder ?? 'Escribí algo…',
       }),
@@ -134,8 +144,9 @@ export function RichTextEditor({
 
   return (
     <div
+      ref={containerRef}
       className={cn(
-        'rounded-lg border border-border bg-muted/40 focus-within:border-primary focus-within:bg-background transition-colors',
+        'rounded-lg border border-border bg-muted/40 focus-within:border-primary focus-within:bg-background transition-colors relative',
         className,
       )}
     >
@@ -144,6 +155,7 @@ export function RichTextEditor({
         editor={editor}
         className="rich-text rich-text-editor px-3 py-3 min-h-[160px] max-h-[50vh] overflow-y-auto scrollbar-thin focus:outline-none [&_*:focus]:outline-none"
       />
+      {popover}
     </div>
   )
 }

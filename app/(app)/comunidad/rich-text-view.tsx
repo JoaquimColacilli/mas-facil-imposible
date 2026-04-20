@@ -25,7 +25,16 @@ const ALLOWED_TAGS = [
   'span',
 ]
 
-const ALLOWED_ATTR = ['href', 'rel', 'target', 'style', 'class']
+const ALLOWED_ATTR = [
+  'href',
+  'rel',
+  'target',
+  'style',
+  'class',
+  'data-type',
+  'data-id',
+  'data-label',
+]
 
 interface Props {
   /** HTML output of the Tiptap editor, or legacy plain text. */

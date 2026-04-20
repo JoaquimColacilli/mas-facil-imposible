@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
 import type { CommunityPost } from '@/lib/types'
 import { CatChip, displayName, fmtCount, getInitials } from './post-card'
+import { BadgePill } from './badge-pill'
 
 interface Props {
   posts: CommunityPost[]
@@ -118,7 +119,7 @@ export function SearchBox({ posts }: Props) {
           placeholder="Buscar publicaciones…"
           className="flex-1 bg-transparent text-sm focus:outline-none placeholder:text-muted-foreground"
         />
-        {query ? (
+        {query && (
           <button
             type="button"
             onClick={() => {
@@ -130,10 +131,6 @@ export function SearchBox({ posts }: Props) {
           >
             <X className="w-3.5 h-3.5" />
           </button>
-        ) : (
-          <kbd className="hidden sm:inline font-mono text-[10px] text-muted-foreground bg-muted/60 border border-border rounded px-1.5 py-0.5">
-            Ctrl K
-          </kbd>
         )}
       </div>
 
@@ -178,6 +175,10 @@ export function SearchBox({ posts }: Props) {
                         <span className="truncate">
                           {displayName(post.author)}
                         </span>
+                        <BadgePill
+                          karma={post.author.karma}
+                          showLabel={false}
+                        />
                         <span className="opacity-60">·</span>
                         <span className="inline-flex items-center gap-0.5 font-mono tabular-nums">
                           <ArrowBigUp className="w-3 h-3" />

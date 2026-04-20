@@ -30,6 +30,7 @@ import { MfiEmbed } from './mfi-embed'
 import { displayName, getInitials } from './post-card'
 import { RichTextEditor } from './rich-text-editor'
 import { uploadCommunityImage, deleteCommunityImageByUrl } from './upload-image'
+import { BadgePill } from './badge-pill'
 
 const MAX_IMAGES = 4
 
@@ -215,9 +216,10 @@ export function ComposerDialog({
                 {getInitials(currentUser)}
               </AvatarFallback>
             </Avatar>
-            <div>
-              <div className="text-sm font-medium">
-                {displayName(currentUser)}
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 text-sm font-medium flex-wrap">
+                <span>{displayName(currentUser)}</span>
+                <BadgePill karma={currentUser.karma} showKarma />
               </div>
               {currentUser.username && (
                 <div className="text-[11px] text-muted-foreground font-mono">
