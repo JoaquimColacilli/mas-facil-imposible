@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { TrendingUp, Plus, X, ArrowRight, BarChart2, List, ArrowDownToLine, ArrowUpToLine } from 'lucide-react'
+import { TrendingUp, Plus, X, ArrowRight, BarChart2, List, ArrowDownToLine, ArrowUpToLine, MoreHorizontal, Pencil, Trash2, Check } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -10,6 +10,22 @@ import { Input } from '@/components/ui/input'
 import { MoneyInput, parseMoneyInput } from '@/components/money-input'
 import { Label } from '@/components/ui/label'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
 import { isNonTradingDay } from '@/lib/ar-holidays'
 import { formatCurrency } from '@/lib/types'
@@ -90,6 +106,12 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
   const [rescuePortfolioId, setRescuePortfolioId] = useState<string | null>(null)
   const [rescueAmount, setRescueAmount] = useState('')
   const [rescueSaving, setRescueSaving] = useState(false)
+
+  // Edit / delete state
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingName, setEditingName] = useState('')
+  const [deletingPortfolio, setDeletingPortfolio] = useState<Portfolio | null>(null)
+  const [deletingBusy, setDeletingBusy] = useState(false)
 
   // Listen for external open event (from dashboard KPI card)
   useEffect(() => {
@@ -187,6 +209,49 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
     if (!didInitialLoad) return
     fetchPeriodData(portfolios, period)
   }, [period])
+
+  // ── Rename portfolio ──
+  function startEditing(p: Portfolio) {
+    setEditingId(p.id)
+    setEditingName(p.name)
+  }
+
+  async function handleSaveRename() {
+    if (!editingId) return
+    const name = editingName.trim()
+    if (!name) return
+    const { error } = await supabase.from('portfolios').update({ name }).eq('id', editingId)
+    if (error) {
+      toast.error('No se pudo actualizar. Intentá de nuevo.', { duration: 5000 })
+      return
+    }
+    setPortfolios((prev) => prev.map((p) => p.id === editingId ? { ...p, name } : p))
+    setEditingId(null)
+    setEditingName('')
+    toast.success('Portfolio actualizado')
+  }
+
+  // ── Delete portfolio (cascade logs) ──
+  async function handleDeletePortfolio() {
+    if (!deletingPortfolio) return
+    setDeletingBusy(true)
+    try {
+      await supabase.from('portfolio_logs').delete().eq('portfolio_id', deletingPortfolio.id)
+      const { error } = await supabase.from('portfolios').delete().eq('id', deletingPortfolio.id)
+      if (error) {
+        toast.error('No se pudo eliminar. Intentá de nuevo.', { duration: 5000 })
+        return
+      }
+      // Evict all cached period data — logs for other periods may reference this portfolio
+      periodCacheRef.current = {}
+      setPortfolios((prev) => prev.filter((p) => p.id !== deletingPortfolio.id))
+      setPortfolioLogs((prev) => prev.filter((l) => l.portfolio_id !== deletingPortfolio.id))
+      setDeletingPortfolio(null)
+      toast.success('Portfolio eliminado')
+    } finally {
+      setDeletingBusy(false)
+    }
+  }
 
   async function handleCreatePortfolio() {
     if (!newName.trim()) return
@@ -518,13 +583,75 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
                         const isNegative = pctNum !== null && pctNum < 0
 
                         return (
-                          <div key={p.id} className="bg-card border border-border rounded-2xl p-4 shadow-sm relative overflow-hidden">
+                          <div key={p.id} className="group bg-card border border-border rounded-2xl p-4 shadow-sm relative overflow-hidden">
                             <div className="absolute inset-0 bg-gradient-to-br from-violet-500/3 to-transparent pointer-events-none" />
-                            <div className="flex justify-between items-center mb-3 relative">
-                              <h3 className="text-[14px] font-bold">{p.name}</h3>
-                              <span className="text-[11px] font-medium text-muted-foreground px-2 py-0.5 rounded-full bg-muted">
-                                {p.currency}
-                              </span>
+                            <div className="flex justify-between items-center mb-3 relative gap-2">
+                              {editingId === p.id ? (
+                                <div className="flex-1 flex items-center gap-2">
+                                  <Input
+                                    autoFocus
+                                    value={editingName}
+                                    onChange={(e) => setEditingName(e.target.value)}
+                                    onKeyDown={(e) => {
+                                      if (e.key === 'Enter') handleSaveRename()
+                                      if (e.key === 'Escape') { setEditingId(null); setEditingName('') }
+                                    }}
+                                    className="h-8 text-[13px] rounded-lg flex-1"
+                                    placeholder="Nombre"
+                                  />
+                                  <button
+                                    onClick={handleSaveRename}
+                                    disabled={!editingName.trim()}
+                                    className="h-7 w-7 rounded-lg flex items-center justify-center text-emerald-500 hover:bg-emerald-500/10 disabled:opacity-40 transition-colors"
+                                    aria-label="Guardar"
+                                  >
+                                    <Check className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => { setEditingId(null); setEditingName('') }}
+                                    className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:bg-muted transition-colors"
+                                    aria-label="Cancelar"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  <h3 className="text-[14px] font-bold truncate flex-1">{p.name}</h3>
+                                  <span className="text-[11px] font-medium text-muted-foreground px-2 py-0.5 rounded-full bg-muted shrink-0">
+                                    {p.currency}
+                                  </span>
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                      <button
+                                        className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all shrink-0"
+                                        aria-label="Más opciones"
+                                      >
+                                        <MoreHorizontal className="w-3.5 h-3.5" />
+                                      </button>
+                                    </DropdownMenuTrigger>
+                                    {/* z-[110] overrides default z-50 to stack above the modal backdrop (z-[100]) */}
+                                    <DropdownMenuContent align="end" className="z-[110]">
+                                      <DropdownMenuItem onClick={() => startEditing(p)}>
+                                        <Pencil className="w-3.5 h-3.5" />
+                                        Renombrar
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        variant="destructive"
+                                        onClick={() => {
+                                          // Cerramos el modal para que el AlertDialog
+                                          // no quede detrás del backdrop z-[100].
+                                          setIsOpen(false)
+                                          setDeletingPortfolio(p)
+                                        }}
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                        Eliminar
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
+                                </>
+                              )}
                             </div>
 
                             <div className="flex items-center gap-2 mb-4 text-[13px] relative">
@@ -854,6 +981,28 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
         </div>,
         document.body
       )}
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deletingPortfolio} onOpenChange={(o) => !o && !deletingBusy && setDeletingPortfolio(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar &quot;{deletingPortfolio?.name}&quot;?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se borra el portfolio y todo su historial de rendimientos y rescates. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingBusy}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleDeletePortfolio() }}
+              disabled={deletingBusy}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              {deletingBusy ? 'Eliminando…' : 'Eliminar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

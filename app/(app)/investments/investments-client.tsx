@@ -11,8 +11,24 @@ import {
   AreaChart, Area, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts'
-import { TrendingUp, Info, Briefcase, Plus, ArrowRight, ArrowDownToLine, X, Download } from 'lucide-react'
+import { TrendingUp, Info, Briefcase, Plus, ArrowRight, ArrowDownToLine, X, Download, MoreHorizontal, Pencil, Trash2, Check } from 'lucide-react'
 import { Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { MarketCard } from '@/components/market-card'
@@ -261,6 +277,12 @@ export function InvestmentsClient({ portfolios: initialPortfolios, logs: initial
   const [rescuePortfolioId, setRescuePortfolioId] = useState<string | null>(null)
   const [rescueAmount, setRescueAmount] = useState('')
 
+  // Edit / delete state
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingName, setEditingName] = useState('')
+  const [deletingPortfolio, setDeletingPortfolio] = useState<Portfolio | null>(null)
+  const [deletingBusy, setDeletingBusy] = useState(false)
+
   useEffect(() => { setMounted(true) }, [])
 
   const nameMap = useMemo(() => buildPortfolioNameMap(portfolios), [portfolios])
@@ -281,6 +303,19 @@ export function InvestmentsClient({ portfolios: initialPortfolios, logs: initial
   const displayReturn = useMemo(() => calcPeriodReturn(displayChartData), [displayChartData])
   const isPositive = displayReturn.pct > 0
   const isNegative = displayReturn.pct < 0
+
+  // Y-axis domain zoomed to actual value range — otherwise small daily
+  // variations (< 1%) look flat against a default [0, max] domain.
+  const yDomain = useMemo<[number, number] | undefined>(() => {
+    if (displayChartData.length < 2) return undefined
+    const values = displayChartData.map(p => p.total).filter(v => Number.isFinite(v))
+    if (values.length === 0) return undefined
+    const min = Math.min(...values)
+    const max = Math.max(...values)
+    if (min === max) return undefined
+    const pad = Math.max((max - min) * 0.2, max * 0.005)
+    return [Math.max(0, min - pad), max + pad]
+  }, [displayChartData])
 
   const heatmapYears = useMemo(() => {
     if (monthlyReturns.length === 0) return []
@@ -412,6 +447,49 @@ export function InvestmentsClient({ portfolios: initialPortfolios, logs: initial
     setUpdates({})
     setRescuePortfolioId(null); setRescueAmount('')
     setNewName(''); setNewBalance(''); setNewCurrency('USD')
+  }
+
+  // ── Edit portfolio (rename) ──
+  function startEditing(p: Portfolio) {
+    setEditingId(p.id)
+    setEditingName(p.name)
+  }
+
+  async function handleSaveRename() {
+    if (!editingId) return
+    const name = editingName.trim()
+    if (!name) return
+    const { error } = await supabase.from('portfolios').update({ name }).eq('id', editingId)
+    if (error) {
+      toast.error('No se pudo actualizar. Intentá de nuevo.', { duration: 5000 })
+      return
+    }
+    setEditingId(null)
+    setEditingName('')
+    toast.success('Portfolio actualizado')
+    await refreshData()
+  }
+
+  // ── Delete portfolio (cascade logs) ──
+  async function handleDeletePortfolio() {
+    if (!deletingPortfolio) return
+    setDeletingBusy(true)
+    try {
+      // Borro logs primero — el schema de portfolio_logs no garantiza ON DELETE
+      // CASCADE desde portfolios, así que lo hacemos explícito y RLS filtra por user.
+      await supabase.from('portfolio_logs').delete().eq('portfolio_id', deletingPortfolio.id)
+      const { error } = await supabase.from('portfolios').delete().eq('id', deletingPortfolio.id)
+      if (error) {
+        toast.error('No se pudo eliminar. Intentá de nuevo.', { duration: 5000 })
+        return
+      }
+      toast.success('Portfolio eliminado')
+      if (selectedPortfolio === deletingPortfolio.id) setSelectedPortfolio(null)
+      setDeletingPortfolio(null)
+      await refreshData()
+    } finally {
+      setDeletingBusy(false)
+    }
   }
 
   // ── PDF download (uses active period) ──
@@ -765,16 +843,15 @@ export function InvestmentsClient({ portfolios: initialPortfolios, logs: initial
               </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" strokeOpacity={0.4} />
               <XAxis dataKey="date" tickFormatter={(d) => formatDateLabel(d, period)} tick={AXIS_TICK} tickLine={false} axisLine={false} minTickGap={40} className="text-muted-foreground" />
-              <YAxis tick={AXIS_TICK} tickFormatter={formatCompact} tickLine={false} axisLine={false} width={56} className="text-muted-foreground" />
+              <YAxis tick={AXIS_TICK} tickFormatter={formatCompact} tickLine={false} axisLine={false} width={56} className="text-muted-foreground" domain={yDomain ?? ['auto', 'auto']} />
               <Tooltip
                 contentStyle={TOOLTIP_STYLE}
                 labelFormatter={(d) => new Date(d + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })}
                 formatter={(value: number, _name: string, entry: any) => {
                   const idx = displayChartData.indexOf(entry.payload)
                   const prev = idx > 0 ? displayChartData[idx - 1].total : value
-                  const diff = value - prev
                   const diffPct = prev > 0 ? ((value / prev) - 1) * 100 : 0
-                  return [`${formatMoney(value, primaryCurrency)} (${diff >= 0 ? '+' : ''}${formatPct(diffPct)})`, 'Valor']
+                  return [`${formatMoney(value, primaryCurrency)} (${formatPct(diffPct)})`, 'Valor']
                 }}
               />
               <Area type="monotone" dataKey="total" stroke={isNegative ? '#ef4444' : '#a855f7'} strokeWidth={2} fill="url(#chartGradient)" dot={displayChartData.length <= 10} activeDot={{ r: 5, strokeWidth: 2, fill: 'hsl(var(--card))' }} animationDuration={800} />
@@ -799,26 +876,96 @@ export function InvestmentsClient({ portfolios: initialPortfolios, logs: initial
               const color = PORTFOLIO_COLORS[i % PORTFOLIO_COLORS.length]
               const isPos = h.periodReturnPct > 0
               const isNeg = h.periodReturnPct < 0
-              return (
-                <button key={h.id} onClick={() => setSelectedPortfolio(isSelected ? null : h.id)}
-                  className={cn('w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-150 text-left', isSelected ? 'bg-violet-500/10 border border-violet-500/20' : 'hover:bg-muted/40 border border-transparent')}>
-                  <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: color + '18' }}>
-                    <Briefcase className="w-4 h-4" style={{ color }} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[13px] font-semibold truncate">{h.name}</span>
-                      <span className="text-[10px] font-medium text-muted-foreground px-1.5 py-0.5 rounded-full bg-muted shrink-0">{h.currency}</span>
+              const isEditing = editingId === h.id
+              const portfolio = portfolios.find(p => p.id === h.id)
+
+              if (isEditing) {
+                return (
+                  <div key={h.id} className="flex items-center gap-2 px-3 py-3 rounded-xl bg-violet-500/10 border border-violet-500/20">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: color + '18' }}>
+                      <Briefcase className="w-4 h-4" style={{ color }} />
                     </div>
-                    {portfolios.length >= 2 && <span className="text-[11px] text-muted-foreground">{h.weight.toFixed(1)}% del total</span>}
+                    <Input
+                      autoFocus
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveRename()
+                        if (e.key === 'Escape') { setEditingId(null); setEditingName('') }
+                      }}
+                      className="flex-1 h-8 text-[13px] rounded-lg"
+                      placeholder="Nombre del portfolio"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={handleSaveRename}
+                      disabled={!editingName.trim()}
+                      className="h-8 px-2.5 rounded-lg text-[12px] gap-1"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      Guardar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => { setEditingId(null); setEditingName('') }}
+                      className="h-8 px-2 rounded-lg text-[12px]"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </Button>
                   </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-[13px] font-mono font-semibold tabular-nums">{formatMoney(h.currentBalance, h.currency)}</p>
-                    <p className={cn('text-[11px] font-mono tabular-nums', isPos && 'text-emerald-400', isNeg && 'text-rose-400', !isPos && !isNeg && 'text-muted-foreground')}>
-                      {formatPct(h.periodReturnPct)}
-                    </p>
+                )
+              }
+
+              return (
+                <div key={h.id} className={cn('group relative flex items-center rounded-xl transition-all duration-150 border', isSelected ? 'bg-violet-500/10 border-violet-500/20' : 'hover:bg-muted/40 border-transparent')}>
+                  <button
+                    onClick={() => setSelectedPortfolio(isSelected ? null : h.id)}
+                    className="flex-1 min-w-0 flex items-center gap-3 px-3 py-3 text-left"
+                  >
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: color + '18' }}>
+                      <Briefcase className="w-4 h-4" style={{ color }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[13px] font-semibold truncate">{h.name}</span>
+                        <span className="text-[10px] font-medium text-muted-foreground px-1.5 py-0.5 rounded-full bg-muted shrink-0">{h.currency}</span>
+                      </div>
+                      {portfolios.length >= 2 && <span className="text-[11px] text-muted-foreground">{h.weight.toFixed(1)}% del total</span>}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="text-[13px] font-mono font-semibold tabular-nums">{formatMoney(h.currentBalance, h.currency)}</p>
+                      <p className={cn('text-[11px] font-mono tabular-nums', isPos && 'text-emerald-400', isNeg && 'text-rose-400', !isPos && !isNeg && 'text-muted-foreground')}>
+                        {formatPct(h.periodReturnPct)}
+                      </p>
+                    </div>
+                  </button>
+                  <div className="pr-2 shrink-0">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          className="h-7 w-7 rounded-lg flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100"
+                          aria-label="Más opciones"
+                        >
+                          <MoreHorizontal className="w-3.5 h-3.5" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => portfolio && startEditing(portfolio)}>
+                          <Pencil className="w-3.5 h-3.5" />
+                          Renombrar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onClick={() => portfolio && setDeletingPortfolio(portfolio)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Eliminar
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
-                </button>
+                </div>
               )
             })}
           </div>
@@ -907,6 +1054,28 @@ export function InvestmentsClient({ portfolios: initialPortfolios, logs: initial
           </div>
         </div>
       )}
+
+      {/* ── Delete confirmation ── */}
+      <AlertDialog open={!!deletingPortfolio} onOpenChange={(o) => !o && !deletingBusy && setDeletingPortfolio(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar &quot;{deletingPortfolio?.name}&quot;?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se borra el portfolio y todo su historial de rendimientos y rescates. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingBusy}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); handleDeletePortfolio() }}
+              disabled={deletingBusy}
+              className="bg-destructive text-white hover:bg-destructive/90"
+            >
+              {deletingBusy ? 'Eliminando…' : 'Eliminar'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </div>
   )

@@ -6,6 +6,28 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.32.2',
+    date: '2026-04-21',
+    changes: [
+      'Arreglado el doble signo \'++\' en el tooltip del gráfico de Evolución en /inversiones'
+    ]
+  },
+  {
+    version: '0.32.1',
+    date: '2026-04-21',
+    changes: [
+      'Arreglado el menú kebab (3 puntos) de portfolios en el modal de Inversiones que no abría (z-index quedaba debajo del backdrop)'
+    ]
+  },
+  {
+    version: '0.32.0',
+    date: '2026-04-21',
+    changes: [
+      'Portfolios en /inversiones y modal ahora permiten renombrar y eliminar (con confirmación y borrado de historial)',
+      'Gráfico de evolución en /inversiones ahora muestra las curvas reales (y-axis se ajusta al rango de valores en vez de arrancar en 0)'
+    ]
+  },
+  {
     version: '0.31.1',
     date: '2026-04-21',
     changes: [
