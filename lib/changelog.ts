@@ -6,6 +6,13 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.32.4',
+    date: '2026-04-21',
+    changes: [
+      'Card de Inversiones del dashboard ahora se actualiza en tiempo real al registrar variaciones, rescates, crear/renombrar/eliminar portfolios, o traspasar ahorros a inversión (antes hacía falta F5)'
+    ]
+  },
+  {
     version: '0.32.3',
     date: '2026-04-21',
     changes: [

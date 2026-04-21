@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { TrendingUp, Plus, X, ArrowRight, BarChart2, List, ArrowDownToLine, ArrowUpToLine, MoreHorizontal, Pencil, Trash2, Check } from 'lucide-react'
 import { toast } from 'sonner'
@@ -77,6 +78,7 @@ type Period = 'month' | 'year'
 
 export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: string }) {
   const supabase = createClient()
+  const router = useRouter()
   const [portfolios, setPortfolios] = useState<Portfolio[]>([])
   const [portfolioLogs, setPortfolioLogs] = useState<PortfolioLogWithPortfolio[]>([])
   const [investTx, setInvestTx] = useState<Transaction[]>([])
@@ -229,6 +231,7 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
     setEditingId(null)
     setEditingName('')
     toast.success('Portfolio actualizado')
+    router.refresh()
   }
 
   // ── Delete portfolio (cascade logs) ──
@@ -248,6 +251,7 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
       setPortfolioLogs((prev) => prev.filter((l) => l.portfolio_id !== deletingPortfolio.id))
       setDeletingPortfolio(null)
       toast.success('Portfolio eliminado')
+      router.refresh()
     } finally {
       setDeletingBusy(false)
     }
@@ -277,6 +281,7 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
       setNewBalance('')
       setNewCurrency(profileCurrency as 'ARS' | 'USD')
       toast.success('Portfolio creado')
+      router.refresh()
     } else if (error) {
       toast.error('No se pudo crear el portfolio. Intentá de nuevo', { duration: 5000 })
     }
@@ -352,6 +357,8 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
       setUpdates({})
       await fetchData()
       setIsOpen(false)
+      // Refresh server components so dashboard Inversiones KPI reflects the new balance.
+      router.refresh()
     } catch (e) {
       console.error(e)
       toast.error('No se pudo registrar la variación. Intentá de nuevo', { duration: 5000 })
@@ -406,6 +413,7 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
       setRescuePortfolioId(null)
       setRescueAmount('')
       await fetchData()
+      router.refresh()
     } catch (e) {
       console.error(e)
       toast.error('No se pudo registrar el rescate. Intentá de nuevo', { duration: 5000 })

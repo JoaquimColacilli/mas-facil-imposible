@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { Transaction, Category, Currency, TransactionType } from '@/lib/types'
 import { formatCurrency, formatDate } from '@/lib/types'
@@ -344,6 +345,7 @@ export function TransactionTypeModal({
   type, transactions: initialTxs, currency, currentMonth, portfolios = [], cumulative, onClose, onChanged,
 }: TransactionTypeModalProps) {
   const supabase = createClient()
+  const router = useRouter()
   const cfg = TYPE_CFG[type]
   const [txs, setTxs] = useState<Transaction[]>(initialTxs)
   const [adding, setAdding] = useState(false)
@@ -455,6 +457,9 @@ export function TransactionTypeModal({
       setTxs(next)
       onChanged(next)
       toast.success(withdrawToPortfolio ? 'Traspaso registrado' : 'Retiro registrado')
+      // Server refresh — si traspasamos a portfolio, el KPI "Inversiones" del dashboard
+      // depende de `portfolios.balance` que no está en el state local del dashboard.
+      if (withdrawToPortfolio) router.refresh()
     }
     setWithdrawing(false)
     setWithdrawAmount('')
