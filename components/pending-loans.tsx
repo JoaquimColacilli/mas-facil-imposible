@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { liveFormatMoney, parseMoneyInput, formatMoneyInput } from '@/components/money-input'
 import { FriendPicker } from '@/components/friend-picker'
 import { LinkedBadge } from '@/components/linked-badge'
+import { UserHoverCard } from '@/components/user-hover-card'
 import { SettlePropagateDialog } from '@/components/settle-propagate-dialog'
 import {
   Dialog,
@@ -211,7 +212,7 @@ function LoanRow({
 
   return (
     <div className={cn(
-      'group flex items-center gap-2.5 px-3 py-2.5 border-b border-border last:border-0 transition-colors duration-100 hover:bg-muted/20',
+      'group flex items-start gap-2.5 px-3 py-2.5 border-b border-border last:border-0 transition-colors duration-100 hover:bg-muted/20',
       loan.paid && 'opacity-50',
       isLoading && 'opacity-60 pointer-events-none',
     )}>
@@ -221,7 +222,7 @@ function LoanRow({
         title={loan.paid ? 'Cobrado' : 'Marcar como cobrado'}
         disabled={isLoading}
         className={cn(
-          'w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 transition-all duration-150',
+          'w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition-all duration-150',
           isLoading
             ? 'border-amber-500/50 bg-amber-500/10'
             : loan.paid
@@ -236,64 +237,77 @@ function LoanRow({
         ) : null}
       </button>
 
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
+      <div className="flex-1 min-w-0 flex flex-col gap-1">
+        {loan.friend_id ? (
+          <UserHoverCard
+            userId={loan.friend_id}
+            username={friendMap.get(loan.friend_id)?.username ?? undefined}
+          >
+            <p className={cn('text-[12.5px] font-semibold text-foreground leading-none truncate cursor-pointer', loan.paid && 'line-through')}>
+              @{friendMap.get(loan.friend_id)?.username ?? loan.person_name}
+            </p>
+          </UserHoverCard>
+        ) : (
           <p className={cn('text-[12.5px] font-semibold text-foreground leading-none truncate', loan.paid && 'line-through')}>
-            {loan.friend_id ? `@${friendMap.get(loan.friend_id)?.username ?? loan.person_name}` : loan.person_name}
+            {loan.person_name}
           </p>
+        )}
+        {loan.friend_id && (
           <LinkedBadge
             friendId={loan.friend_id}
             linkedId={loan.linked_debt_id}
             paid={loan.paid}
-            friendUsername={loan.friend_id ? friendMap.get(loan.friend_id)?.username ?? null : null}
+            friendUsername={friendMap.get(loan.friend_id)?.username ?? null}
+            className="self-start max-w-full"
           />
-        </div>
-        <p className="text-[10.5px] text-muted-foreground mt-0.5 leading-none truncate">
+        )}
+        <p className="text-[10.5px] text-muted-foreground leading-none truncate">
           {loan.note ? `${loan.note} · ` : ''}
           {formatDate(loan.date)}
         </p>
       </div>
 
-      <span className="text-[12px] font-bold font-mono tabular-nums text-amber-500 shrink-0">
-        {formatCurrency(loan.amount, loan.currency)}
-      </span>
-
-      {/* Actions — visible on hover */}
-      {!isLoading && (
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-100 shrink-0">
-          {!loan.paid && (
-            <button
-              onClick={() => onEdit(loan)}
-              className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            >
-              <Pencil className="w-2.5 h-2.5" />
-            </button>
-          )}
-          {confirming ? (
-            <>
+      {/* Right column: amount on top, actions below on hover (space reserved) */}
+      <div className="flex flex-col items-end gap-1 shrink-0 min-h-[32px]">
+        <span className="text-[12px] font-bold font-mono tabular-nums text-amber-500 leading-none">
+          {formatCurrency(loan.amount, loan.currency)}
+        </span>
+        {!isLoading && (
+          <div className="h-5 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity duration-100">
+            {!loan.paid && (
               <button
-                onClick={() => { onDelete(loan.id); setConfirming(false) }}
-                className="w-5 h-5 rounded flex items-center justify-center text-rose-500 hover:bg-rose-500/10 transition-colors"
+                onClick={() => onEdit(loan)}
+                className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               >
-                <Check className="w-2.5 h-2.5" />
+                <Pencil className="w-2.5 h-2.5" />
               </button>
+            )}
+            {confirming ? (
+              <>
+                <button
+                  onClick={() => { onDelete(loan.id); setConfirming(false) }}
+                  className="w-5 h-5 rounded flex items-center justify-center text-rose-500 hover:bg-rose-500/10 transition-colors"
+                >
+                  <Check className="w-2.5 h-2.5" />
+                </button>
+                <button
+                  onClick={() => setConfirming(false)}
+                  className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground hover:bg-muted transition-colors"
+                >
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              </>
+            ) : (
               <button
-                onClick={() => setConfirming(false)}
-                className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground hover:bg-muted transition-colors"
+                onClick={() => setConfirming(true)}
+                className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
               >
-                <X className="w-2.5 h-2.5" />
+                <Trash2 className="w-2.5 h-2.5" />
               </button>
-            </>
-          ) : (
-            <button
-              onClick={() => setConfirming(true)}
-              className="w-5 h-5 rounded flex items-center justify-center text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
-            >
-              <Trash2 className="w-2.5 h-2.5" />
-            </button>
-          )}
-        </div>
-      )}
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
@@ -307,6 +321,12 @@ export function PendingLoans({ initialLoans, currency, onResolved }: PendingLoan
   const [friendMap, setFriendMap] = useState<Map<string, PublicProfile>>(new Map())
   const [settleDialog, setSettleDialog] = useState<{ loan: Loan } | null>(null)
   const [settleLoading, setSettleLoading] = useState(false)
+
+  // Sync state when router.refresh() re-hydrates with fresh server data
+  // (p.ej. cuando un amigo confirma y llega linked_loan_request_accepted via realtime).
+  useEffect(() => {
+    setLoans(initialLoans)
+  }, [initialLoans])
 
   // Resolve friend profiles for rows that have friend_id — small, lazy.
   useEffect(() => {

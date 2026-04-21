@@ -6,6 +6,36 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.31.1',
+    date: '2026-04-21',
+    changes: [
+      'Arreglado error en tarjeta flotante de usuario que mostraba \'No se pudo cargar el perfil\' (columna last_seen_at no existe en profiles_public)'
+    ]
+  },
+  {
+    version: '0.31.0',
+    date: '2026-04-21',
+    changes: [
+      'Nueva tarjeta flotante de usuario: al hacer hover sobre foto o @usuario se muestra perfil con nombre, bio, racha, karma, amigos en común y acciones (Agregar, Mensaje, Ver perfil)',
+      'Tarjeta de usuario disponible en Comunidad, Chat, Amigos, Cobros y Deudas pendientes'
+    ]
+  },
+  {
+    version: '0.30.6',
+    date: '2026-04-21',
+    changes: [
+      'Arreglado overlap del monto con iconos de editar/borrar en cards de Cobros/Deudas pendientes',
+      'Cobros/Deudas pendientes se actualizan en tiempo real cuando un amigo confirma (ya no hay que dar F5)'
+    ]
+  },
+  {
+    version: '0.30.5',
+    date: '2026-04-21',
+    changes: [
+      'Card de Gastos en dashboard ahora muestra split entre pagado (efectivo/débito) y por pagar (pendientes y tarjeta de crédito)'
+    ]
+  },
+  {
     version: '0.30.4',
     date: '2026-04-20',
     changes: [

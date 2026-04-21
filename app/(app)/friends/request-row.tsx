@@ -3,6 +3,7 @@
 import { useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { UserHoverCard } from '@/components/user-hover-card'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { createClient } from '@/lib/supabase/client'
@@ -68,10 +69,12 @@ export function RequestRow({ requestId, profile, direction, createdAt }: Request
 
   return (
     <div className="flex items-center gap-3 px-3 py-3.5 border-b border-border last:border-b-0">
-      <Avatar className="w-11 h-11 shrink-0">
-        {profile.avatar_url && <AvatarImage src={profile.avatar_url} alt={`@${profile.username}`} />}
-        <AvatarFallback>{initials}</AvatarFallback>
-      </Avatar>
+      <UserHoverCard userId={profile.id} username={profile.username ?? undefined}>
+        <Avatar className="w-11 h-11 shrink-0 cursor-pointer">
+          {profile.avatar_url && <AvatarImage src={profile.avatar_url} alt={`@${profile.username}`} />}
+          <AvatarFallback>{initials}</AvatarFallback>
+        </Avatar>
+      </UserHoverCard>
       <div className="flex-1 min-w-0">
         <p className="text-[15px] font-medium text-foreground truncate leading-tight">
           {profile.nickname ?? profile.username}

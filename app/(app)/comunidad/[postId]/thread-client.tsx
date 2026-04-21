@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
+import { UserHoverCard } from '@/components/user-hover-card'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -519,25 +520,39 @@ function CommentNode({
   return (
     <div className="relative">
       <div className="flex gap-3">
-        <Avatar className="size-7 shrink-0">
-          {author.avatar_url && (
-            <AvatarImage src={author.avatar_url} alt="" />
-          )}
-          <AvatarFallback className="text-[10px] font-semibold">
-            {getInitials(author)}
-          </AvatarFallback>
-        </Avatar>
+        <UserHoverCard
+          userId={author.id}
+          username={author.username ?? undefined}
+          disabled={author.id === 'unknown'}
+        >
+          <Avatar className="size-7 shrink-0 cursor-pointer">
+            {author.avatar_url && (
+              <AvatarImage src={author.avatar_url} alt="" />
+            )}
+            <AvatarFallback className="text-[10px] font-semibold">
+              {getInitials(author)}
+            </AvatarFallback>
+          </Avatar>
+        </UserHoverCard>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 text-xs">
-            <span className="font-medium text-foreground/90">
-              {displayName(author)}
-            </span>
-            <BadgePill karma={author.karma} />
-            {author.username && (
-              <span className="font-mono text-[11px] text-muted-foreground">
-                @{author.username}
+            <UserHoverCard
+              userId={author.id}
+              username={author.username ?? undefined}
+              disabled={author.id === 'unknown'}
+            >
+              <span className="inline-flex items-center gap-2 cursor-pointer">
+                <span className="font-medium text-foreground/90">
+                  {displayName(author)}
+                </span>
+                <BadgePill karma={author.karma} />
+                {author.username && (
+                  <span className="font-mono text-[11px] text-muted-foreground">
+                    @{author.username}
+                  </span>
+                )}
               </span>
-            )}
+            </UserHoverCard>
             <span className="text-muted-foreground">·</span>
             <RelTime iso={comment.created_at} />
             {comment.pending && (

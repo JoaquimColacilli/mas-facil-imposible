@@ -497,6 +497,16 @@ export function DashboardClient({
   const pendingExpenseUSD = pendingExpenses.filter((t) => t.currency === 'USD').reduce((s, t) => s + t.amount, 0)
   const hasPending = pendingExpenses.length > 0
 
+  // Gastos: split pagado (efectivo/débito/null + confirmed) vs. por pagar (pending o crédito)
+  const isPaidExpense  = (t: Transaction) => t.type === 'expense' && t.status === 'confirmed' && t.payment_method !== 'credit'
+  const isToPayExpense = (t: Transaction) => t.type === 'expense' && t.status !== 'cancelled' && (t.status === 'pending' || t.payment_method === 'credit')
+  const sumExp = (pred: (t: Transaction) => boolean, cur: 'ARS' | 'USD') =>
+    transactions.filter((t) => pred(t) && t.currency === cur).reduce((s, t) => s + t.amount, 0)
+  const paidExpenseARS  = sumExp(isPaidExpense,  'ARS')
+  const paidExpenseUSD  = sumExp(isPaidExpense,  'USD')
+  const toPayExpenseARS = sumExp(isToPayExpense, 'ARS')
+  const toPayExpenseUSD = sumExp(isToPayExpense, 'USD')
+
   function handleLoanResolved() {
     setPulseKpis(new Set(['Balance total', 'Ingresos']))
     router.refresh()
@@ -699,6 +709,28 @@ export function DashboardClient({
                   </div>
                   <div>
                     <KpiAmounts ars={ars} usd={usd} />
+                    {label === 'Gastos' && (ars !== 0 || usd !== 0) && (
+                      <div className="mt-1 flex flex-col gap-0.5">
+                        {ars !== 0 && (
+                          <p className="text-[10px] font-mono tabular-nums leading-none">
+                            <span className="text-emerald-400">Pagado</span>{' '}
+                            <span className="text-muted-foreground">{formatCurrency(paidExpenseARS, 'ARS')}</span>
+                            <span className="text-muted-foreground/50">{' · '}</span>
+                            <span className="text-amber-400">Por pagar</span>{' '}
+                            <span className="text-muted-foreground">{formatCurrency(toPayExpenseARS, 'ARS')}</span>
+                          </p>
+                        )}
+                        {usd !== 0 && (
+                          <p className="text-[10px] font-mono tabular-nums leading-none">
+                            <span className="text-emerald-400">Pagado</span>{' '}
+                            <span className="text-muted-foreground">{formatCurrency(paidExpenseUSD, 'USD')}</span>
+                            <span className="text-muted-foreground/50">{' · '}</span>
+                            <span className="text-amber-400">Por pagar</span>{' '}
+                            <span className="text-muted-foreground">{formatCurrency(toPayExpenseUSD, 'USD')}</span>
+                          </p>
+                        )}
+                      </div>
+                    )}
                     <p className={cn('text-[10px] font-semibold mt-1.5 uppercase tracking-wider leading-none flex items-center gap-1', color.replace('text-', 'text-').replace('500', '400'))}>
                       {label}
                       <span className="opacity-60 text-[9px]">↗</span>

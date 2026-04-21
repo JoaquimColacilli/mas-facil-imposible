@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Loader2, Sparkles, UserPlus } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { UserHoverCard } from '@/components/user-hover-card'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { toast } from 'sonner'
@@ -207,21 +208,23 @@ function SuggestedCard({
   // a link, to avoid accidental navigation away from the "Agregar" CTA.
   return (
     <Card className="p-4 flex items-center gap-3">
-      <Link
-        href={profile.username ? `/friends/${profile.username}` : '#'}
-        className="relative shrink-0 hover:opacity-80 transition-opacity"
-        aria-label={profile.username ? `Ver perfil de @${profile.username}` : undefined}
-      >
-        <Avatar className="w-12 h-12">
-          {profile.avatar_url && <AvatarImage src={profile.avatar_url} alt={`@${profile.username}`} />}
-          <AvatarFallback>{initials}</AvatarFallback>
-        </Avatar>
-        <PresenceDot
-          online={isOnlineFromLastSeen(profile.last_seen_at)}
-          size="sm"
-          className="absolute bottom-0 right-0"
-        />
-      </Link>
+      <UserHoverCard userId={profile.id} username={profile.username ?? undefined}>
+        <Link
+          href={profile.username ? `/friends/${profile.username}` : '#'}
+          className="relative shrink-0 hover:opacity-80 transition-opacity"
+          aria-label={profile.username ? `Ver perfil de @${profile.username}` : undefined}
+        >
+          <Avatar className="w-12 h-12">
+            {profile.avatar_url && <AvatarImage src={profile.avatar_url} alt={`@${profile.username}`} />}
+            <AvatarFallback>{initials}</AvatarFallback>
+          </Avatar>
+          <PresenceDot
+            online={isOnlineFromLastSeen(profile.last_seen_at)}
+            size="sm"
+            className="absolute bottom-0 right-0"
+          />
+        </Link>
+      </UserHoverCard>
 
       <div className="flex-1 min-w-0">
         <Link

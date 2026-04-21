@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { UserHoverCard } from '@/components/user-hover-card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { MessageCircle, Search, Users } from 'lucide-react'
@@ -103,17 +104,19 @@ function InboxRow({ item, userId }: { item: InboxItem; userId: string }) {
         href={`/chat/${peer.id}`}
         className="flex items-center gap-3 px-4 py-3 hover:bg-muted transition-colors"
       >
-        <div className="relative shrink-0">
-          <Avatar className="w-11 h-11">
-            {peer.avatar_url && <AvatarImage src={peer.avatar_url} alt={`@${peer.username}`} />}
-            <AvatarFallback>{initials}</AvatarFallback>
-          </Avatar>
-          <PresenceDot
-            online={isOnlineFromLastSeen(peer.last_seen_at)}
-            size="sm"
-            className="absolute bottom-0 right-0"
-          />
-        </div>
+        <UserHoverCard userId={peer.id} username={peer.username ?? undefined}>
+          <div className="relative shrink-0 cursor-pointer">
+            <Avatar className="w-11 h-11">
+              {peer.avatar_url && <AvatarImage src={peer.avatar_url} alt={`@${peer.username}`} />}
+              <AvatarFallback>{initials}</AvatarFallback>
+            </Avatar>
+            <PresenceDot
+              online={isOnlineFromLastSeen(peer.last_seen_at)}
+              size="sm"
+              className="absolute bottom-0 right-0"
+            />
+          </div>
+        </UserHoverCard>
 
         <div className="flex-1 min-w-0 flex flex-col gap-0.5">
           <div className="flex items-baseline justify-between gap-2">

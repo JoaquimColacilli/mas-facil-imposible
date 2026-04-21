@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
+import { UserHoverCard } from '@/components/user-hover-card'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -223,23 +224,31 @@ export function PostCard({
       </div>
       <div className="flex-1 min-w-0 p-4 sm:pl-4">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Avatar className="size-6">
-            {post.author.avatar_url && (
-              <AvatarImage src={post.author.avatar_url} alt="" />
-            )}
-            <AvatarFallback className="text-[10px] font-semibold">
-              {getInitials(post.author)}
-            </AvatarFallback>
-          </Avatar>
-          <span className="font-medium text-foreground/85">
-            {displayName(post.author)}
-          </span>
-          <BadgePill karma={post.author.karma} />
-          {post.author.username && (
-            <span className="font-mono text-[11px] text-muted-foreground hidden sm:inline">
-              @{post.author.username}
+          <UserHoverCard
+            userId={post.author.id}
+            username={post.author.username ?? undefined}
+            disabled={post.author.id === 'unknown'}
+          >
+            <span className="inline-flex items-center gap-2 cursor-pointer">
+              <Avatar className="size-6">
+                {post.author.avatar_url && (
+                  <AvatarImage src={post.author.avatar_url} alt="" />
+                )}
+                <AvatarFallback className="text-[10px] font-semibold">
+                  {getInitials(post.author)}
+                </AvatarFallback>
+              </Avatar>
+              <span className="font-medium text-foreground/85">
+                {displayName(post.author)}
+              </span>
+              <BadgePill karma={post.author.karma} />
+              {post.author.username && (
+                <span className="font-mono text-[11px] text-muted-foreground hidden sm:inline">
+                  @{post.author.username}
+                </span>
+              )}
             </span>
-          )}
+          </UserHoverCard>
           <span>·</span>
           <RelTime iso={post.created_at} />
           {post.edited_at && (

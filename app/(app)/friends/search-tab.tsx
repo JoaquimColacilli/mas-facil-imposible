@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { UserHoverCard } from '@/components/user-hover-card'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Loader2, Search, UserPlus } from 'lucide-react'
@@ -228,10 +229,12 @@ function ResultCard({
 
   return (
     <Card className="p-4 flex items-center gap-3">
-      <Avatar className="w-12 h-12 shrink-0">
-        {profile.avatar_url && <AvatarImage src={profile.avatar_url} alt={`@${profile.username}`} />}
-        <AvatarFallback>{initials}</AvatarFallback>
-      </Avatar>
+      <UserHoverCard userId={profile.id} username={profile.username ?? undefined}>
+        <Avatar className="w-12 h-12 shrink-0 cursor-pointer">
+          {profile.avatar_url && <AvatarImage src={profile.avatar_url} alt={`@${profile.username}`} />}
+          <AvatarFallback>{initials}</AvatarFallback>
+        </Avatar>
+      </UserHoverCard>
 
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-foreground truncate">

@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { UserHoverCard } from '@/components/user-hover-card'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import {
@@ -56,24 +57,26 @@ export function FriendCard({ friend }: FriendCardProps) {
 
   return (
     <Card className="p-4 flex items-center gap-3">
-      <div className="relative shrink-0">
-        <Avatar
-          className={cn(
-            'w-14 h-14',
-            // Ring sutil solo cuando cae al fallback — evita halo sobre la
-            // imagen real cuando existe avatar_url.
-            '[&:has([data-slot=avatar-fallback])]:ring-1 [&:has([data-slot=avatar-fallback])]:ring-border/50',
-          )}
-        >
-          {friend.avatar_url && <AvatarImage src={friend.avatar_url} alt={`@${friend.username}`} />}
-          <AvatarFallback>{initials}</AvatarFallback>
-        </Avatar>
-        <PresenceDot
-          online={isOnlineFromLastSeen(friend.last_seen_at)}
-          size="sm"
-          className="absolute bottom-0 right-0 ring-card"
-        />
-      </div>
+      <UserHoverCard userId={friend.id} username={friend.username ?? undefined}>
+        <div className="relative shrink-0 cursor-pointer">
+          <Avatar
+            className={cn(
+              'w-14 h-14',
+              // Ring sutil solo cuando cae al fallback — evita halo sobre la
+              // imagen real cuando existe avatar_url.
+              '[&:has([data-slot=avatar-fallback])]:ring-1 [&:has([data-slot=avatar-fallback])]:ring-border/50',
+            )}
+          >
+            {friend.avatar_url && <AvatarImage src={friend.avatar_url} alt={`@${friend.username}`} />}
+            <AvatarFallback>{initials}</AvatarFallback>
+          </Avatar>
+          <PresenceDot
+            online={isOnlineFromLastSeen(friend.last_seen_at)}
+            size="sm"
+            className="absolute bottom-0 right-0 ring-card"
+          />
+        </div>
+      </UserHoverCard>
 
       <div className="flex-1 min-w-0">
         <p className="text-[15px] font-semibold text-foreground truncate leading-tight">

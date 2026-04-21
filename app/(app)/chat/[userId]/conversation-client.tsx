@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import Link from 'next/link'
 import { ArrowLeft, Loader2 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { UserHoverCard } from '@/components/user-hover-card'
 import { Button } from '@/components/ui/button'
 import { useMessages } from '@/hooks/use-messages'
 import { useIsMobile } from '@/hooks/use-mobile'
@@ -377,19 +378,21 @@ export function ConversationClient({
           href={peer.username ? `/friends/${peer.username}` : '#'}
           className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity"
         >
-          <div className="relative shrink-0">
-            <Avatar className="w-9 h-9">
-              {peer.avatar_url && <AvatarImage src={peer.avatar_url} alt={`@${peer.username}`} />}
-              <AvatarFallback>{initials}</AvatarFallback>
-            </Avatar>
-            {channelLive && (
-              <PresenceDot
-                online={headerOnline}
-                size="sm"
-                className="absolute bottom-0 right-0"
-              />
-            )}
-          </div>
+          <UserHoverCard userId={peer.id} username={peer.username ?? undefined}>
+            <div className="relative shrink-0 cursor-pointer">
+              <Avatar className="w-9 h-9">
+                {peer.avatar_url && <AvatarImage src={peer.avatar_url} alt={`@${peer.username}`} />}
+                <AvatarFallback>{initials}</AvatarFallback>
+              </Avatar>
+              {channelLive && (
+                <PresenceDot
+                  online={headerOnline}
+                  size="sm"
+                  className="absolute bottom-0 right-0"
+                />
+              )}
+            </div>
+          </UserHoverCard>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-foreground truncate leading-tight">
               {peer.nickname ?? peer.username ?? 'Usuario'}
