@@ -6,6 +6,13 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.32.3',
+    date: '2026-04-21',
+    changes: [
+      'Card de Gastos ahora incluye pendientes arrastrados de meses anteriores en el total y en \'Por pagar\' (antes solo contaba los del mes en curso)'
+    ]
+  },
+  {
     version: '0.32.2',
     date: '2026-04-21',
     changes: [

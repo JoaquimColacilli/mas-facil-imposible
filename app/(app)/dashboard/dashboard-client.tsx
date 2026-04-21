@@ -466,8 +466,20 @@ export function DashboardClient({
   const sumBy = (type: string, cur: 'ARS' | 'USD') =>
     transactions.filter((t) => t.type === type && t.currency === cur && t.status !== 'cancelled').reduce((s, t) => s + t.amount, 0)
 
+  // Pending expenses from PREVIOUS months (strictly older than the viewed month).
+  // These are obligations still outstanding that don't show up in `transactions`
+  // (scoped to current month). Filter by `t.date.slice(0,7) < currentMonth` —
+  // the YYYY-MM lexical comparison works because both sides share that format.
+  const olderPendingExpensesARS = allPending
+    .filter((t) => t.type === 'expense' && t.currency === 'ARS' && t.date.slice(0, 7) < currentMonth)
+    .reduce((s, t) => s + t.amount, 0)
+  const olderPendingExpensesUSD = allPending
+    .filter((t) => t.type === 'expense' && t.currency === 'USD' && t.date.slice(0, 7) < currentMonth)
+    .reduce((s, t) => s + t.amount, 0)
+
   const incomeARS      = sumBy('income', 'ARS'),     incomeUSD      = sumBy('income', 'USD')
-  const expensesARS    = sumBy('expense', 'ARS'),    expensesUSD    = sumBy('expense', 'USD')
+  const expensesARS    = sumBy('expense', 'ARS') + olderPendingExpensesARS
+  const expensesUSD    = sumBy('expense', 'USD') + olderPendingExpensesUSD
   const savingsTxARS   = sumBy('savings', 'ARS'),    savingsTxUSD   = sumBy('savings', 'USD')
   const investTxARS    = sumBy('investment', 'ARS'), investTxUSD    = sumBy('investment', 'USD')
 
@@ -491,21 +503,25 @@ export function DashboardClient({
   const confirmedBalanceARS = sumByConfirmed('income', 'ARS') - sumByConfirmed('expense', 'ARS') - sumByConfirmed('savings', 'ARS') - sumByConfirmed('investment', 'ARS')
   const confirmedBalanceUSD = sumByConfirmed('income', 'USD') - sumByConfirmed('expense', 'USD') - sumByConfirmed('savings', 'USD') - sumByConfirmed('investment', 'USD')
 
-  // Gastos pendientes (para el tooltip)
-  const pendingExpenses = transactions.filter((t) => t.type === 'expense' && t.status === 'pending')
+  // Gastos pendientes (para el tooltip). Incluye los del mes actual + meses anteriores,
+  // así el "Sin pendientes" refleja correctamente la diferencia con el balance.
+  const pendingExpensesCurrentMonth = transactions.filter((t) => t.type === 'expense' && t.status === 'pending')
+  const pendingExpensesOlder = allPending.filter((t) => t.type === 'expense' && t.date.slice(0, 7) < currentMonth)
+  const pendingExpenses = [...pendingExpensesCurrentMonth, ...pendingExpensesOlder]
   const pendingExpenseARS = pendingExpenses.filter((t) => t.currency === 'ARS').reduce((s, t) => s + t.amount, 0)
   const pendingExpenseUSD = pendingExpenses.filter((t) => t.currency === 'USD').reduce((s, t) => s + t.amount, 0)
   const hasPending = pendingExpenses.length > 0
 
-  // Gastos: split pagado (efectivo/débito/null + confirmed) vs. por pagar (pending o crédito)
+  // Gastos: split pagado (efectivo/débito/null + confirmed) vs. por pagar (pending o crédito).
+  // "Por pagar" incluye además pendings de meses anteriores (obligaciones vivas).
   const isPaidExpense  = (t: Transaction) => t.type === 'expense' && t.status === 'confirmed' && t.payment_method !== 'credit'
   const isToPayExpense = (t: Transaction) => t.type === 'expense' && t.status !== 'cancelled' && (t.status === 'pending' || t.payment_method === 'credit')
   const sumExp = (pred: (t: Transaction) => boolean, cur: 'ARS' | 'USD') =>
     transactions.filter((t) => pred(t) && t.currency === cur).reduce((s, t) => s + t.amount, 0)
   const paidExpenseARS  = sumExp(isPaidExpense,  'ARS')
   const paidExpenseUSD  = sumExp(isPaidExpense,  'USD')
-  const toPayExpenseARS = sumExp(isToPayExpense, 'ARS')
-  const toPayExpenseUSD = sumExp(isToPayExpense, 'USD')
+  const toPayExpenseARS = sumExp(isToPayExpense, 'ARS') + olderPendingExpensesARS
+  const toPayExpenseUSD = sumExp(isToPayExpense, 'USD') + olderPendingExpensesUSD
 
   function handleLoanResolved() {
     setPulseKpis(new Set(['Balance total', 'Ingresos']))
