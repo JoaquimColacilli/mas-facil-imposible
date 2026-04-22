@@ -134,18 +134,42 @@ export function buildChartData(
     ? portfolios.map(p => p.id)
     : [...new Set(logs.map(l => l.portfolio_id))]
 
-  // Starting balance per portfolio (last log BEFORE the period start, or 0).
+  // Starting balance per portfolio at period open.
+  //  1. Prefer the last log strictly before the period.
+  //  2. If none (portfolio existed but was never logged pre-period), derive
+  //     the pre-activity balance from the first-in-period log(s):
+  //     final_first_day_balance − Σ first_day_absolute_changes.
+  //     Without this, `baseInvested` starts at 0 and the "Rendimiento" of the
+  //     period swallows the portfolio's entire pre-existing value.
+  //  3. MAX period: fall back to 0 (show full history from inception).
   const startingBalance: Record<string, number> = {}
   for (const pid of portfolioIds) startingBalance[pid] = 0
-  if (startStr) {
-    for (const pid of portfolioIds) {
-      let latest: PortfolioLogWithPortfolio | null = null
+  for (const pid of portfolioIds) {
+    if (startStr) {
+      let latestPrior: PortfolioLogWithPortfolio | null = null
       for (const l of logs) {
         if (l.portfolio_id !== pid || l.date >= startStr) continue
-        if (!latest || l.date > latest.date) latest = l
+        if (!latestPrior || l.date > latestPrior.date) latestPrior = l
       }
-      if (latest) startingBalance[pid] = latest.new_balance
+      if (latestPrior) {
+        startingBalance[pid] = latestPrior.new_balance
+        continue
+      }
     }
+    // Fallback: derive from first-in-period logs
+    const inPeriod = logs.filter(
+      l => l.portfolio_id === pid && (!startStr || l.date >= startStr),
+    )
+    if (inPeriod.length === 0) continue
+    const firstDate = inPeriod.reduce((min, l) => (l.date < min ? l.date : min), inPeriod[0].date)
+    const firstDayLogs = inPeriod
+      .filter(l => l.date === firstDate)
+      .sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''))
+    if (firstDayLogs.length === 0) continue
+    const finalBalance = firstDayLogs[firstDayLogs.length - 1].new_balance
+    const sumChange = firstDayLogs.reduce((s, l) => s + l.absolute_change, 0)
+    // Only apply fallback for ranged periods — MAX shows from inception (0).
+    if (startStr) startingBalance[pid] = finalBalance - sumChange
   }
 
   const filtered = startStr ? logs.filter(l => l.date >= startStr) : logs
@@ -245,15 +269,27 @@ export function buildHoldings(
       .filter(l => l.portfolio_id === p.id)
       .sort((a, b) => a.date.localeCompare(b.date))
 
-    let startBalance = 0
-    if (startStr) {
-      const prior = portfolioLogs.filter(l => l.date < startStr)
-      startBalance = prior.length > 0 ? prior[prior.length - 1].new_balance : 0
-    }
-
     const periodLogs = startStr
       ? portfolioLogs.filter(l => l.date >= startStr)
       : portfolioLogs
+
+    // Starting balance mirrors buildChartData: prior log → first-in-period
+    // fallback → 0 for MAX. See buildChartData for the rationale.
+    let startBalance = 0
+    if (startStr) {
+      const prior = portfolioLogs.filter(l => l.date < startStr)
+      if (prior.length > 0) {
+        startBalance = prior[prior.length - 1].new_balance
+      } else if (periodLogs.length > 0) {
+        const firstDate = periodLogs[0].date
+        const firstDayLogs = periodLogs
+          .filter(l => l.date === firstDate)
+          .sort((a, b) => (a.created_at ?? '').localeCompare(b.created_at ?? ''))
+        const finalBalance = firstDayLogs[firstDayLogs.length - 1].new_balance
+        const sumChange = firstDayLogs.reduce((s, l) => s + l.absolute_change, 0)
+        startBalance = finalBalance - sumChange
+      }
+    }
 
     const netCashflow = periodLogs.reduce((s, l) => s + cashflowAmount(l), 0)
     const endBalance = Number(p.balance)

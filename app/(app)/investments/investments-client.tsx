@@ -157,7 +157,7 @@ function InvestmentChartTooltip({
         'flex items-center justify-between gap-4',
         dayChange === null && 'border-t border-border/50 pt-1.5',
       )}>
-        <span className="text-muted-foreground">Rendimiento</span>
+        <span className="text-muted-foreground">Rendimiento del período</span>
         <span className={cn('font-mono font-semibold tabular-nums', pnlColor)}>
           {pnl > 0 ? '+' : pnl < 0 ? '−' : ''}{formatMoney(Math.abs(pnl), primaryCurrency)}
         </span>

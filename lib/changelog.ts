@@ -6,6 +6,14 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.32.6',
+    date: '2026-04-22',
+    changes: [
+      'Fix cálculo de balance inicial en el gráfico de /investments cuando el portfolio tenía valor preexistente sin logs anteriores al período (antes inflaba el Rendimiento con toda la plata previa)',
+      'Tooltip del chart: Rendimiento renombrado a \'Rendimiento del período\' para dejar claro que es el acumulado, no el del día'
+    ]
+  },
+  {
     version: '0.32.5',
     date: '2026-04-22',
     changes: [
