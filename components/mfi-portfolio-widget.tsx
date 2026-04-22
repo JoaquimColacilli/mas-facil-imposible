@@ -30,19 +30,12 @@ import {
 import { cn } from '@/lib/utils'
 import { isNonTradingDay } from '@/lib/ar-holidays'
 import { formatCurrency } from '@/lib/types'
-import type { Portfolio, PortfolioLog, PortfolioLogType, Transaction } from '@/lib/types'
+import { resolveLogType } from '@/lib/investment-utils'
+import { PORTFOLIO_UPDATED_EVENT, emitPortfolioUpdated } from '@/lib/portfolio-events'
+import type { Portfolio, PortfolioLog, Transaction } from '@/lib/types'
 
 type PortfolioLogWithPortfolio = PortfolioLog & {
   portfolio: { name: string; currency: string }
-}
-
-// Backwards-compat: rows inserted before the `type` column was added have type = null.
-// Fall back to the old heuristic so the UI stays correct until the migration runs.
-function resolveLogType(log: Pick<PortfolioLog, 'type' | 'percentage_change' | 'absolute_change'>): PortfolioLogType {
-  if (log.type) return log.type
-  if (log.percentage_change < -5 && log.absolute_change < 0) return 'rescue'
-  if (log.percentage_change > 8 && log.absolute_change > 0) return 'deposit'
-  return 'yield'
 }
 
 function todayISO() {
@@ -124,6 +117,14 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
 
   useEffect(() => {
     fetchData()
+  }, [])
+
+  // Refetch when another component reports a portfolio change (e.g. a savings
+  // transfer into a portfolio from the dashboard).
+  useEffect(() => {
+    const handler = () => { fetchData() }
+    window.addEventListener(PORTFOLIO_UPDATED_EVENT, handler)
+    return () => window.removeEventListener(PORTFOLIO_UPDATED_EVENT, handler)
   }, [])
 
   async function fetchPeriodData(ports: Portfolio[], currentPeriod: Period, opts: { useCache?: boolean } = {}) {
@@ -232,6 +233,7 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
     setEditingName('')
     toast.success('Portfolio actualizado')
     router.refresh()
+    emitPortfolioUpdated()
   }
 
   // ── Delete portfolio (cascade logs) ──
@@ -252,6 +254,7 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
       setDeletingPortfolio(null)
       toast.success('Portfolio eliminado')
       router.refresh()
+      emitPortfolioUpdated()
     } finally {
       setDeletingBusy(false)
     }
@@ -282,6 +285,7 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
       setNewCurrency(profileCurrency as 'ARS' | 'USD')
       toast.success('Portfolio creado')
       router.refresh()
+      emitPortfolioUpdated()
     } else if (error) {
       toast.error('No se pudo crear el portfolio. Intentá de nuevo', { duration: 5000 })
     }
@@ -359,6 +363,7 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
       setIsOpen(false)
       // Refresh server components so dashboard Inversiones KPI reflects the new balance.
       router.refresh()
+      emitPortfolioUpdated()
     } catch (e) {
       console.error(e)
       toast.error('No se pudo registrar la variación. Intentá de nuevo', { duration: 5000 })
@@ -414,6 +419,7 @@ export function MfiPortfolioWidget({ profileCurrency }: { profileCurrency: strin
       setRescueAmount('')
       await fetchData()
       router.refresh()
+      emitPortfolioUpdated()
     } catch (e) {
       console.error(e)
       toast.error('No se pudo registrar el rescate. Intentá de nuevo', { duration: 5000 })

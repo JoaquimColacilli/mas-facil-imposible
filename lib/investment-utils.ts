@@ -1,4 +1,4 @@
-import type { Portfolio, PortfolioLog, Currency } from '@/lib/types'
+import type { Portfolio, PortfolioLog, PortfolioLogType, Currency } from '@/lib/types'
 
 // ─── Period types ─────────────────────────────────────────────────────────────
 
@@ -55,16 +55,43 @@ export function toDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+// ─── Log type resolution ──────────────────────────────────────────────────────
+
+// Backwards-compat: rows inserted before migration 009 have type = null.
+// The heuristic is only a fallback — new rows write explicit `type`.
+export function resolveLogType(
+  log: Pick<PortfolioLog, 'type' | 'percentage_change' | 'absolute_change'>,
+): PortfolioLogType {
+  if (log.type) return log.type
+  if (log.percentage_change < -5 && log.absolute_change < 0) return 'rescue'
+  if (log.percentage_change > 8 && log.absolute_change > 0) return 'deposit'
+  return 'yield'
+}
+
+function cashflowAmount(log: Pick<PortfolioLog, 'type' | 'percentage_change' | 'absolute_change'>): number {
+  const t = resolveLogType(log)
+  return t === 'deposit' || t === 'rescue' ? log.absolute_change : 0
+}
+
 // ─── Data types ───────────────────────────────────────────────────────────────
 
 export interface PortfolioLogWithPortfolio extends PortfolioLog {
   portfolio: Pick<Portfolio, 'name' | 'currency'>
 }
 
+export interface ChartCashflowEvent {
+  portfolio_id: string
+  type: 'deposit' | 'rescue'
+  amount: number // signed: + deposit, − rescue
+}
+
 export interface ChartPoint {
   date: string
-  total: number
-  byPortfolio: Record<string, number>
+  total: number                               // actual portfolio value (post-cashflow)
+  baseInvested: number                        // starting balance + cumulative net cashflow
+  byPortfolio: Record<string, number>         // per-portfolio value
+  byPortfolioBase: Record<string, number>     // per-portfolio base invested
+  cashflow: ChartCashflowEvent[]              // cashflow events on this date
 }
 
 export interface PortfolioHolding {
@@ -73,8 +100,8 @@ export interface PortfolioHolding {
   currency: Currency
   currentBalance: number
   weight: number // 0-100
-  periodReturn: number // absolute
-  periodReturnPct: number // percentage
+  periodReturn: number // absolute, excluding cashflows
+  periodReturnPct: number // TWR percentage
 }
 
 export interface MonthlyReturn {
@@ -86,68 +113,123 @@ export interface MonthlyReturn {
 // ─── Core calculations ────────────────────────────────────────────────────────
 
 /**
- * Filter logs by period range, then build chart data points.
- * Each date gets one point with the total across all portfolios
- * and per-portfolio values.
+ * Build chart data points for the period. Each point tracks:
+ *  - `total`: actual portfolio value at EOD (post-cashflow)
+ *  - `baseInvested`: starting balance at period open + cumulative net cashflow.
+ *    The gap between `total` and `baseInvested` is the market P&L.
+ *  - `cashflow`: deposit/rescue events that landed on this date.
+ *
+ * Starting balance is derived from the log immediately prior to the period
+ * (or 0 for MAX / portfolios with no prior logs).
  */
 export function buildChartData(
   logs: PortfolioLogWithPortfolio[],
   period: InvestmentPeriod,
+  portfolios: Portfolio[] = [],
 ): ChartPoint[] {
   const startDate = getPeriodStartDate(period)
-  const filtered = startDate
-    ? logs.filter(l => l.date >= toDateStr(startDate))
-    : logs
+  const startStr = startDate ? toDateStr(startDate) : null
 
-  // Group by date, aggregate per portfolio
-  const dateMap = new Map<string, Record<string, number>>()
+  const portfolioIds = portfolios.length > 0
+    ? portfolios.map(p => p.id)
+    : [...new Set(logs.map(l => l.portfolio_id))]
 
-  for (const log of filtered) {
-    if (!dateMap.has(log.date)) dateMap.set(log.date, {})
-    const entry = dateMap.get(log.date)!
-    entry[log.portfolio_id] = log.new_balance
+  // Starting balance per portfolio (last log BEFORE the period start, or 0).
+  const startingBalance: Record<string, number> = {}
+  for (const pid of portfolioIds) startingBalance[pid] = 0
+  if (startStr) {
+    for (const pid of portfolioIds) {
+      let latest: PortfolioLogWithPortfolio | null = null
+      for (const l of logs) {
+        if (l.portfolio_id !== pid || l.date >= startStr) continue
+        if (!latest || l.date > latest.date) latest = l
+      }
+      if (latest) startingBalance[pid] = latest.new_balance
+    }
   }
 
-  // We need to carry forward balances for portfolios that don't have entries on every date
-  const allPortfolioIds = [...new Set(filtered.map(l => l.portfolio_id))]
-  const sortedDates = [...dateMap.keys()].sort()
-  const lastKnown: Record<string, number> = {}
+  const filtered = startStr ? logs.filter(l => l.date >= startStr) : logs
+  if (filtered.length === 0) return []
+
+  // Group logs by date
+  const logsByDate = new Map<string, PortfolioLogWithPortfolio[]>()
+  for (const l of filtered) {
+    if (!logsByDate.has(l.date)) logsByDate.set(l.date, [])
+    logsByDate.get(l.date)!.push(l)
+  }
+  const sortedDates = [...logsByDate.keys()].sort()
+
+  const lastKnown: Record<string, number> = { ...startingBalance }
+  const cumulativeCashflow: Record<string, number> = {}
+  for (const pid of portfolioIds) cumulativeCashflow[pid] = 0
 
   const points: ChartPoint[] = []
+
   for (const date of sortedDates) {
-    const entry = dateMap.get(date)!
-    // Update known balances
-    for (const pid of Object.keys(entry)) {
-      lastKnown[pid] = entry[pid]
+    const dayLogs = logsByDate.get(date)!
+    const cashflow: ChartCashflowEvent[] = []
+
+    for (const log of dayLogs) {
+      lastKnown[log.portfolio_id] = log.new_balance
+      const t = resolveLogType(log)
+      if (t === 'deposit' || t === 'rescue') {
+        cumulativeCashflow[log.portfolio_id] =
+          (cumulativeCashflow[log.portfolio_id] ?? 0) + log.absolute_change
+        cashflow.push({ portfolio_id: log.portfolio_id, type: t, amount: log.absolute_change })
+      }
     }
-    // Build point with carry-forward
+
     const byPortfolio: Record<string, number> = {}
+    const byPortfolioBase: Record<string, number> = {}
     let total = 0
-    for (const pid of allPortfolioIds) {
-      const val = lastKnown[pid] ?? 0
-      byPortfolio[pid] = val
-      total += val
+    let baseInvested = 0
+    for (const pid of portfolioIds) {
+      byPortfolio[pid] = lastKnown[pid] ?? 0
+      byPortfolioBase[pid] = (startingBalance[pid] ?? 0) + (cumulativeCashflow[pid] ?? 0)
+      total += byPortfolio[pid]
+      baseInvested += byPortfolioBase[pid]
     }
-    points.push({ date, total, byPortfolio })
+
+    points.push({ date, total, baseInvested, byPortfolio, byPortfolioBase, cashflow })
   }
 
   return points
 }
 
 /**
- * Calculate period return: (endValue - startValue) and percentage.
+ * Period P&L, cashflow-adjusted.
+ *  - `absolute`: `end_total − end_baseInvested` (pure market P&L in currency).
+ *  - `pct`: Time-Weighted Return (TWR) — returns chained between cashflows,
+ *    insensitive to the size/timing of deposits and rescues. Industry standard
+ *    for measuring pure investment performance.
  */
 export function calcPeriodReturn(chartData: ChartPoint[]): { absolute: number; pct: number } {
-  if (chartData.length < 1) return { absolute: 0, pct: 0 }
-  const start = chartData[0].total
-  const end = chartData[chartData.length - 1].total
-  const absolute = end - start
-  const pct = start > 0 ? ((end / start) - 1) * 100 : 0
-  return { absolute, pct }
+  if (chartData.length === 0) return { absolute: 0, pct: 0 }
+
+  const last = chartData[chartData.length - 1]
+  const absolute = last.total - last.baseInvested
+
+  let twr = 1
+  let prevTotal: number | null = null
+
+  for (let i = 0; i < chartData.length; i++) {
+    const p = chartData[i]
+    const dayCashflow = p.cashflow.reduce((s, c) => s + c.amount, 0)
+    const marketEnd = p.total - dayCashflow
+
+    // Sub-period start: for the first point, use starting balance (pre-cashflow);
+    // otherwise, prior point's post-cashflow total.
+    const subStart = i === 0 ? p.baseInvested - dayCashflow : prevTotal!
+    if (subStart > 0) twr *= marketEnd / subStart
+    prevTotal = p.total
+  }
+
+  return { absolute, pct: (twr - 1) * 100 }
 }
 
 /**
- * Calculate holdings data for each portfolio.
+ * Per-portfolio holdings with cashflow-adjusted period return.
+ * `periodReturn` excludes net cashflows; `periodReturnPct` uses TWR.
  */
 export function buildHoldings(
   portfolios: Portfolio[],
@@ -155,6 +237,7 @@ export function buildHoldings(
   period: InvestmentPeriod,
 ): PortfolioHolding[] {
   const startDate = getPeriodStartDate(period)
+  const startStr = startDate ? toDateStr(startDate) : null
   const totalValue = portfolios.reduce((sum, p) => sum + Number(p.balance), 0)
 
   return portfolios.map(p => {
@@ -162,29 +245,39 @@ export function buildHoldings(
       .filter(l => l.portfolio_id === p.id)
       .sort((a, b) => a.date.localeCompare(b.date))
 
-    const periodLogs = startDate
-      ? portfolioLogs.filter(l => l.date >= toDateStr(startDate))
+    let startBalance = 0
+    if (startStr) {
+      const prior = portfolioLogs.filter(l => l.date < startStr)
+      startBalance = prior.length > 0 ? prior[prior.length - 1].new_balance : 0
+    }
+
+    const periodLogs = startStr
+      ? portfolioLogs.filter(l => l.date >= startStr)
       : portfolioLogs
 
-    let periodReturn = 0
-    let periodReturnPct = 0
+    const netCashflow = periodLogs.reduce((s, l) => s + cashflowAmount(l), 0)
+    const endBalance = Number(p.balance)
+    const periodReturn = endBalance - startBalance - netCashflow
 
-    if (periodLogs.length > 0) {
-      // Find the starting balance: the new_balance of the log just before the period,
-      // or the first log's new_balance minus its absolute_change
-      const firstLog = periodLogs[0]
-      const startBalance = firstLog.new_balance - firstLog.absolute_change
-      const endBalance = Number(p.balance)
-      periodReturn = endBalance - startBalance
-      periodReturnPct = startBalance > 0 ? ((endBalance / startBalance) - 1) * 100 : 0
+    // TWR over the log sequence
+    let twr = 1
+    let subStart = startBalance
+    for (const log of periodLogs) {
+      const cf = cashflowAmount(log)
+      const marketEnd = log.new_balance - cf
+      if (subStart > 0) twr *= marketEnd / subStart
+      subStart = log.new_balance
     }
+    const periodReturnPct = periodLogs.length > 0 && startBalance > 0
+      ? (twr - 1) * 100
+      : 0
 
     return {
       id: p.id,
       name: p.name,
       currency: p.currency,
-      currentBalance: Number(p.balance),
-      weight: totalValue > 0 ? (Number(p.balance) / totalValue) * 100 : 0,
+      currentBalance: endBalance,
+      weight: totalValue > 0 ? (endBalance / totalValue) * 100 : 0,
       periodReturn,
       periodReturnPct,
     }
@@ -192,28 +285,39 @@ export function buildHoldings(
 }
 
 /**
- * Build monthly returns grid for the heatmap.
+ * Monthly returns grid for the heatmap — TWR per month, so deposits/rescues
+ * don't pollute the percentage.
  */
 export function buildMonthlyReturns(logs: PortfolioLogWithPortfolio[]): MonthlyReturn[] {
-  // Group all logs by month, aggregate total balance per date
   const sorted = [...logs].sort((a, b) => a.date.localeCompare(b.date))
   if (sorted.length === 0) return []
 
-  // Build daily totals across all portfolios
-  const dailyTotals = new Map<string, number>()
-  const lastKnown: Record<string, number> = {}
   const allPids = [...new Set(sorted.map(l => l.portfolio_id))]
+  const lastKnown: Record<string, number> = {}
 
+  // Aggregate to daily totals + daily cashflow
+  const dailyTotal = new Map<string, number>()
+  const dailyCashflow = new Map<string, number>()
+
+  const datesOrdered: string[] = []
+  for (const log of sorted) {
+    if (!dailyTotal.has(log.date)) {
+      datesOrdered.push(log.date)
+      dailyTotal.set(log.date, 0)
+      dailyCashflow.set(log.date, 0)
+    }
+  }
   for (const log of sorted) {
     lastKnown[log.portfolio_id] = log.new_balance
     let total = 0
     for (const pid of allPids) total += lastKnown[pid] ?? 0
-    dailyTotals.set(log.date, total)
+    dailyTotal.set(log.date, total)
+    dailyCashflow.set(log.date, (dailyCashflow.get(log.date) ?? 0) + cashflowAmount(log))
   }
 
-  // Group dates by year-month
+  // Group dates by YYYY-MM
   const monthGroups = new Map<string, string[]>()
-  for (const date of dailyTotals.keys()) {
+  for (const date of datesOrdered) {
     const ym = date.slice(0, 7)
     if (!monthGroups.has(ym)) monthGroups.set(ym, [])
     monthGroups.get(ym)!.push(date)
@@ -222,36 +326,40 @@ export function buildMonthlyReturns(logs: PortfolioLogWithPortfolio[]): MonthlyR
   const results: MonthlyReturn[] = []
   const sortedMonths = [...monthGroups.keys()].sort()
 
-  // We need the end-of-previous-month total as starting point
-  let prevMonthEnd: number | null = null
+  // Starting value for the TWR chain: last month's ending balance.
+  // For the first month, derive it from the first date's pre-cashflow total.
+  let prevEnd: number | null = null
 
   for (const ym of sortedMonths) {
     const dates = monthGroups.get(ym)!.sort()
     const year = Number(ym.slice(0, 4))
     const month = Number(ym.slice(5, 7)) - 1
 
-    const lastDate = dates[dates.length - 1]
-    const endVal = dailyTotals.get(lastDate)!
-
-    if (prevMonthEnd !== null && prevMonthEnd > 0) {
-      results.push({
-        year,
-        month,
-        returnPct: ((endVal / prevMonthEnd) - 1) * 100,
-      })
-    } else if (dates.length >= 2) {
-      // First month with data: use first and last date within month
-      const startVal = dailyTotals.get(dates[0])!
-      if (startVal > 0) {
-        results.push({
-          year,
-          month,
-          returnPct: ((endVal / startVal) - 1) * 100,
-        })
-      }
+    let subStart: number
+    if (prevEnd !== null) {
+      subStart = prevEnd
+    } else {
+      const first = dailyTotal.get(dates[0])!
+      subStart = first - (dailyCashflow.get(dates[0]) ?? 0)
     }
 
-    prevMonthEnd = endVal
+    if (subStart <= 0) {
+      prevEnd = dailyTotal.get(dates[dates.length - 1])!
+      continue
+    }
+
+    let twr = 1
+    let runningStart = subStart
+    for (const d of dates) {
+      const end = dailyTotal.get(d)!
+      const cf = dailyCashflow.get(d) ?? 0
+      const marketEnd = end - cf
+      if (runningStart > 0) twr *= marketEnd / runningStart
+      runningStart = end
+    }
+
+    results.push({ year, month, returnPct: (twr - 1) * 100 })
+    prevEnd = dailyTotal.get(dates[dates.length - 1])!
   }
 
   return results

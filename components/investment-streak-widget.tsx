@@ -1,49 +1,58 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { isNonTradingDay } from '@/lib/ar-holidays'
 import { computeStreak, toISO } from '@/lib/investment-streak'
+import { PORTFOLIO_UPDATED_EVENT } from '@/lib/portfolio-events'
 
 export default function InvestmentStreakWidget() {
   const [streak, setStreak] = useState(0)
   const [pendingToday, setPendingToday] = useState(false)
   const [loaded, setLoaded] = useState(false)
 
-  useEffect(() => {
-    async function fetchStreak() {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setLoaded(true)
-        return
-      }
-
-      const since = new Date()
-      since.setDate(since.getDate() - 90)
-
-      const { data } = await supabase
-        .from('portfolio_logs')
-        .select('date')
-        .gte('date', toISO(since))
-        .order('date', { ascending: false })
-
-      const dateSet = new Set<string>()
-      if (data) {
-        for (const row of data) {
-          dateSet.add(row.date)
-        }
-      }
-
-      const result = computeStreak(dateSet, new Date(), isNonTradingDay)
-      setStreak(result.streak)
-      setPendingToday(result.pendingToday)
+  const fetchStreak = useCallback(async () => {
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
       setLoaded(true)
+      return
     }
 
-    fetchStreak()
+    const since = new Date()
+    since.setDate(since.getDate() - 90)
+
+    const { data } = await supabase
+      .from('portfolio_logs')
+      .select('date')
+      .gte('date', toISO(since))
+      .order('date', { ascending: false })
+
+    const dateSet = new Set<string>()
+    if (data) {
+      for (const row of data) {
+        dateSet.add(row.date)
+      }
+    }
+
+    const result = computeStreak(dateSet, new Date(), isNonTradingDay)
+    setStreak(result.streak)
+    setPendingToday(result.pendingToday)
+    setLoaded(true)
   }, [])
+
+  useEffect(() => {
+    fetchStreak()
+  }, [fetchStreak])
+
+  // Live-refresh when a portfolio is updated elsewhere (daily variation saved,
+  // rescue, transfer from savings). Keeps the streak badge in sync without F5.
+  useEffect(() => {
+    const handler = () => { fetchStreak() }
+    window.addEventListener(PORTFOLIO_UPDATED_EVENT, handler)
+    return () => window.removeEventListener(PORTFOLIO_UPDATED_EVENT, handler)
+  }, [fetchStreak])
 
   if (!loaded) return null
   if (streak === 0 && !pendingToday) return null

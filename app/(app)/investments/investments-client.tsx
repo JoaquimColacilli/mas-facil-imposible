@@ -8,8 +8,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { MoneyInput, parseMoneyInput } from '@/components/money-input'
 import {
-  AreaChart, Area, PieChart, Pie, Cell,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+  AreaChart, Area, Line, PieChart, Pie, Cell,
+  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceDot,
 } from 'recharts'
 import { TrendingUp, Info, Briefcase, Plus, ArrowRight, ArrowDownToLine, X, Download, MoreHorizontal, Pencil, Trash2, Check } from 'lucide-react'
 import { Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -35,6 +35,7 @@ import { MarketCard } from '@/components/market-card'
 import {
   type InvestmentPeriod,
   type PortfolioLogWithPortfolio,
+  type ChartPoint,
   PERIOD_OPTIONS,
   buildChartData,
   calcPeriodReturn,
@@ -92,6 +93,88 @@ function formatDateLabel(dateStr: string, period: InvestmentPeriod): string {
     return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
   }
   return d.toLocaleDateString('es-AR', { month: 'short', year: '2-digit' })
+}
+
+// ─── Chart Tooltip ────────────────────────────────────────────────────────────
+
+function InvestmentChartTooltip({
+  active, payload, label, primaryCurrency, chartData,
+}: {
+  active?: boolean
+  payload?: Array<{ payload: ChartPoint }>
+  label?: string
+  primaryCurrency: string
+  chartData?: ChartPoint[]
+}) {
+  if (!active || !payload || payload.length === 0 || !label) return null
+  const p = payload[0].payload
+  const dateStr = new Date(label + 'T00:00:00').toLocaleDateString('es-AR', {
+    day: '2-digit', month: 'long', year: 'numeric',
+  })
+  const pnl = p.total - p.baseInvested
+  const pnlColor = pnl > 0 ? 'text-emerald-400' : pnl < 0 ? 'text-rose-400' : 'text-muted-foreground'
+  const net = p.cashflow.reduce((s, c) => s + c.amount, 0)
+  const hasCashflow = p.cashflow.length > 0
+
+  // Market-only change vs previous point: subtract today's cashflow so a
+  // deposit/rescue doesn't show up as "daily gain". First point of the series
+  // has no reference → we omit the row.
+  const idx = chartData?.findIndex(d => d.date === p.date) ?? -1
+  const prev = idx > 0 ? chartData![idx - 1] : null
+  const dayChange = prev ? (p.total - net) - prev.total : null
+  const dayChangePct = prev && prev.total > 0 ? (dayChange! / prev.total) * 100 : null
+  const dayColor = dayChange === null
+    ? 'text-muted-foreground'
+    : dayChange > 0 ? 'text-emerald-400' : dayChange < 0 ? 'text-rose-400' : 'text-muted-foreground'
+
+  return (
+    <div className="rounded-xl border border-border bg-card px-3.5 py-2.5 shadow-lg text-[12px] space-y-1.5 min-w-[220px]">
+      <p className="text-muted-foreground text-[11px] font-medium">{dateStr}</p>
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-muted-foreground">Valor</span>
+        <span className="font-mono font-semibold tabular-nums text-foreground">
+          {formatMoney(p.total, primaryCurrency)}
+        </span>
+      </div>
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-muted-foreground">Base invertida</span>
+        <span className="font-mono tabular-nums text-muted-foreground">
+          {formatMoney(p.baseInvested, primaryCurrency)}
+        </span>
+      </div>
+      {dayChange !== null && (
+        <div className="flex items-center justify-between gap-4 border-t border-border/50 pt-1.5">
+          <span className="text-muted-foreground">Cambio del día</span>
+          <span className={cn('font-mono font-semibold tabular-nums', dayColor)}>
+            {dayChange > 0 ? '+' : dayChange < 0 ? '−' : ''}{formatMoney(Math.abs(dayChange), primaryCurrency)}
+            {dayChangePct !== null && (
+              <span className="ml-1.5 opacity-80">({formatPct(dayChangePct)})</span>
+            )}
+          </span>
+        </div>
+      )}
+      <div className={cn(
+        'flex items-center justify-between gap-4',
+        dayChange === null && 'border-t border-border/50 pt-1.5',
+      )}>
+        <span className="text-muted-foreground">Rendimiento</span>
+        <span className={cn('font-mono font-semibold tabular-nums', pnlColor)}>
+          {pnl > 0 ? '+' : pnl < 0 ? '−' : ''}{formatMoney(Math.abs(pnl), primaryCurrency)}
+        </span>
+      </div>
+      {hasCashflow && (
+        <div className={cn(
+          'flex items-center justify-between gap-4 pt-1 text-[11px]',
+          net >= 0 ? 'text-sky-400' : 'text-orange-400',
+        )}>
+          <span className="font-semibold">{net >= 0 ? 'Aporte' : 'Rescate'}</span>
+          <span className="font-mono tabular-nums">
+            {net >= 0 ? '+' : '−'}{formatMoney(Math.abs(net), primaryCurrency)}
+          </span>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ─── Section Title ────────────────────────────────────────────────────────────
@@ -286,7 +369,7 @@ export function InvestmentsClient({ portfolios: initialPortfolios, logs: initial
   useEffect(() => { setMounted(true) }, [])
 
   const nameMap = useMemo(() => buildPortfolioNameMap(portfolios), [portfolios])
-  const chartData = useMemo(() => buildChartData(logs, period), [logs, period])
+  const chartData = useMemo(() => buildChartData(logs, period, portfolios), [logs, period, portfolios])
   const holdings = useMemo(() => buildHoldings(portfolios, logs, period), [portfolios, logs, period])
   const monthlyReturns = useMemo(() => buildMonthlyReturns(logs), [logs])
 
@@ -297,18 +380,46 @@ export function InvestmentsClient({ portfolios: initialPortfolios, logs: initial
 
   const displayChartData = useMemo(() => {
     if (!selectedPortfolio) return chartData
-    return chartData.map(p => ({ ...p, total: p.byPortfolio[selectedPortfolio] ?? 0 }))
+    return chartData.map(p => ({
+      ...p,
+      total: p.byPortfolio[selectedPortfolio] ?? 0,
+      baseInvested: p.byPortfolioBase[selectedPortfolio] ?? 0,
+      cashflow: p.cashflow.filter(cf => cf.portfolio_id === selectedPortfolio),
+    }))
   }, [chartData, selectedPortfolio])
 
   const displayReturn = useMemo(() => calcPeriodReturn(displayChartData), [displayChartData])
   const isPositive = displayReturn.pct > 0
   const isNegative = displayReturn.pct < 0
 
+  // One marker per date with cashflow activity. Net signed amount decides the
+  // color (deposit vs rescue); if a day has both, the net wins.
+  const cashflowMarkers = useMemo(
+    () => displayChartData
+      .filter(p => p.cashflow.length > 0)
+      .map(p => {
+        const net = p.cashflow.reduce((s, c) => s + c.amount, 0)
+        return {
+          date: p.date,
+          total: p.total,
+          type: net >= 0 ? ('deposit' as const) : ('rescue' as const),
+          amount: net,
+        }
+      }),
+    [displayChartData],
+  )
+
   // Y-axis domain zoomed to actual value range — otherwise small daily
-  // variations (< 1%) look flat against a default [0, max] domain.
+  // variations (< 1%) look flat against a default [0, max] domain. Includes
+  // `baseInvested` so the reference line isn't clipped when it differs from
+  // `total` (e.g. big deposits).
   const yDomain = useMemo<[number, number] | undefined>(() => {
     if (displayChartData.length < 2) return undefined
-    const values = displayChartData.map(p => p.total).filter(v => Number.isFinite(v))
+    const values: number[] = []
+    for (const p of displayChartData) {
+      if (Number.isFinite(p.total)) values.push(p.total)
+      if (Number.isFinite(p.baseInvested)) values.push(p.baseInvested)
+    }
     if (values.length === 0) return undefined
     const min = Math.min(...values)
     const max = Math.max(...values)
@@ -820,7 +931,37 @@ export function InvestmentsClient({ portfolios: initialPortfolios, logs: initial
       {/* ── Evolution Chart + Market Card ── */}
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
       <div className="bg-card border border-border/50 rounded-2xl p-5">
-        <SectionTitle title="Evolución" tooltip="Valor total de tus portfolios en el tiempo. Basado en los saldos diarios que cargás." />
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <SectionTitle
+            title="Evolución"
+            tooltip="Valor real del portfolio en el tiempo. Los aportes y rescates se marcan con puntos y no se cuentan como rendimiento."
+          />
+          <div className="flex items-center gap-3 text-[10px] font-medium text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-[2px] rounded-full" style={{ backgroundColor: isNegative ? '#ef4444' : '#a855f7' }} />
+              Valor
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="flex gap-[2px]">
+                <span className="w-1 h-[2px] bg-muted-foreground/60" />
+                <span className="w-1 h-[2px] bg-muted-foreground/60" />
+              </span>
+              Base invertida
+            </span>
+            {cashflowMarkers.length > 0 && (
+              <>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-sky-400" />
+                  Aporte
+                </span>
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-orange-400" />
+                  Rescate
+                </span>
+              </>
+            )}
+          </div>
+        </div>
 
         {displayChartData.length < 2 ? (
           <div className="flex flex-col items-center justify-center h-[350px] text-center">
@@ -845,16 +986,23 @@ export function InvestmentsClient({ portfolios: initialPortfolios, logs: initial
               <XAxis dataKey="date" tickFormatter={(d) => formatDateLabel(d, period)} tick={AXIS_TICK} tickLine={false} axisLine={false} minTickGap={40} className="text-muted-foreground" />
               <YAxis tick={AXIS_TICK} tickFormatter={formatCompact} tickLine={false} axisLine={false} width={56} className="text-muted-foreground" domain={yDomain ?? ['auto', 'auto']} />
               <Tooltip
-                contentStyle={TOOLTIP_STYLE}
-                labelFormatter={(d) => new Date(d + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' })}
-                formatter={(value: number, _name: string, entry: any) => {
-                  const idx = displayChartData.indexOf(entry.payload)
-                  const prev = idx > 0 ? displayChartData[idx - 1].total : value
-                  const diffPct = prev > 0 ? ((value / prev) - 1) * 100 : 0
-                  return [`${formatMoney(value, primaryCurrency)} (${formatPct(diffPct)})`, 'Valor']
-                }}
+                content={<InvestmentChartTooltip primaryCurrency={primaryCurrency} chartData={displayChartData} />}
+                cursor={{ stroke: 'hsl(var(--border))', strokeWidth: 1 }}
               />
-              <Area type="monotone" dataKey="total" stroke={isNegative ? '#ef4444' : '#a855f7'} strokeWidth={2} fill="url(#chartGradient)" dot={displayChartData.length <= 10} activeDot={{ r: 5, strokeWidth: 2, fill: 'hsl(var(--card))' }} animationDuration={800} />
+              <Area type="monotone" dataKey="total" name="Valor" stroke={isNegative ? '#ef4444' : '#a855f7'} strokeWidth={2} fill="url(#chartGradient)" dot={displayChartData.length <= 10} activeDot={{ r: 5, strokeWidth: 2, fill: 'hsl(var(--card))' }} animationDuration={800} />
+              <Line type="monotone" dataKey="baseInvested" name="Base invertida" stroke="hsl(var(--muted-foreground))" strokeWidth={1.5} strokeDasharray="4 4" dot={false} activeDot={false} animationDuration={800} />
+              {cashflowMarkers.map(m => (
+                <ReferenceDot
+                  key={`${m.date}-${m.type}`}
+                  x={m.date}
+                  y={m.total}
+                  r={5}
+                  fill={m.type === 'deposit' ? '#38bdf8' : '#fb923c'}
+                  stroke="hsl(var(--card))"
+                  strokeWidth={2}
+                  isFront
+                />
+              ))}
             </AreaChart>
           </ResponsiveContainer>
         )}

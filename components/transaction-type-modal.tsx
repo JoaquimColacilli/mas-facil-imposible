@@ -17,6 +17,7 @@ import {
   ChevronDown, Search, Check, Pencil, Trash2,
 } from 'lucide-react'
 import type { Portfolio } from '@/lib/types'
+import { emitPortfolioUpdated } from '@/lib/portfolio-events'
 import useSWR from 'swr'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -459,7 +460,10 @@ export function TransactionTypeModal({
       toast.success(withdrawToPortfolio ? 'Traspaso registrado' : 'Retiro registrado')
       // Server refresh — si traspasamos a portfolio, el KPI "Inversiones" del dashboard
       // depende de `portfolios.balance` que no está en el state local del dashboard.
-      if (withdrawToPortfolio) router.refresh()
+      if (withdrawToPortfolio) {
+        router.refresh()
+        emitPortfolioUpdated()
+      }
     }
     setWithdrawing(false)
     setWithdrawAmount('')

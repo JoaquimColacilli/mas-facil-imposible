@@ -6,6 +6,16 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.32.5',
+    date: '2026-04-22',
+    changes: [
+      'Gráfico de /investments: se separa el rendimiento real de los aportes/rescates con una línea punteada de base invertida y markers azules/naranjas sobre la curva',
+      'Rendimiento del período calculado con TWR (Time-Weighted Return) excluyendo cashflows, tanto en el % como en el P&L absoluto del hero y de cada portfolio',
+      'Tooltip del chart de inversiones: ahora muestra valor, base invertida, cambio del día (en USD y %), rendimiento acumulado y aporte/rescate del día',
+      'Widgets 🔥 streak y de inversiones del navbar se refrescan automáticamente tras cada variación, rescate o traspaso desde ahorros (sin F5)'
+    ]
+  },
+  {
     version: '0.32.4',
     date: '2026-04-21',
     changes: [
