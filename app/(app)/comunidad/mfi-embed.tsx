@@ -14,6 +14,8 @@ interface Props {
 }
 
 export function MfiEmbed({ data, variant = 'compact', className }: Props) {
+  // 'wrapped' is rendered by WrappedEmbed — dispatch happens in post-card.tsx.
+  if (data.kind === 'wrapped') return null
   const isGoal = data.kind === 'goal'
   const accent = isGoal ? GOAL_ACCENT : TXN_ACCENT
   const Icon = isGoal ? Target : Receipt

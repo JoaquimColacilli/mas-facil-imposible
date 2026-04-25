@@ -1,0 +1,10 @@
+{
+  "asado":    { "label": "asados",              "emoji": "🥩", "avgARS": 25000 },
+  "cafe":     { "label": "cafés",               "emoji": "☕", "avgARS": 3500  },
+  "cine":     { "label": "entradas de cine",    "emoji": "🎬", "avgARS": 12000 },
+  "netflix":  { "label": "meses de Netflix",    "emoji": "📺", "avgARS": 12000 },
+  "uber":     { "label": "viajes en Uber",      "emoji": "🚗", "avgARS": 6500  },
+  "pizza":    { "label": "pizzas grandes",      "emoji": "🍕", "avgARS": 22000 },
+  "delivery": { "label": "pedidos de delivery", "emoji": "🍔", "avgARS": 15000 },
+  "subte":    { "label": "viajes en subte",     "emoji": "🚇", "avgARS": 900   }
+}

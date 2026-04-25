@@ -6,6 +6,34 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '0.34.0',
+    date: '2026-04-25',
+    changes: [
+      'Agregado Tu Mes en MFI — recorrido mensual tipo Spotify Wrapped con 10 diapositivas, accesible desde un chip nuevo en el banner del dashboard',
+      'Agregada vista desktop editorial 16:9 del Wrapped con rail de miniaturas clickeable, flechas laterales, auto-advance de 9s y botón de pausa',
+      'Agregada vista mobile 9:16 del Wrapped con tap zones, hold-to-pause, y primera diapositiva que espera al primer tap',
+      'Agregada diapositiva Ahorro e Inversión con balance total histórico, ganancia del mes y gráfico de líneas estilo bolsa construido desde portfolio_logs',
+      'Agregado publicar el Wrapped en /comunidad con embed vivo de la share card (requiere migración 020)',
+      'Agregada descarga del Wrapped como PDF de 10 páginas — una por diapositiva, con gradiente y datos reales',
+      'Agregado botón Volver a ver tu wrapped en la última diapositiva que reinicia el recorrido desde cero',
+      'Agregadas feature flags NEXT_PUBLIC_WRAPPED_ENABLED, NEXT_PUBLIC_WRAPPED_DESKTOP y NEXT_PUBLIC_WRAPPED_DEV para rollout gradual',
+      'Agregada persistencia cross-device del progreso del Wrapped vía localStorage — retomás donde dejaste al cambiar de dispositivo',
+      'Agregados eventos de analytics wrapped_slide_viewed y wrapped_completed con dedupe por sesión para medir completion del funnel',
+      'Agregadas frases motivacionales dinámicas en las diapositivas de Ahorro+Inversión y Metas según el estado del usuario'
+    ]
+  },
+  {
+    version: '0.33.0',
+    date: '2026-04-24',
+    changes: [
+      'Agregado resumen mensual estilo Wrapped con 10 slides, story mode con auto-advance y tap zones, personalidad del mes (ahorrista/inversor/social/equilibrado/austero) y equivalencias en pesos AR',
+      'Integrado botón Compartir que publica la retrospectiva en /comunidad con la share card como embed vivo y hashtags automáticos',
+      'Agregado chip prominent sage→copper con shimmer en el banner del dashboard junto a Excel y PDF',
+      'Agregado export a PNG de la share card en 1080x1350 (feed) y 1080x1920 (story) vía html-to-image',
+      'Soporte prefers-reduced-motion y navegación por teclado (flechas + Esc) en el overlay'
+    ]
+  },
+  {
     version: '0.32.6',
     date: '2026-04-22',
     changes: [

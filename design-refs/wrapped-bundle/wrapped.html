@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MFI · Tu Mes en MFI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        fontFamily: {
+          sora: ['Sora', 'ui-sans-serif', 'system-ui'],
+          sans: ['"DM Sans"', 'ui-sans-serif', 'system-ui'],
+          mono: ['"DM Mono"', 'ui-monospace', 'monospace'],
+        },
+        colors: {
+          parchment: 'oklch(0.972 0.006 80)',
+          parchment2:'oklch(0.955 0.008 80)',
+          charcoal: 'oklch(0.25 0.012 260)',
+          charcoal2:'oklch(0.29 0.012 260)',
+          ink: 'oklch(0.22 0.014 260)',
+          mist: 'oklch(0.92 0.006 80)',
+          sage:  'oklch(0.50 0.10 155)',
+          sageL: 'oklch(0.58 0.10 155)',
+          copper:'oklch(0.60 0.10 65)',
+          copperL:'oklch(0.68 0.10 65)',
+          borderL:'oklch(0.88 0.006 80)',
+          borderD:'oklch(0.33 0.014 260)',
+          mutedL:'oklch(0.55 0.008 260)',
+          mutedD:'oklch(0.68 0.010 260)',
+          emerald:'#10b981',
+          rose:'#ef4444',
+          sky:'#3b82f6',
+          violet:'#a855f7',
+        },
+        borderRadius: { xl: '14px' },
+        boxShadow: {
+          card:'0 1px 2px 0 oklch(0.2 0.02 260 / 0.04), 0 1px 1px 0 oklch(0.2 0.02 260 / 0.03)',
+          pop: '0 10px 40px -12px oklch(0.2 0.02 260 / 0.25), 0 4px 12px -4px oklch(0.2 0.02 260 / 0.10)',
+          deep:'0 30px 80px -30px oklch(0.2 0.02 260 / 0.45)',
+        }
+      }
+    }
+  }
+</script>
+<style>
+  :root { color-scheme: light; }
+  .dark { color-scheme: dark; }
+  html, body { min-height: 100%; }
+  body {
+    font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+    background: oklch(0.94 0.008 80);
+    color: oklch(0.22 0.014 260);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  .dark body { background: oklch(0.18 0.012 260); color: oklch(0.94 0.006 80); }
+
+  .scrollbar-thin::-webkit-scrollbar { width: 10px; height: 10px; }
+  .scrollbar-thin::-webkit-scrollbar-thumb { background: oklch(0.85 0.006 80); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+  .dark .scrollbar-thin::-webkit-scrollbar-thumb { background: oklch(0.35 0.012 260); }
+  .scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+
+  /* Grain overlay */
+  .grain::before {
+    content: '';
+    position: absolute; inset: 0;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.1  0 0 0 0 0.1  0 0 0 0 0.1  0 0 0 0.35 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/></svg>");
+    mix-blend-mode: overlay;
+    opacity: .35;
+  }
+  .grain-soft::before { opacity: .22; }
+
+  /* Blobs */
+  @keyframes blob1 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(12%, -8%) scale(1.15); } }
+  @keyframes blob2 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(-10%, 12%) scale(1.2); } }
+  @keyframes blob3 { 0%,100% { transform: translate(0,0) scale(1); } 50% { transform: translate(6%, 10%) scale(0.9); } }
+  .blob { position:absolute; border-radius: 50%; filter: blur(40px); opacity: .75; will-change: transform; }
+  .blob-a { animation: blob1 14s ease-in-out infinite; }
+  .blob-b { animation: blob2 17s ease-in-out infinite; }
+  .blob-c { animation: blob3 19s ease-in-out infinite; }
+
+  /* Shimmer */
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  .shimmer {
+    background: linear-gradient(90deg, transparent, oklch(0.95 0.04 155 / 0.5), transparent);
+    background-size: 200% 100%;
+    animation: shimmer 1.6s linear infinite;
+  }
+
+  /* Slide transitions — base state is VISIBLE; animation only plays when element is in-view */
+  @keyframes slidein {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: none; }
+  }
+  @keyframes slideinRight {
+    from { opacity: 0; transform: translateX(24px); }
+    to   { opacity: 1; transform: none; }
+  }
+  .slide-enter { opacity: 1; animation: slidein .45s cubic-bezier(.2,.7,.2,1) both; }
+  .stagger > * { opacity: 1; animation: slidein .5s cubic-bezier(.2,.7,.2,1) both; }
+  .stagger > *:nth-child(1) { animation-delay: .05s; }
+  .stagger > *:nth-child(2) { animation-delay: .15s; }
+  .stagger > *:nth-child(3) { animation-delay: .28s; }
+  .stagger > *:nth-child(4) { animation-delay: .42s; }
+  .stagger > *:nth-child(5) { animation-delay: .55s; }
+  .stagger > *:nth-child(6) { animation-delay: .68s; }
+  .stagger > *:nth-child(7) { animation-delay: .80s; }
+
+  @keyframes arrowbounce { 0%,100% { transform: translateX(0); opacity: .7; } 50% { transform: translateX(6px); opacity: 1; } }
+  .arrow-hint { animation: arrowbounce 1.6s ease-in-out infinite; }
+
+  @keyframes pulse-ring {
+    0% { box-shadow: 0 0 0 0 rgba(255,255,255,.4); }
+    70% { box-shadow: 0 0 0 12px rgba(255,255,255,0); }
+    100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+  }
+  .pulse-ring { animation: pulse-ring 2s ease-out infinite; }
+
+  @keyframes bar-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+  /* Progress bar fill */
+  .pg-seg { position: relative; height: 3px; border-radius: 999px; background: rgba(255,255,255,.25); flex: 1; overflow: hidden; }
+  .pg-seg .pg-fill { position: absolute; inset: 0; background: rgba(255,255,255,.95); transform-origin: left center; transform: scaleX(0); }
+  .pg-seg.done .pg-fill { transform: scaleX(1); transition: transform .3s ease; }
+  .pg-seg.active .pg-fill { transition: none; }
+
+  /* No outline on native tap */
+  .tap-zone { -webkit-tap-highlight-color: transparent; }
+
+  /* Reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    .blob, .blob-a, .blob-b, .blob-c { animation: none !important; }
+    .shimmer { animation: none !important; }
+    .arrow-hint { animation: none !important; }
+    .pulse-ring { animation: none !important; }
+    .slide-enter, .stagger > * { animation: none !important; opacity: 1 !important; transform: none !important; }
+  }
+
+  /* Utility: text balance */
+  .balance { text-wrap: balance; }
+  .pretty { text-wrap: pretty; }
+
+  /* Tabs bar at top */
+  .tab-btn[data-active="true"] { background: oklch(0.50 0.10 155); color: white; }
+</style>
+</head>
+<body>
+
+<!-- Top page chrome: tabs for navigating the different states of the deliverable -->
+<header class="sticky top-0 z-40 bg-white/85 dark:bg-charcoal2/85 backdrop-blur border-b border-borderL dark:border-borderD">
+  <div class="max-w-[1400px] mx-auto px-4 h-14 flex items-center gap-3">
+    <div class="flex items-center gap-2">
+      <div class="w-7 h-7 rounded-lg grid place-items-center bg-sage text-white font-sora font-bold text-[13px]">M</div>
+      <div class="font-sora font-semibold tracking-tight">MFI</div>
+      <span class="text-mutedL dark:text-mutedD text-xs">·</span>
+      <span class="font-sora font-medium text-sm">Tu Mes en MFI · entrega</span>
+    </div>
+    <nav id="tabs" class="ml-auto flex items-center gap-1 overflow-x-auto">
+      <!-- injected -->
+    </nav>
+    <button id="themeToggle" class="ml-2 w-9 h-9 rounded-lg grid place-items-center border border-borderL dark:border-borderD hover:bg-mist dark:hover:bg-white/5" aria-label="Cambiar tema">
+      <svg id="themeIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+    </button>
+  </div>
+</header>
+
+<main id="app" class="max-w-[1400px] mx-auto px-4 py-6"></main>
+
+<!-- Scripts -->
+<script src="wrapped.data.js"></script>
+<script src="wrapped.slides.js"></script>
+<script src="wrapped.shell.js"></script>
+<script src="wrapped.extras.js"></script>
+<script src="wrapped.desktop.js"></script>
+<script src="wrapped.app.js"></script>
+
+</body>
+</html>

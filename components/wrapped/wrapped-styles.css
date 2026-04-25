@@ -1,0 +1,161 @@
+/**
+ * Wrapped-scoped styles. Ported from design-refs/wrapped-bundle/wrapped.html.
+ * Everything is namespaced under .wrapped-root so keyframes and utility classes
+ * don't leak into the rest of the app.
+ */
+
+.wrapped-root {
+  /* Grain overlay */
+  --wrapped-grain-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.1  0 0 0 0 0.1  0 0 0 0 0.1  0 0 0 0.35 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/></svg>");
+}
+
+.wrapped-root .grain {
+  position: relative;
+}
+.wrapped-root .grain::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: var(--wrapped-grain-image);
+  mix-blend-mode: overlay;
+  opacity: 0.35;
+}
+.wrapped-root .grain-soft::before {
+  opacity: 0.22;
+}
+
+/* Blobs */
+@keyframes wrapped-blob1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(12%, -8%) scale(1.15); }
+}
+@keyframes wrapped-blob2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-10%, 12%) scale(1.2); }
+}
+@keyframes wrapped-blob3 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(6%, 10%) scale(0.9); }
+}
+
+.wrapped-root .blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(40px);
+  opacity: 0.75;
+  will-change: transform;
+}
+.wrapped-root .blob-a { animation: wrapped-blob1 14s ease-in-out infinite; }
+.wrapped-root .blob-b { animation: wrapped-blob2 17s ease-in-out infinite; }
+.wrapped-root .blob-c { animation: wrapped-blob3 19s ease-in-out infinite; }
+
+/* Shimmer */
+@keyframes wrapped-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.wrapped-root .shimmer {
+  background: linear-gradient(90deg, transparent, oklch(0.95 0.04 155 / 0.5), transparent);
+  background-size: 200% 100%;
+  animation: wrapped-shimmer 1.6s linear infinite;
+}
+
+/* Slide entrance */
+@keyframes wrapped-slidein {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+.wrapped-root .slide-enter { animation: wrapped-slidein 0.45s cubic-bezier(.2,.7,.2,1) both; }
+.wrapped-root .stagger > * { animation: wrapped-slidein 0.5s cubic-bezier(.2,.7,.2,1) both; }
+.wrapped-root .stagger > *:nth-child(1) { animation-delay: 0.05s; }
+.wrapped-root .stagger > *:nth-child(2) { animation-delay: 0.15s; }
+.wrapped-root .stagger > *:nth-child(3) { animation-delay: 0.28s; }
+.wrapped-root .stagger > *:nth-child(4) { animation-delay: 0.42s; }
+.wrapped-root .stagger > *:nth-child(5) { animation-delay: 0.55s; }
+.wrapped-root .stagger > *:nth-child(6) { animation-delay: 0.68s; }
+.wrapped-root .stagger > *:nth-child(7) { animation-delay: 0.80s; }
+
+/* Hint arrow */
+@keyframes wrapped-arrowbounce {
+  0%, 100% { transform: translateX(0); opacity: 0.7; }
+  50%      { transform: translateX(6px); opacity: 1; }
+}
+.wrapped-root .arrow-hint { animation: wrapped-arrowbounce 1.6s ease-in-out infinite; }
+
+/* Pulse ring (portada) */
+@keyframes wrapped-pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(255,255,255,0.4); }
+  70%  { box-shadow: 0 0 0 12px rgba(255,255,255,0); }
+  100% { box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+}
+.wrapped-root .pulse-ring { animation: wrapped-pulse-ring 2s ease-out infinite; }
+
+/* Progress bars */
+.wrapped-root .pg-seg {
+  position: relative;
+  height: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.25);
+  flex: 1;
+  overflow: hidden;
+}
+.wrapped-root .pg-seg .pg-fill {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.95);
+  transform-origin: left center;
+  transform: scaleX(0);
+}
+.wrapped-root .pg-seg.done .pg-fill {
+  transform: scaleX(1);
+  transition: transform 0.3s ease;
+}
+.wrapped-root .pg-seg.active .pg-fill {
+  transition: none;
+}
+
+/* Spin for loading screen */
+@keyframes wrapped-spin { to { transform: rotate(360deg); } }
+.wrapped-root .wrapped-spin { animation: wrapped-spin 1.2s linear infinite; }
+
+/* Balance / pretty text */
+.wrapped-root .balance { text-wrap: balance; }
+.wrapped-root .pretty  { text-wrap: pretty; }
+
+/* No native tap highlight inside the overlay */
+.wrapped-root .tap-zone { -webkit-tap-highlight-color: transparent; }
+
+/* Banner chip shimmer (outside wrapped-root — used inline on the dashboard banner) */
+@keyframes wrapped-chip-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.wrapped-chip-shimmer {
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  background-size: 200% 100%;
+  animation: wrapped-chip-shimmer 2.4s linear infinite;
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .wrapped-root .blob,
+  .wrapped-root .blob-a,
+  .wrapped-root .blob-b,
+  .wrapped-root .blob-c,
+  .wrapped-root .shimmer,
+  .wrapped-root .arrow-hint,
+  .wrapped-root .pulse-ring,
+  .wrapped-root .wrapped-spin {
+    animation: none !important;
+  }
+  .wrapped-root .slide-enter,
+  .wrapped-root .stagger > * {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .wrapped-chip-shimmer {
+    animation: none !important;
+  }
+}

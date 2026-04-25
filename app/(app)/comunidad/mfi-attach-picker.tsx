@@ -45,7 +45,7 @@ function monthsBetween(startIso: string, endIso: string | null): number {
   )
 }
 
-function txnToEmbed(t: TxnRow): CommunityPostEmbed {
+function txnToEmbed(t: TxnRow): Extract<CommunityPostEmbed, { kind: 'txn' }> {
   const title = t.note?.trim() || t.category?.name || 'Movimiento'
   return {
     kind: 'txn',
@@ -58,7 +58,7 @@ function txnToEmbed(t: TxnRow): CommunityPostEmbed {
   }
 }
 
-function goalToEmbed(g: GoalRow): CommunityPostEmbed {
+function goalToEmbed(g: GoalRow): Extract<CommunityPostEmbed, { kind: 'goal' }> {
   const now = new Date().toISOString()
   const months = monthsBetween(g.created_at, now)
   const total = g.deadline ? monthsBetween(g.created_at, g.deadline) : undefined

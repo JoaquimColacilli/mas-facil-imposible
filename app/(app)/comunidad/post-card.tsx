@@ -25,6 +25,7 @@ import { cn } from '@/lib/utils'
 import type { CommunityPost, CommunityAuthor } from '@/lib/types'
 import { CATEGORY_BY_ID, CATEGORY_COLORS } from './categories'
 import { MfiEmbed } from './mfi-embed'
+import { WrappedEmbed } from './wrapped-embed'
 import { ImageGrid } from './image-grid'
 import { RichTextView } from './rich-text-view'
 import { BadgePill } from './badge-pill'
@@ -331,10 +332,17 @@ export function PostCard({
         )}
         {post.embed && (
           <div className="mt-3">
-            <MfiEmbed
-              data={post.embed}
-              variant={isThread ? 'rich' : 'compact'}
-            />
+            {post.embed.kind === 'wrapped' ? (
+              <WrappedEmbed
+                data={post.embed}
+                variant={isThread ? 'rich' : 'compact'}
+              />
+            ) : (
+              <MfiEmbed
+                data={post.embed}
+                variant={isThread ? 'rich' : 'compact'}
+              />
+            )}
           </div>
         )}
         <div
