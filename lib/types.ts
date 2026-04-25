@@ -44,6 +44,9 @@ export interface Profile {
   show_badges: boolean
   show_bio: boolean
   last_seen_at: string | null
+  /** Map of tour_key → ISO timestamp when the user closed it. Default `{}`
+   *  on the DB side (NOT NULL). Used to skip one-shot onboarding tours. */
+  tours_seen: Record<string, string>
   created_at: string
   updated_at: string
 }
@@ -500,6 +503,35 @@ export interface Feedback {
     email: string
     full_name: string | null
   }
+}
+
+/**
+ * Datos extraídos por Gemini desde una imagen o PDF (ticket, transferencia,
+ * resumen de tarjeta, QR de Mercado Pago, etc.). Cualquier campo puede ser
+ * null si el modelo no logró determinarlo. `suggestedCategoryId` ya viene
+ * validado contra las categorías reales del usuario.
+ */
+export interface ExtractedTransaction {
+  amount: number | null
+  currency: Currency | null
+  date: string | null
+  merchant: string | null
+  suggestedCategoryId: string | null
+  type: TransactionType | null
+  note: string | null
+}
+
+/** Wrapper que devuelve la server action — siempre array, aunque tenga 1 sólo
+ *  ítem. Permite distinguir "1 movimiento" (flow QuickAdd) vs "varios"
+ *  (flow BulkReview) sin lógica especial en el cliente. */
+export interface ExtractedTransactionsResponse {
+  transactions: ExtractedTransaction[]
+}
+
+/** Estado local del modal BulkReview: agrega un id estable para keyed
+ *  rendering y para tildar/destildar filas. No vive en la DB. */
+export interface BulkReviewItem extends ExtractedTransaction {
+  _localId: string
 }
 
 // ─── UI helpers ──────────────────────────────────────────────────────────────

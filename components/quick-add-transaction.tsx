@@ -2,11 +2,11 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import type { Category, Currency, TransactionType, PaymentMethod } from '@/lib/types'
+import type { Category, Currency, TransactionType, PaymentMethod, ExtractedTransaction } from '@/lib/types'
 import { TRANSACTION_TYPE_LABELS } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { MoneyInput, parseMoneyInput } from '@/components/money-input'
+import { MoneyInput, parseMoneyInput, formatMoneyInput } from '@/components/money-input'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -15,16 +15,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { X, ChevronDown, Plus, Search, Check, Layers, Banknote, CreditCard, Smartphone, Repeat } from 'lucide-react'
+import { X, ChevronDown, Plus, Search, Check, Layers, Banknote, CreditCard, Smartphone, Repeat, ScanLine } from 'lucide-react'
 import { toast } from 'sonner'
 import useSWR from 'swr'
 import { cn } from '@/lib/utils'
+import { ScanTransactionDialog } from '@/components/scan-transaction-dialog'
 
 const ADD_ANOTHER_KEY = 'mfi-add-another'
 
 interface QuickAddTransactionProps {
   onClose: () => void
   onSuccess: () => void
+  /** Datos pre-extraídos (p. ej. desde imagen). Pre-llenan el form pero
+   *  el usuario puede editar todo antes de guardar. */
+  initial?: Partial<ExtractedTransaction>
+  /** Llamado cuando un scan iniciado desde DENTRO de QuickAdd devolvió >1
+   *  movimiento. El padre debe cerrar QuickAdd y abrir BulkReview con los
+   *  items. Si no se pasa, el botón "Cargar desde imagen" no aparece. */
+  onBulkExtracted?: (items: ExtractedTransaction[]) => void
 }
 
 const TYPES: TransactionType[] = ['expense', 'income', 'savings', 'investment']
@@ -44,7 +52,7 @@ const TYPE_ACTIVE: Record<TransactionType, string> = {
 }
 
 // ── Category Combobox ─────────────────────────────────────────────────────────
-function CategoryCombobox({
+export function CategoryCombobox({
   categories,
   value,
   onChange,
@@ -268,18 +276,30 @@ function AllCategoriesModal({
 }
 
 // ── Main QuickAdd Modal ───────────────────────────────────────────────────────
-export function QuickAddTransaction({ onClose, onSuccess }: QuickAddTransactionProps) {
+export function QuickAddTransaction({ onClose, onSuccess, initial, onBulkExtracted }: QuickAddTransactionProps) {
   const supabase = createClient()
-  const [type, setType] = useState<TransactionType>('expense')
-  const [amount, setAmount] = useState('')
-  const [currency, setCurrency] = useState<Currency>('ARS')
-  const [note, setNote] = useState('')
-  const [categoryId, setCategoryId] = useState('')
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  const [type, setType] = useState<TransactionType>(initial?.type ?? 'expense')
+  const [amount, setAmount] = useState(() =>
+    initial?.amount != null ? formatMoneyInput(initial.amount) : '',
+  )
+  const [currency, setCurrency] = useState<Currency>(initial?.currency ?? 'ARS')
+  const [note, setNote] = useState(initial?.note ?? initial?.merchant ?? '')
+  const [categoryId, setCategoryId] = useState(initial?.suggestedCategoryId ?? '')
+  const [date, setDate] = useState(initial?.date ?? new Date().toISOString().split('T')[0])
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null)
   const [isRecurring, setIsRecurring] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [scanOpen, setScanOpen] = useState(false)
+
+  function applyExtracted(item: ExtractedTransaction) {
+    if (item.type) setType(item.type)
+    if (item.amount != null) setAmount(formatMoneyInput(item.amount))
+    if (item.currency) setCurrency(item.currency)
+    if (item.note || item.merchant) setNote(item.note ?? item.merchant ?? '')
+    if (item.suggestedCategoryId) setCategoryId(item.suggestedCategoryId)
+    if (item.date) setDate(item.date)
+  }
   const [addAnother, setAddAnother] = useState(() => {
     try { return localStorage.getItem(ADD_ANOTHER_KEY) === '1' } catch { return false }
   })
@@ -355,6 +375,18 @@ export function QuickAddTransaction({ onClose, onSuccess }: QuickAddTransactionP
         </div>
 
         <form onSubmit={handleSubmit} className={cn('flex flex-col gap-4 overflow-y-auto px-6 pb-6 transition-opacity duration-150', !formVisible && 'opacity-0')}>
+          {/* Cargar desde imagen / PDF */}
+          {onBulkExtracted && (
+            <button
+              type="button"
+              onClick={() => setScanOpen(true)}
+              className="flex items-center justify-center gap-2 w-full h-10 rounded-xl border border-dashed border-border bg-muted/30 text-[12.5px] font-semibold text-muted-foreground hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-all duration-150"
+            >
+              <ScanLine className="w-3.5 h-3.5" />
+              Cargar desde imagen o PDF
+            </button>
+          )}
+
           {/* Type tabs */}
           <div>
             <Label className="text-[11px] font-semibold text-muted-foreground mb-2 block tracking-wide uppercase">Tipo</Label>
@@ -523,6 +555,23 @@ export function QuickAddTransaction({ onClose, onSuccess }: QuickAddTransactionP
           </label>
         </form>
       </div>
+
+      {scanOpen && (
+        <ScanTransactionDialog
+          onClose={() => setScanOpen(false)}
+          onExtracted={(items) => {
+            setScanOpen(false)
+            if (items.length > 1 && onBulkExtracted) {
+              onBulkExtracted(items)
+            } else if (items.length >= 1) {
+              applyExtracted(items[0])
+              if (items.length > 1) {
+                toast.message(`Se cargó el primer movimiento de ${items.length}.`)
+              }
+            }
+          }}
+        />
+      )}
     </div>
   )
 }

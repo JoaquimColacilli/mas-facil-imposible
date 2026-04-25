@@ -30,12 +30,16 @@ import {
   Smartphone,
   Loader2,
   Repeat,
+  ScanLine,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { QuickAddTransaction } from '@/components/quick-add-transaction'
+import { ScanTransactionDialog } from '@/components/scan-transaction-dialog'
+import { BulkReviewTransactions } from '@/components/bulk-review-transactions'
+import type { ExtractedTransaction } from '@/lib/types'
 import { EditTransactionModal } from '@/components/edit-transaction-modal'
 import { CategoryManagerButton } from '@/components/category-manager'
 import { createClient } from '@/lib/supabase/client'
@@ -99,6 +103,9 @@ export function TransactionsClient({ transactions: initial, portfolios, cumulati
   useEffect(() => { setTransactions(initial) }, [initial])
 
   const [showAdd, setShowAdd] = useState(false)
+  const [showScan, setShowScan] = useState(false)
+  const [addPrefill, setAddPrefill] = useState<ExtractedTransaction | null>(null)
+  const [bulkItems, setBulkItems] = useState<ExtractedTransaction[] | null>(null)
   const [editingTx, setEditingTx] = useState<Transaction | null>(null)
   const [search, setSearch] = useState('')
   // Seed filterType from ?type= search param (e.g. dashboard Gastos tile links
@@ -284,9 +291,19 @@ export function TransactionsClient({ transactions: initial, portfolios, cumulati
         <div className="flex items-center gap-2">
           <CategoryManagerButton />
           <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowScan(true)}
+            title="Crear movimiento desde una foto, screenshot o PDF"
+            className="hidden md:flex gap-1.5 h-9 px-3 text-[13px] font-semibold rounded-xl transition-all duration-150 hover:scale-[1.02] hover:border-primary/40 hover:text-primary"
+          >
+            <ScanLine className="w-3.5 h-3.5" />
+            <span className="hidden lg:inline">Desde imagen</span>
+          </Button>
+          <Button
             size="sm"
             onClick={() => setShowAdd(true)}
-            className="gap-1.5 h-9 px-4 text-[13px] font-semibold rounded-xl transition-all duration-150 hover:scale-[1.02]"
+            className="hidden md:flex gap-1.5 h-9 px-4 text-[13px] font-semibold rounded-xl transition-all duration-150 hover:scale-[1.02]"
           >
             <Plus className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Agregar</span>
@@ -809,8 +826,59 @@ export function TransactionsClient({ transactions: initial, portfolios, cumulati
       )}
 
       {showAdd && (
-        <QuickAddTransaction onClose={() => setShowAdd(false)} onSuccess={handleAddSuccess} />
+        <QuickAddTransaction
+          initial={addPrefill ?? undefined}
+          onClose={() => { setShowAdd(false); setAddPrefill(null) }}
+          onSuccess={() => { setAddPrefill(null); handleAddSuccess() }}
+          onBulkExtracted={(items) => {
+            setShowAdd(false)
+            setAddPrefill(null)
+            setBulkItems(items)
+          }}
+        />
       )}
+
+      {showScan && (
+        <ScanTransactionDialog
+          onClose={() => setShowScan(false)}
+          onExtracted={(items) => {
+            setShowScan(false)
+            if (items.length === 1) {
+              setAddPrefill(items[0])
+              setShowAdd(true)
+            } else {
+              setBulkItems(items)
+            }
+          }}
+          onManualEntry={() => {
+            setShowScan(false)
+            setShowAdd(true)
+          }}
+        />
+      )}
+
+      {bulkItems && (
+        <BulkReviewTransactions
+          transactions={bulkItems}
+          onClose={() => setBulkItems(null)}
+          onSaved={() => {
+            setBulkItems(null)
+            window.location.reload()
+          }}
+        />
+      )}
+
+      {/* Mobile scanner FAB — entrada principal a la carga desde imagen.
+          La carga manual queda accesible vía "Prefiero cargarlo a mano"
+          dentro del scan dialog. */}
+      <button
+        onClick={() => setShowScan(true)}
+        aria-label="Cargar desde imagen o PDF"
+        className="md:hidden fixed right-4 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-xl flex items-center justify-center transition-transform duration-150 hover:scale-105 active:scale-95"
+        style={{ bottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}
+      >
+        <ScanLine className="w-6 h-6" />
+      </button>
 
       {editingTx && (
         <EditTransactionModal

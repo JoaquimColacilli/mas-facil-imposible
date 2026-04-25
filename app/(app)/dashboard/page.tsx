@@ -109,9 +109,12 @@ export default async function DashboardPage({
     cumulativeSavings[tx.currency] += tx.amount
   }
 
+  const profile = profileRes.data as Profile | null
+  const toursSeen = (profile?.tours_seen as Record<string, string> | undefined) ?? {}
+
   return (
     <DashboardClient
-      profile={profileRes.data as Profile | null}
+      profile={profile}
       transactions={transactions}
       goals={goals}
       loans={loans}
@@ -122,6 +125,7 @@ export default async function DashboardPage({
       userEmail={user.email ?? ''}
       userId={user.id}
       currentMonth={currentMonthParam}
+      toursSeen={toursSeen}
     />
   )
 }

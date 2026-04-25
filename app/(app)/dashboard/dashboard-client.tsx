@@ -31,9 +31,14 @@ import {
   Loader2,
   Repeat,
   Info,
+  ScanLine,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { QuickAddTransaction } from '@/components/quick-add-transaction'
+import { ScanTransactionDialog } from '@/components/scan-transaction-dialog'
+import { BulkReviewTransactions } from '@/components/bulk-review-transactions'
+import { FeatureTour } from '@/components/feature-tour'
+import type { ExtractedTransaction } from '@/lib/types'
 import { EditTransactionModal } from '@/components/edit-transaction-modal'
 import { CategoryManagerButton } from '@/components/category-manager'
 import { PendingLoans } from '@/components/pending-loans'
@@ -61,6 +66,7 @@ interface DashboardClientProps {
   userEmail: string
   userId: string
   currentMonth: string // "YYYY-MM"
+  toursSeen: Record<string, string>
 }
 
 const TYPE_CFG = {
@@ -391,6 +397,7 @@ export function DashboardClient({
   userEmail,
   userId,
   currentMonth,
+  toursSeen,
 }: DashboardClientProps) {
   const router = useRouter()
   const [isNavigating, startTransition] = useTransition()
@@ -409,6 +416,9 @@ export function DashboardClient({
 
   const [showQuickAdd, setShowQuickAdd] = useState(false)
   const [quickAddType, setQuickAddType] = useState<string | undefined>(undefined)
+  const [quickAddPrefill, setQuickAddPrefill] = useState<ExtractedTransaction | null>(null)
+  const [showScan, setShowScan] = useState(false)
+  const [bulkItems, setBulkItems] = useState<ExtractedTransaction[] | null>(null)
   const [greeting, setGreeting] = useState('')
   const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions)
   const [cumSavings, setCumSavings] = useState(cumulativeSavings)
@@ -648,9 +658,20 @@ export function DashboardClient({
           <MonthlySummaryBanner userId={userId} />
           <MonthNavigator currentMonth={currentMonth} isPending={isNavigating} onNavigate={navigateToMonth} />
           <Button
+            data-tour="image-upload-button"
+            variant="outline"
+            onClick={() => setShowScan(true)}
+            size="sm"
+            title="Crear movimiento desde una foto, screenshot o PDF"
+            className="hidden md:flex gap-1.5 h-9 px-3 text-[13px] font-semibold rounded-xl shadow-none transition-all duration-150 hover:scale-[1.02] hover:border-primary/40 hover:text-primary"
+          >
+            <ScanLine className="w-3.5 h-3.5" />
+            <span className="hidden lg:inline">Desde imagen</span>
+          </Button>
+          <Button
             onClick={() => openQuickAdd()}
             size="sm"
-            className="gap-1.5 h-9 px-4 text-[13px] font-semibold rounded-xl shadow-none transition-all duration-150 hover:scale-[1.02] hover:shadow-md"
+            className="hidden md:flex gap-1.5 h-9 px-4 text-[13px] font-semibold rounded-xl shadow-none transition-all duration-150 hover:scale-[1.02] hover:shadow-md"
           >
             <Plus className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Agregar</span>
@@ -1235,14 +1256,68 @@ export function DashboardClient({
       {/* ── Modals ─────────────────────────────────────────────────── */}
       {showQuickAdd && (
         <QuickAddTransaction
-          onClose={() => { setShowQuickAdd(false); setQuickAddType(undefined) }}
+          initial={quickAddPrefill ?? undefined}
+          onClose={() => { setShowQuickAdd(false); setQuickAddType(undefined); setQuickAddPrefill(null) }}
           onSuccess={() => {
             setShowQuickAdd(false)
             setQuickAddType(undefined)
+            setQuickAddPrefill(null)
             router.refresh()
+          }}
+          onBulkExtracted={(items) => {
+            setShowQuickAdd(false)
+            setQuickAddType(undefined)
+            setQuickAddPrefill(null)
+            setBulkItems(items)
           }}
         />
       )}
+
+      {showScan && (
+        <ScanTransactionDialog
+          onClose={() => setShowScan(false)}
+          onExtracted={(items) => {
+            setShowScan(false)
+            if (items.length === 1) {
+              setQuickAddPrefill(items[0])
+              setShowQuickAdd(true)
+            } else {
+              setBulkItems(items)
+            }
+          }}
+          onManualEntry={() => {
+            setShowScan(false)
+            openQuickAdd()
+          }}
+        />
+      )}
+
+      {bulkItems && (
+        <BulkReviewTransactions
+          transactions={bulkItems}
+          onClose={() => setBulkItems(null)}
+          onSaved={() => {
+            setBulkItems(null)
+            window.location.reload()
+          }}
+        />
+      )}
+
+      {/* Mobile scanner FAB — entrada principal a la carga desde imagen.
+          Sits above the bottom nav, clears iOS safe area. The manual flow
+          fallback vive como link "Prefiero cargarlo a mano" dentro del
+          scan dialog. */}
+      <button
+        data-tour="quick-add-trigger"
+        onClick={() => setShowScan(true)}
+        aria-label="Cargar desde imagen o PDF"
+        className="md:hidden fixed right-4 z-40 w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-xl flex items-center justify-center transition-transform duration-150 hover:scale-105 active:scale-95"
+        style={{ bottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}
+      >
+        <ScanLine className="w-6 h-6" />
+      </button>
+
+      <FeatureTour seenTours={toursSeen} />
 
       {editingTx && (
         <EditTransactionModal

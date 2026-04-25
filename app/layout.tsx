@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import { Sora, DM_Sans, DM_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
+import './tour.css'
 
 const sora = Sora({ subsets: ['latin'], variable: '--font-serif' })
 const dmSans = DM_Sans({ subsets: ['latin'], variable: '--font-sans' })

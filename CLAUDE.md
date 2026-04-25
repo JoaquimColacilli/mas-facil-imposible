@@ -153,7 +153,14 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 SUPABASE_JWT_SECRET=
+GEMINI_API_KEY=
 ```
+
+`GEMINI_API_KEY` is used server-side only (no `NEXT_PUBLIC_` prefix) by the
+"crear movimiento desde imagen" feature — see `lib/gemini.ts` and
+`extractTransactionFromImage` in `app/(app)/transactions/actions.ts`. Calls
+go directly to the Gemini REST API; no SDK is installed. Without this key
+the feature returns `unknown` and the user sees a generic error toast.
 
 ## Key Design Decisions
 

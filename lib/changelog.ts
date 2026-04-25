@@ -6,6 +6,19 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.0.0',
+    date: '2026-04-25',
+    changes: [
+      'Agregada carga de movimientos desde imagen con Gemini Flash',
+      'Agregado rate limit de 20 análisis por usuario por día',
+      'Soporte para PDFs en carga desde imagen',
+      'Carga de múltiples movimientos desde resumen de tarjeta',
+      'Acceso a carga desde imagen también en mobile via QuickAdd',
+      'FAB scanner en mobile como entrada principal a la carga desde imagen',
+      'Agregado tour de bienvenida para la carga desde imagen'
+    ]
+  },
+  {
     version: '0.34.0',
     date: '2026-04-25',
     changes: [
