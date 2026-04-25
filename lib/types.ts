@@ -4,7 +4,15 @@ export type Currency = 'ARS' | 'USD'
 export type TransactionType = 'expense' | 'income' | 'savings' | 'investment'
 export type TransactionStatus = 'confirmed' | 'pending' | 'cancelled'
 export type PaymentMethod = 'cash' | 'debit' | 'credit'
-export type GoalStatus = 'active' | 'completed' | 'paused'
+export type GoalStatus = 'active' | 'completed' | 'paused' | 'liquidated'
+export type GoalCategory = 'viaje' | 'auto' | 'casa' | 'emergencia' | 'inversion' | 'otro'
+/** Origin tag for a transaction. Free-form on the DB side; the app only
+ *  recognises this fixed set. PR 3 wires 'goal_liquidation', PR 4 wires 'auto_goal'.
+ *  Note: an aporte-a-meta is `type='savings'` + non-null `goal_id` —
+ *  no separate transaction type is needed (would split aggregates like
+ *  "Ahorros del mes" silently). The `source` field distinguishes how it
+ *  was created. */
+export type TransactionSource = 'manual' | 'auto_goal' | 'goal_deposit' | 'goal_liquidation'
 export type NotificationType = 'info' | 'warning' | 'success' | 'alert'
 
 export type AppMode = 'classic' | 'mfi'
@@ -362,6 +370,13 @@ export interface Transaction {
   sheet_id: string | null
   is_recurring: boolean
   recurring_source_id: string | null
+  /** PR 1 (migration 028): nullable. Set when the transaction is a deposit
+   *  to a goal. ON DELETE of the goal sets this back to null — the money
+   *  was contributed regardless. */
+  goal_id?: string | null
+  /** PR 1 (migration 028): origin tag. NOT NULL on the DB (default 'manual'),
+   *  optional on the type only because legacy queries may not project it. */
+  source?: TransactionSource
   created_at: string
   updated_at: string
   // joined
@@ -376,9 +391,25 @@ export interface Goal {
   current_amount: number
   currency: Currency
   deadline: string | null
-  color: string
-  icon: string
   status: GoalStatus
+  /** Migration 028. Default 'otro' para metas creadas antes del rediseño. */
+  category: GoalCategory
+  /** Migration 028. Aporte mensual configurado. Vive encriptado en enc_data. */
+  monthly_target?: number | null
+  /** Migration 028. Auto-débito declarativo — el cron lo ejecuta recién en PR 4. */
+  auto_enabled: boolean
+  /** Migration 028. Vive encriptado en enc_data. Plaintext column queda en 0. */
+  auto_amount?: number | null
+  /** Migration 028. Día del mes 1–28. */
+  auto_day?: number | null
+  /** Migration 028. Vive 100% en enc_data — no hay columna plaintext en la DB. */
+  note?: string | null
+  /** Migration 028. Timestamp ISO. */
+  completed_at?: string | null
+  /** Migration 029 (liquidación). Timestamp ISO. */
+  liquidated_at?: string | null
+  /** Migration 029. ID del movimiento de income generado al liquidar. */
+  liquidation_transaction_id?: string | null
   created_at: string
   updated_at: string
 }

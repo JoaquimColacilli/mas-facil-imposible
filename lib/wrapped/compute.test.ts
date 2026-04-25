@@ -237,9 +237,9 @@ describe('goal selection', () => {
     current_amount: partial.current_amount ?? 0,
     currency: 'ARS',
     deadline: null,
-    color: partial.color ?? '#3b82f6',
-    icon: partial.icon ?? 'Plane',
     status: partial.status ?? 'active',
+    category: partial.category ?? 'otro',
+    auto_enabled: false,
     created_at: '',
     updated_at: partial.updated_at ?? '',
   })

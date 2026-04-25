@@ -415,15 +415,32 @@ function buildGoal(goals: Goal[], year: number, month0: number): WrappedGoal | n
     100,
     Math.round((featured.current_amount / Math.max(featured.target_amount, 1)) * 100),
   )
+  // Migration 029 dropped goals.icon/color. We now derive them from the
+  // category — cheap and doesn't pull a tree of imports into the wrapped
+  // bundle. The `icon` field is consumed as a string label by the slide
+  // renderers but the actual icon shown is hardcoded to <Target>, so the
+  // exact string here is informational only.
+  const color = CATEGORY_COLORS[featured.category] ?? '#3b82f6'
   return {
     name: featured.name,
-    icon: featured.icon,
-    color: featured.color,
+    icon: 'Target',
+    color,
     current: featured.current_amount,
     target: featured.target_amount,
     pct,
     completedThisMonth,
   }
+}
+
+/** Local copy of CATEGORY_META.color to keep this module zero-import.
+ *  Stays in sync with lib/goals.ts manually — both are short and stable. */
+const CATEGORY_COLORS: Record<string, string> = {
+  viaje:      '#3b82f6',
+  auto:       '#a855f7',
+  casa:       '#10b981',
+  emergencia: '#ef4444',
+  inversion:  '#f59e0b',
+  otro:       '#64748b',
 }
 
 export interface ComputeWrappedInput {

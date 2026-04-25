@@ -1,736 +1,422 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
-import type { Goal, Currency, GoalStatus } from '@/lib/types'
-import { formatCurrency, formatDate } from '@/lib/types'
-import { createClient } from '@/lib/supabase/client'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { MoneyInput, parseMoneyInput } from '@/components/money-input'
-import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import {
-  Plus,
-  Target,
-  Trash2,
-  X,
-  MoreVertical,
-  ChevronDown,
-  PauseCircle,
-  PlayCircle,
-  CheckCircle2,
-  Crosshair,
-  PartyPopper,
-} from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { useState, useMemo, useCallback } from 'react'
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'
+import { Plus, Info } from 'lucide-react'
 import { toast } from 'sonner'
+import { Button } from '@/components/ui/button'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
+import type { Goal, Category, GoalCategory } from '@/lib/types'
+import {
+  buildSeries,
+  sortGoals,
+  type GoalSort,
+  CATEGORY_LIST,
+} from '@/lib/goals'
+import { useUsdRate } from '@/hooks/use-usd-rate'
+import { GoalsHero } from './_components/goals-hero'
+import { GoalsFilters, type FilterValue } from './_components/goals-filters'
+import { GoalCard } from './_components/goal-card'
+import { GoalsEmpty, type GoalTemplate } from './_components/empty-state'
+import { CreateGoalModal, type CreateModalSubmit } from './_components/create-goal-modal'
+import { LiquidateGoalModal } from './_components/liquidate-goal-modal'
+import { DepositModal } from './_components/deposit-modal'
+import { DebugPanel, useDebugScenario } from './_components/debug-panel'
+import {
+  createGoal,
+  updateGoal,
+  setGoalStatus,
+  depositToGoal,
+  liquidateGoal,
+  deleteGoal,
+} from './actions'
 
-// ─── Constants ──────────────────────────────────────────────────────────────
+export type GoalSeries = { amount: number; date: string }[]
 
-const STATUS_LABELS: Record<GoalStatus, string> = {
-  active: 'Activa',
-  completed: 'Completada',
-  paused: 'Pausada',
+interface GoalsClientProps {
+  goals: Goal[]
+  seriesByGoal: Record<string, GoalSeries>
+  incomeCategories: Category[]
 }
 
-const PRESET_COLORS = [
-  '#10b981', '#3b82f6', '#f59e0b', '#ef4444',
-  '#8b5cf6', '#06b6d4', '#ec4899', '#84cc16',
-]
+export function GoalsClient({
+  goals: initialGoals,
+  seriesByGoal,
+  incomeCategories,
+}: GoalsClientProps) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const { rate: mepRate } = useUsdRate()
 
-// ─── Progress Ring (SVG) ────────────────────────────────────────────────────
+  // ?debug=1 swaps the data with synthetic scenarios.
+  const debugScenario = useDebugScenario()
+  const goalsFromState = useState<Goal[]>(initialGoals)
+  const [goals, setGoals] = goalsFromState
+  const effectiveGoals = debugScenario?.goals ?? goals
 
-function ProgressRing({
-  percentage,
-  color,
-  size = 56,
-  strokeWidth = 5,
-  animate = true,
-}: {
-  percentage: number
-  color: string
-  size?: number
-  strokeWidth?: number
-  animate?: boolean
-}) {
-  const radius = (size - strokeWidth) / 2
-  const circumference = 2 * Math.PI * radius
-  const [offset, setOffset] = useState(animate ? circumference : circumference - (percentage / 100) * circumference)
+  // URL state
+  const filter: FilterValue = (searchParams.get('cat') as FilterValue) || 'all'
+  const sort: GoalSort = (searchParams.get('sort') as GoalSort) || 'progress'
 
-  useEffect(() => {
-    if (!animate) return
-    const timer = setTimeout(() => {
-      setOffset(circumference - (percentage / 100) * circumference)
-    }, 100)
-    return () => clearTimeout(timer)
-  }, [percentage, circumference, animate])
+  function setQuery(patch: Record<string, string | null>) {
+    const params = new URLSearchParams(searchParams.toString())
+    for (const [k, v] of Object.entries(patch)) {
+      if (v == null) params.delete(k)
+      else params.set(k, v)
+    }
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false })
+  }
 
-  return (
-    <div className="relative shrink-0" style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke={color}
-          strokeWidth={strokeWidth}
-          opacity={0.12}
-        />
-        <circle
-          cx={size / 2}
-          cy={size / 2}
-          r={radius}
-          fill="none"
-          stroke={color}
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-          strokeDasharray={circumference}
-          strokeDashoffset={offset}
-          style={{ transition: animate ? 'stroke-dashoffset 0.6s ease-out' : 'none' }}
-        />
-      </svg>
-      <span className="absolute inset-0 flex items-center justify-center text-[11px] font-bold font-mono text-foreground">
-        {percentage}%
-      </span>
-    </div>
+  // Modal state
+  const [createOpen, setCreateOpen] = useState(false)
+  const [createTemplate, setCreateTemplate] = useState<GoalTemplate | null>(null)
+  const [editing, setEditing] = useState<Goal | null>(null)
+  const [depositGoal, setDepositGoal] = useState<Goal | null>(null)
+  const [liquidateGoalState, setLiquidateGoalState] = useState<Goal | null>(null)
+
+  // Filter + sort
+  const visibleGoals = useMemo(() => {
+    const filtered = filter === 'all' ? effectiveGoals : effectiveGoals.filter((g) => g.category === filter)
+    return sortGoals(filtered, sort)
+  }, [effectiveGoals, filter, sort])
+
+  const counts = useMemo(() => {
+    const c: Record<string, number> = { all: effectiveGoals.length }
+    for (const cat of CATEGORY_LIST) c[cat.id] = 0
+    for (const g of effectiveGoals) c[g.category] = (c[g.category] ?? 0) + 1
+    return c
+  }, [effectiveGoals])
+
+  const sections = useMemo(() => {
+    const active = visibleGoals.filter((g) => g.status === 'active')
+    const paused = visibleGoals.filter((g) => g.status === 'paused')
+    const completed = visibleGoals.filter((g) => g.status === 'completed')
+    const liquidated = visibleGoals.filter((g) => g.status === 'liquidated')
+    return { active, paused, completed, liquidated }
+  }, [visibleGoals])
+
+  const monthLabel = useMemo(() =>
+    new Date().toLocaleDateString('es-AR', { month: 'long', year: 'numeric' }),
+  [])
+
+  // ─── Mutation wrappers (skipped when debug scenario active) ────────────────
+
+  const isDebug = !!debugScenario
+
+  const handleCreate = useCallback(
+    async (input: CreateModalSubmit) => {
+      if (isDebug) {
+        toast.info('Modo debug: la meta no se guarda.')
+        return { error: null }
+      }
+      const { data, error } = await createGoal(input)
+      if (error) {
+        toast.error('No se pudo crear la meta.')
+        return { error }
+      }
+      if (data) {
+        setGoals((prev) => [data, ...prev])
+        toast.success('Meta creada')
+      }
+      return { error: null }
+    },
+    [isDebug, setGoals],
   )
-}
 
-// ─── Summary Hero ───────────────────────────────────────────────────────────
-
-function GoalsSummary({ goals }: { goals: Goal[] }) {
-  const active = goals.filter((g) => g.status === 'active')
-  const completed = goals.filter((g) => g.status === 'completed')
-
-  if (active.length === 0 && completed.length === 0) return null
-
-  // Group by currency for totals
-  const currencies = [...new Set(active.map((g) => g.currency))] as Currency[]
-
-  const totals = currencies.map((cur) => {
-    const filtered = active.filter((g) => g.currency === cur)
-    const saved = filtered.reduce((s, g) => s + g.current_amount, 0)
-    const target = filtered.reduce((s, g) => s + g.target_amount, 0)
-    const pct = target > 0 ? Math.min(100, Math.round((saved / target) * 100)) : 0
-    return { currency: cur, saved, target, pct, count: filtered.length }
-  })
-
-  // If only one currency, use a single-currency layout
-  const primaryTotal = totals.length === 1 ? totals[0] : null
-  // If multiple currencies, pick the one with more goals for the ring
-  const ringTotal = primaryTotal ?? (totals.length > 0 ? totals.reduce((a, b) => a.count >= b.count ? a : b) : null)
-
-  return (
-    <div className="bg-card border border-border rounded-2xl p-5 animate-fade-in-up" style={{ animationFillMode: 'both' }}>
-      <div className="flex items-center gap-5">
-        {/* Progress ring */}
-        {ringTotal && (
-          <ProgressRing percentage={ringTotal.pct} color="#10b981" size={64} strokeWidth={6} />
-        )}
-
-        {/* Metrics */}
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap gap-x-6 gap-y-1">
-            {totals.map((t) => (
-              <div key={t.currency} className="flex flex-col">
-                <span className="text-[18px] font-bold font-mono tabular-nums text-emerald-500 leading-tight">
-                  {formatCurrency(t.saved, t.currency)}
-                </span>
-                <span className="text-[11px] text-muted-foreground leading-tight">
-                  de {formatCurrency(t.target, t.currency)}
-                </span>
-              </div>
-            ))}
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-2">
-            {active.length} meta{active.length !== 1 ? 's' : ''} activa{active.length !== 1 ? 's' : ''}
-            {completed.length > 0 && ` · ${completed.length} completada${completed.length !== 1 ? 's' : ''}`}
-          </p>
-        </div>
-      </div>
-    </div>
+  const handleUpdate = useCallback(
+    async (id: string, input: CreateModalSubmit) => {
+      if (isDebug) {
+        toast.info('Modo debug: cambios no se guardan.')
+        return { error: null }
+      }
+      const { data, error } = await updateGoal({ id, ...input, current_amount: 0 } as Parameters<typeof updateGoal>[0])
+      if (error) {
+        toast.error('No se pudo guardar.')
+        return { error }
+      }
+      if (data) {
+        setGoals((prev) => prev.map((g) => (g.id === id ? data : g)))
+        toast.success('Meta actualizada')
+      }
+      return { error: null }
+    },
+    [isDebug, setGoals],
   )
-}
 
-// ─── Deadline Helper ────────────────────────────────────────────────────────
-
-function DeadlineLabel({ deadline }: { deadline: string | null }) {
-  if (!deadline) return null
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  const deadlineDate = new Date(deadline + 'T00:00:00')
-  const diff = Math.ceil((deadlineDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-
-  const isOverdue = diff < 0
-  const isUrgent = diff >= 0 && diff <= 30
-
-  return (
-    <p className={cn(
-      'text-[10.5px] leading-none mt-0.5',
-      isOverdue ? 'text-rose-500 font-medium' : isUrgent ? 'text-amber-500' : 'text-muted-foreground',
-    )}>
-      {isOverdue ? 'Vencida' : `Hasta ${formatDate(deadline)}`}
-    </p>
+  const handleDeposit = useCallback(
+    async (input: { goal: Goal; amount: number; note: string | null; date: string }) => {
+      if (isDebug) {
+        toast.info('Modo debug: depósito no se guarda.')
+        return { error: null }
+      }
+      const { data, error } = await depositToGoal({
+        goal: input.goal,
+        amount: input.amount,
+        date: input.date,
+        note: input.note,
+      })
+      if (error) {
+        toast.error('No se pudo depositar.')
+        return { error }
+      }
+      if (data) {
+        setGoals((prev) => prev.map((g) => (g.id === data.id ? data : g)))
+        // Note: the cumulative series for this goal will only reflect the new
+        // deposit on next page load. Acceptable trade-off — we'd need to
+        // revalidate or push to seriesByGoal in state otherwise.
+        toast.success(
+          data.status === 'completed'
+            ? `¡Cumpliste “${data.name}”!`
+            : `Depósito en ${data.name}`,
+        )
+      }
+      return { error: null }
+    },
+    [isDebug, setGoals],
   )
-}
 
-// ─── Goal Card ──────────────────────────────────────────────────────────────
+  const handleLiquidate = useCallback(
+    async (input: { goalId: string; categoryId: string | null; note: string | null }) => {
+      if (isDebug) {
+        toast.info('Modo debug: liquidación no se ejecuta.')
+        return { error: null }
+      }
+      const { data, error } = await liquidateGoal(input)
+      if (error) {
+        toast.error('No se pudo liquidar.')
+        return { error }
+      }
+      if (data) {
+        setGoals((prev) => prev.map((g) => (g.id === data.id ? data : g)))
+        toast.success('Meta liquidada · movimiento creado')
+      }
+      return { error: null }
+    },
+    [isDebug, setGoals],
+  )
 
-function GoalCard({
-  goal,
-  index,
-  onDeposit,
-  onDelete,
-  onStatusChange,
-}: {
-  goal: Goal
-  index: number
-  onDeposit: (goal: Goal) => void
-  onDelete: (id: string) => void
-  onStatusChange: (id: string, status: GoalStatus) => void
-}) {
-  const pct = goal.target_amount > 0
-    ? Math.min(100, Math.round((goal.current_amount / goal.target_amount) * 100))
-    : 0
+  const handlePause = useCallback(async (goal: Goal) => {
+    if (isDebug) return
+    const { data, error } = await setGoalStatus(goal.id, 'paused')
+    if (error) { toast.error('No se pudo pausar.'); return }
+    if (data) setGoals((prev) => prev.map((g) => (g.id === goal.id ? data : g)))
+    toast.success('Meta pausada')
+  }, [isDebug, setGoals])
 
-  const isMuted = goal.status === 'completed' || goal.status === 'paused'
+  const handleReactivate = useCallback(async (goal: Goal) => {
+    if (isDebug) return
+    const { data, error } = await setGoalStatus(goal.id, 'active')
+    if (error) { toast.error('No se pudo reactivar.'); return }
+    if (data) setGoals((prev) => prev.map((g) => (g.id === goal.id ? data : g)))
+    toast.success('Meta reactivada')
+  }, [isDebug, setGoals])
+
+  const handleDelete = useCallback(async (goal: Goal) => {
+    if (isDebug) return
+    if (!confirm(`¿Eliminar "${goal.name}"? Los depósitos quedan en el histórico de movimientos.`)) return
+    const { error } = await deleteGoal(goal.id)
+    if (error) { toast.error('No se pudo eliminar.'); return }
+    setGoals((prev) => prev.filter((g) => g.id !== goal.id))
+    toast.success('Meta eliminada')
+  }, [isDebug, setGoals])
+
+  // ─── Render ────────────────────────────────────────────────────────────────
+
+  const showEmpty = effectiveGoals.length === 0
+  const noResults = effectiveGoals.length > 0 && visibleGoals.length === 0
 
   return (
-    <div
-      className={cn(
-        'group bg-card border rounded-2xl p-4 flex flex-col gap-3 transition-all duration-200 hover:shadow-md hover:-translate-y-[1px] animate-fade-in-up',
-        isMuted ? 'opacity-60 hover:opacity-80' : 'opacity-100',
-      )}
-      style={{
-        borderColor: isMuted ? undefined : goal.color + '30',
-        animationDelay: `${index * 80}ms`,
-        animationFillMode: 'both',
-      }}
-    >
-      {/* Header */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <div
-            className="w-2.5 h-2.5 rounded-full shrink-0"
-            style={{ backgroundColor: goal.color }}
+    <div className="flex flex-col gap-6">
+      <PageHeader onNew={() => { setCreateTemplate(null); setEditing(null); setCreateOpen(true) }} count={effectiveGoals.length} />
+
+      {showEmpty ? (
+        <GoalsEmpty onNew={(t) => {
+          setCreateTemplate(t ?? null)
+          setEditing(null)
+          setCreateOpen(true)
+        }} />
+      ) : (
+        <>
+          <GoalsHero
+            goals={effectiveGoals}
+            mepRate={mepRate}
+            monthLabel={monthLabel}
+            onNew={() => { setCreateTemplate(null); setEditing(null); setCreateOpen(true) }}
           />
-          <div className="min-w-0">
-            <p className="text-[13px] font-semibold text-foreground leading-none truncate">
-              {goal.name}
-            </p>
-            <DeadlineLabel deadline={goal.deadline} />
-          </div>
-        </div>
 
-        <div className="flex items-center gap-0.5 shrink-0">
-          {goal.status === 'completed' && (
-            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+          <GoalsFilters
+            filter={filter}
+            setFilter={(v) => setQuery({ cat: v === 'all' ? null : v })}
+            sort={sort}
+            setSort={(v) => setQuery({ sort: v === 'progress' ? null : v })}
+            counts={counts}
+          />
+
+          {noResults ? (
+            <div className="rounded-2xl bg-card border border-border p-10 text-center">
+              <p className="text-foreground font-medium">No hay metas en esa categoría.</p>
+              <p className="text-muted-foreground text-sm mt-1">Probá quitar el filtro o crear una.</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {sections.active.length > 0 && (
+                <Section title="Activas" hint="Tus metas en marcha" count={sections.active.length}>
+                  {sections.active.map((g) => (
+                    <GoalCard
+                      key={g.id}
+                      goal={g}
+                      series={buildSeries(seriesByGoal[g.id] ?? [])}
+                      onDeposit={(goal) => setDepositGoal(goal)}
+                      onPause={handlePause}
+                      onEdit={(goal) => { setEditing(goal); setCreateTemplate(null); setCreateOpen(true) }}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </Section>
+              )}
+              {sections.paused.length > 0 && (
+                <Section title="Pausadas" count={sections.paused.length}>
+                  {sections.paused.map((g) => (
+                    <GoalCard
+                      key={g.id}
+                      goal={g}
+                      series={buildSeries(seriesByGoal[g.id] ?? [])}
+                      onReactivate={handleReactivate}
+                      onEdit={(goal) => { setEditing(goal); setCreateTemplate(null); setCreateOpen(true) }}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </Section>
+              )}
+              {sections.completed.length > 0 && (
+                <Section title="Cumplidas" hint="Buen trabajo" count={sections.completed.length}>
+                  {sections.completed.map((g) => (
+                    <GoalCard
+                      key={g.id}
+                      goal={g}
+                      series={buildSeries(seriesByGoal[g.id] ?? [])}
+                      onLiquidate={(goal) => setLiquidateGoalState(goal)}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </Section>
+              )}
+              {sections.liquidated.length > 0 && (
+                <Section title="Liquidadas" hint="Histórico" count={sections.liquidated.length}>
+                  {sections.liquidated.map((g) => (
+                    <GoalCard
+                      key={g.id}
+                      goal={g}
+                      series={buildSeries(seriesByGoal[g.id] ?? [])}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </Section>
+              )}
+            </div>
           )}
-          {goal.status === 'paused' && (
-            <PauseCircle className="w-3.5 h-3.5 text-muted-foreground" />
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="w-6 h-6 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors opacity-0 group-hover:opacity-100">
-                <MoreVertical className="w-3.5 h-3.5" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
-              {goal.status === 'active' && (
-                <DropdownMenuItem onClick={() => onStatusChange(goal.id, 'paused')}>
-                  <PauseCircle className="w-3.5 h-3.5 mr-2" />
-                  Pausar
-                </DropdownMenuItem>
-              )}
-              {goal.status === 'paused' && (
-                <DropdownMenuItem onClick={() => onStatusChange(goal.id, 'active')}>
-                  <PlayCircle className="w-3.5 h-3.5 mr-2" />
-                  Reactivar
-                </DropdownMenuItem>
-              )}
-              {goal.status !== 'completed' && (
-                <DropdownMenuItem onClick={() => onStatusChange(goal.id, 'completed')}>
-                  <CheckCircle2 className="w-3.5 h-3.5 mr-2" />
-                  Completar
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem
-                onClick={() => onDelete(goal.id)}
-                className="text-rose-500 focus:text-rose-500"
-              >
-                <Trash2 className="w-3.5 h-3.5 mr-2" />
-                Eliminar
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-
-      {/* Ring + amounts */}
-      <div className="flex items-center gap-3.5">
-        <ProgressRing percentage={pct} color={goal.color} animate={!isMuted} />
-        <div className="flex flex-col min-w-0">
-          <span className="text-[16px] font-bold font-mono tabular-nums text-foreground leading-tight">
-            {formatCurrency(goal.current_amount, goal.currency)}
-          </span>
-          <span className="text-[11px] text-muted-foreground leading-tight">
-            de {formatCurrency(goal.target_amount, goal.currency)}
-          </span>
-        </div>
-      </div>
-
-      {/* Progress bar */}
-      <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: goal.color + '15' }}>
-        <div
-          className="h-full rounded-full transition-all duration-500 ease-out"
-          style={{
-            width: `${pct}%`,
-            backgroundColor: goal.color,
-          }}
-        />
-      </div>
-
-      {/* Actions */}
-      {goal.status === 'active' && (
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-7 text-[11px] w-full"
-          onClick={() => onDeposit(goal)}
-        >
-          Depositar
-        </Button>
+        </>
       )}
+
+      <CreateGoalModal
+        open={createOpen}
+        onClose={() => { setCreateOpen(false); setCreateTemplate(null); setEditing(null) }}
+        template={createTemplate}
+        editing={editing}
+        onSubmit={(input) => editing ? handleUpdate(editing.id, input) : handleCreate(input)}
+      />
+
+      <DepositModal
+        open={!!depositGoal}
+        onClose={() => setDepositGoal(null)}
+        goal={depositGoal}
+        onConfirm={handleDeposit}
+      />
+
+      <LiquidateGoalModal
+        open={!!liquidateGoalState}
+        onClose={() => setLiquidateGoalState(null)}
+        goal={liquidateGoalState}
+        incomeCategories={incomeCategories}
+        onConfirm={handleLiquidate}
+      />
+
+      <DebugPanel />
     </div>
   )
 }
 
-// ─── Collapsible Section ────────────────────────────────────────────────────
+function PageHeader({ onNew, count }: { onNew: () => void; count: number }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex-1">
+        <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-mono">/metas</div>
+        <h1 className="font-bold text-foreground" style={{ fontSize: 28 }}>
+          Metas
+          {count > 0 && <span className="ml-2 font-mono text-muted-foreground font-semibold text-[15px]">{count}</span>}
+        </h1>
+      </div>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="ghost" size="sm" className="gap-1.5 hidden md:inline-flex">
+            <Info className="w-3.5 h-3.5" />
+            Cómo funcionan
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-80 text-[13px] leading-relaxed space-y-2">
+          <p className="font-semibold text-foreground">Cómo funcionan las metas</p>
+          <p className="text-muted-foreground" style={{ textWrap: 'pretty' as never }}>
+            Una meta es un objetivo de ahorro con un monto y, opcionalmente, una fecha límite.
+            Cada depósito que registres queda en tu historial de movimientos vinculado a la meta.
+          </p>
+          <p className="text-muted-foreground" style={{ textWrap: 'pretty' as never }}>
+            Configurá un <span className="font-medium text-foreground">aporte mensual</span> para
+            que la app te avise si vas en ritmo o atrás. Si activás{' '}
+            <span className="font-medium text-foreground">ahorro automático</span>, queda anotado
+            como configuración (el cron real entra en una próxima versión).
+          </p>
+          <p className="text-muted-foreground" style={{ textWrap: 'pretty' as never }}>
+            Cuando la cumplas, podés <span className="font-medium text-foreground">liquidarla</span>:
+            se genera un movimiento de ingreso por el total y la meta queda en histórico.
+          </p>
+        </PopoverContent>
+      </Popover>
+      <Button onClick={onNew} className="gap-1.5">
+        <Plus className="w-4 h-4" />
+        Nueva meta
+      </Button>
+    </div>
+  )
+}
 
-function GoalSection({
+function Section({
   title,
   count,
-  defaultOpen = true,
+  hint,
   children,
 }: {
   title: string
   count: number
-  defaultOpen?: boolean
+  hint?: string
   children: React.ReactNode
 }) {
-  const [open, setOpen] = useState(defaultOpen)
-
   return (
-    <div>
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 mb-3 group/section"
-      >
-        <ChevronDown className={cn(
-          'w-3.5 h-3.5 text-muted-foreground transition-transform duration-200',
-          !open && '-rotate-90',
-        )} />
-        <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-[0.1em]">
-          {title} ({count})
-        </span>
-      </button>
-      {open && children}
-    </div>
-  )
-}
-
-// ─── Deposit Modal ──────────────────────────────────────────────────────────
-
-function DepositModal({
-  goal,
-  open,
-  onOpenChange,
-  onDeposit,
-}: {
-  goal: Goal | null
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onDeposit: (goal: Goal, amount: number) => Promise<void>
-}) {
-  const [amount, setAmount] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [completed, setCompleted] = useState(false)
-
-  if (!goal) return null
-
-  const remaining = goal.target_amount - goal.current_amount
-  const parsedAmount = parseMoneyInput(amount)
-  const wouldComplete = parsedAmount > 0 && (goal.current_amount + parsedAmount) >= goal.target_amount
-
-  async function handleSubmit() {
-    if (!parsedAmount || parsedAmount <= 0 || !goal) return
-    setLoading(true)
-    await onDeposit(goal, parsedAmount)
-    setLoading(false)
-    if (wouldComplete) {
-      setCompleted(true)
-    } else {
-      onOpenChange(false)
-      setAmount('')
-    }
-  }
-
-  function handleClose() {
-    onOpenChange(false)
-    setAmount('')
-    setCompleted(false)
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-sm">
-        {completed ? (
-          <div className="flex flex-col items-center gap-4 py-4 text-center">
-            <div className="w-14 h-14 rounded-full bg-emerald-500/10 flex items-center justify-center">
-              <PartyPopper className="w-7 h-7 text-emerald-500" />
-            </div>
-            <div>
-              <p className="text-[15px] font-semibold text-foreground">Meta completada</p>
-              <p className="text-[12px] text-muted-foreground mt-1">
-                Alcanzaste tu objetivo de {formatCurrency(goal.target_amount, goal.currency)} en "{goal.name}"
-              </p>
-            </div>
-            <Button onClick={handleClose} className="w-full h-9">
-              Cerrar
-            </Button>
-          </div>
-        ) : (
-          <>
-            <DialogHeader>
-              <DialogTitle className="text-[14px] font-semibold">
-                Depositar en {goal.name}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="flex flex-col gap-4 pt-2">
-              <div className="flex justify-between text-[12px]">
-                <span className="text-muted-foreground">Saldo actual</span>
-                <span className="font-mono font-semibold text-foreground">
-                  {formatCurrency(goal.current_amount, goal.currency)}
-                </span>
-              </div>
-              <div className="flex justify-between text-[12px]">
-                <span className="text-muted-foreground">Falta</span>
-                <span className="font-mono font-semibold text-foreground">
-                  {formatCurrency(Math.max(0, remaining), goal.currency)}
-                </span>
-              </div>
-
-              <MoneyInput
-                placeholder="Monto a depositar"
-                value={amount}
-                onChange={setAmount}
-                className="h-10"
-                autoFocus
-              />
-
-              {wouldComplete && (
-                <p className="text-[11px] text-emerald-500 font-medium bg-emerald-500/5 border border-emerald-500/15 rounded-lg px-3 py-2">
-                  Este depósito completa la meta. Se marcará como completada automáticamente.
-                </p>
-              )}
-
-              <Button
-                onClick={handleSubmit}
-                disabled={loading || !parsedAmount || parsedAmount <= 0}
-                className="h-10 w-full"
-              >
-                {loading ? 'Depositando...' : 'Depositar'}
-              </Button>
-            </div>
-          </>
+    <section>
+      <div className="flex items-end justify-between mb-3">
+        <div className="flex items-baseline gap-2">
+          <h2 className="font-semibold text-foreground text-[18px]">{title}</h2>
+          <span className="font-mono text-muted-foreground text-[13px]">{count}</span>
+        </div>
+        {hint && (
+          <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-mono">{hint}</span>
         )}
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-// ─── Main Component ─────────────────────────────────────────────────────────
-
-interface GoalsClientProps {
-  goals: Goal[]
-}
-
-export function GoalsClient({ goals: initial }: GoalsClientProps) {
-  const [goals, setGoals] = useState<Goal[]>(initial)
-  const [showAdd, setShowAdd] = useState(false)
-  const [depositGoal, setDepositGoal] = useState<Goal | null>(null)
-  const [form, setForm] = useState({
-    name: '',
-    target_amount: '',
-    current_amount: '',
-    currency: 'ARS' as Currency,
-    deadline: '',
-    color: PRESET_COLORS[0],
-  })
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const active = goals.filter((g) => g.status === 'active')
-  const completed = goals.filter((g) => g.status === 'completed')
-  const paused = goals.filter((g) => g.status === 'paused')
-  const hasMultipleSections = [active.length > 0, completed.length > 0, paused.length > 0].filter(Boolean).length > 1
-
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault()
-    setError(null)
-    setLoading(true)
-    const { createGoal } = await import('./actions')
-    const { data, error } = await createGoal({
-      name: form.name,
-      target_amount: parseMoneyInput(form.target_amount),
-      current_amount: parseMoneyInput(form.current_amount),
-      currency: form.currency,
-      deadline: form.deadline || null,
-      color: form.color,
-    })
-    if (error) {
-      setError(error)
-      toast.error('No se pudo crear. Intentá de nuevo.', { duration: 5000 })
-    } else if (data) {
-      setGoals((prev) => [data, ...prev])
-      setShowAdd(false)
-      setForm({ name: '', target_amount: '', current_amount: '', currency: 'ARS', deadline: '', color: PRESET_COLORS[0] })
-      toast.success('Meta creada')
-    }
-    setLoading(false)
-  }
-
-  async function handleDelete(id: string) {
-    const { deleteGoal } = await import('./actions')
-    const { error } = await deleteGoal(id)
-    if (error) { toast.error('No se pudo eliminar. Intentá de nuevo.', { duration: 5000 }); return }
-    setGoals((prev) => prev.filter((g) => g.id !== id))
-    toast.success('Meta eliminada')
-  }
-
-  async function handleDeposit(goal: Goal, amount: number) {
-    const newAmount = goal.current_amount + amount
-    const status: GoalStatus = newAmount >= goal.target_amount ? 'completed' : 'active'
-    const { depositToGoal } = await import('./actions')
-    const { data, error } = await depositToGoal({
-      id: goal.id,
-      name: goal.name,
-      target_amount: goal.target_amount,
-      new_current_amount: newAmount,
-      status,
-    })
-    if (error) { toast.error('No se pudo depositar. Intentá de nuevo.', { duration: 5000 }); return }
-    if (data) {
-      setGoals((prev) => prev.map((g) => (g.id === goal.id ? data : g)))
-      if (status === 'completed') {
-        toast.success(`Meta "${goal.name}" completada`)
-      } else {
-        toast.success(`Depósito registrado en ${goal.name}`)
-      }
-    }
-  }
-
-  async function handleStatusChange(id: string, status: GoalStatus) {
-    const supabase = createClient()
-    const { error } = await supabase
-      .from('goals')
-      .update({ status, updated_at: new Date().toISOString() })
-      .eq('id', id)
-    if (error) { toast.error('No se pudo actualizar. Intentá de nuevo.', { duration: 5000 }); return }
-    setGoals((prev) => prev.map((g) => g.id === id ? { ...g, status } : g))
-    toast.success(`Meta ${STATUS_LABELS[status].toLowerCase()}`)
-  }
-
-  function renderGrid(list: Goal[], startIndex = 0) {
-    return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {list.map((goal, i) => (
-          <GoalCard
-            key={goal.id}
-            goal={goal}
-            index={startIndex + i}
-            onDeposit={setDepositGoal}
-            onDelete={handleDelete}
-            onStatusChange={handleStatusChange}
-          />
-        ))}
       </div>
-    )
-  }
-
-  return (
-    <div className="flex flex-col gap-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-foreground">Metas</h1>
-        <Button size="sm" onClick={() => setShowAdd(true)} className="gap-1.5">
-          <Plus className="w-4 h-4" />
-          Nueva meta
-        </Button>
-      </div>
-
-      {/* Summary hero */}
-      <GoalsSummary goals={goals} />
-
-      {/* Empty state */}
-      {goals.length === 0 && !showAdd && (
-        <div className="flex flex-col items-center justify-center text-center py-20 gap-4 animate-fade-in-up" style={{ animationFillMode: 'both' }}>
-          <div className="w-16 h-16 rounded-2xl bg-muted/50 flex items-center justify-center">
-            <Crosshair className="w-8 h-8 text-muted-foreground/30" />
-          </div>
-          <div>
-            <p className="text-[14px] font-semibold text-foreground mb-1">Sin metas todavía</p>
-            <p className="text-[12px] text-muted-foreground max-w-[260px]">
-              Creá tu primera meta de ahorro para empezar a trackear tu progreso
-            </p>
-          </div>
-          <Button onClick={() => setShowAdd(true)} className="gap-1.5 mt-1">
-            <Plus className="w-4 h-4" />
-            Nueva meta
-          </Button>
-        </div>
-      )}
-
-      {/* Goals grid — single section or multiple */}
-      {goals.length > 0 && (
-        hasMultipleSections ? (
-          <div className="flex flex-col gap-5">
-            {active.length > 0 && (
-              <GoalSection title="Activas" count={active.length}>
-                {renderGrid(active)}
-              </GoalSection>
-            )}
-            {paused.length > 0 && (
-              <GoalSection title="Pausadas" count={paused.length} defaultOpen={false}>
-                {renderGrid(paused, active.length)}
-              </GoalSection>
-            )}
-            {completed.length > 0 && (
-              <GoalSection title="Completadas" count={completed.length} defaultOpen={false}>
-                {renderGrid(completed, active.length + paused.length)}
-              </GoalSection>
-            )}
-          </div>
-        ) : (
-          renderGrid(active.length > 0 ? active : completed.length > 0 ? completed : paused)
-        )
-      )}
-
-      {/* Deposit modal */}
-      <DepositModal
-        goal={depositGoal}
-        open={!!depositGoal}
-        onOpenChange={(open) => { if (!open) setDepositGoal(null) }}
-        onDeposit={handleDeposit}
-      />
-
-      {/* Add goal modal */}
-      {showAdd && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-          <div className="absolute inset-0 bg-foreground/30 backdrop-blur-sm" onClick={() => setShowAdd(false)} />
-          <div className="relative w-full sm:max-w-md bg-card rounded-t-2xl sm:rounded-2xl border border-border shadow-xl p-6 z-10 animate-fade-in-up" style={{ animationFillMode: 'both' }}>
-            <div className="flex items-center justify-between mb-5">
-              <h2 className="text-base font-semibold text-card-foreground">Nueva meta</h2>
-              <button onClick={() => setShowAdd(false)} className="text-muted-foreground hover:text-foreground transition-colors" aria-label="Cerrar">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <form onSubmit={handleCreate} className="flex flex-col gap-4">
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-xs text-muted-foreground">Nombre</Label>
-                <Input
-                  placeholder="Ej: Fondo de emergencia"
-                  value={form.name}
-                  onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  required
-                  className="h-10"
-                />
-              </div>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Objetivo</Label>
-                  <MoneyInput
-                    placeholder="0"
-                    value={form.target_amount}
-                    onChange={(v) => setForm((f) => ({ ...f, target_amount: v }))}
-                    required
-                    className="h-10"
-                  />
-                </div>
-                <div className="w-24">
-                  <Label className="text-xs text-muted-foreground mb-1.5 block">Moneda</Label>
-                  <Select value={form.currency} onValueChange={(v) => setForm((f) => ({ ...f, currency: v as Currency }))}>
-                    <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="ARS">ARS</SelectItem>
-                      <SelectItem value="USD">USD</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-xs text-muted-foreground">Monto inicial (opcional)</Label>
-                <MoneyInput
-                  placeholder="0"
-                  value={form.current_amount}
-                  onChange={(v) => setForm((f) => ({ ...f, current_amount: v }))}
-                  className="h-10"
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-xs text-muted-foreground">Fecha límite (opcional)</Label>
-                <Input
-                  type="date"
-                  value={form.deadline}
-                  onChange={(e) => setForm((f) => ({ ...f, deadline: e.target.value }))}
-                  className="h-10"
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-xs text-muted-foreground">Color</Label>
-                <div className="flex gap-2 flex-wrap">
-                  {PRESET_COLORS.map((c) => (
-                    <button
-                      key={c}
-                      type="button"
-                      onClick={() => setForm((f) => ({ ...f, color: c }))}
-                      className={cn(
-                        'w-7 h-7 rounded-full transition-transform',
-                        form.color === c && 'ring-2 ring-offset-2 ring-foreground scale-110',
-                      )}
-                      style={{ backgroundColor: c }}
-                      aria-label={`Color ${c}`}
-                    />
-                  ))}
-                </div>
-              </div>
-              {error && <p className="text-sm text-destructive-foreground bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">{error}</p>}
-              <Button type="submit" className="h-11 w-full" disabled={loading}>
-                {loading ? 'Guardando...' : 'Crear meta'}
-              </Button>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">{children}</div>
+    </section>
   )
 }
