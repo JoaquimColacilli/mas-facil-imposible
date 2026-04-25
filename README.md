@@ -1,367 +1,462 @@
-# MFI — Mas Facil Imposible
+# MFI — Más Fácil Imposible
 
-![version](https://img.shields.io/badge/version-0.18.2-1a1a2e)
+![version](https://img.shields.io/badge/version-1.0.0-1a1a2e)
 ![Next.js](https://img.shields.io/badge/Next.js-16-0a0a0a)
 ![React](https://img.shields.io/badge/React-19-1a1a2e)
 ![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-2b3a42)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.7-2b3a42)
 ![Tailwind](https://img.shields.io/badge/Tailwind_CSS-4-1a1a2e)
 
-Gestor de finanzas personales pensado para Argentina. Permite registrar ingresos, gastos, ahorros e inversiones en ARS y USD, con cotizacion del dolar en tiempo real, datos del mercado argentino y crypto, reportes descargables y analisis comparativo periodo sobre periodo.
-
-<!-- TODO: agregar screenshot del dashboard -->
+Gestor de finanzas personales pensado para Argentina. Registra ingresos, gastos, ahorros e inversiones en ARS y USD, con cotización del dólar en tiempo real, datos del mercado argentino y crypto, escaneo de tickets/PDFs con IA, comunidad social, chat 1-a-1, resumen mensual estilo Wrapped, y reportes descargables. Datos sensibles cifrados at-rest. UI 100% en español rioplatense.
 
 ---
 
 ## Tabla de contenidos
 
 - [Sobre el proyecto](#sobre-el-proyecto)
-- [Stack tecnologico](#stack-tecnologico)
-- [Features](#features)
-- [Arquitectura](#arquitectura)
-- [Primeros pasos](#primeros-pasos)
+- [Características principales](#características-principales)
+- [Stack tecnológico](#stack-tecnológico)
+- [Estructura del proyecto](#estructura-del-proyecto)
+- [Requisitos previos](#requisitos-previos)
+- [Configuración local](#configuración-local)
 - [Variables de entorno](#variables-de-entorno)
-- [Base de datos](#base-de-datos)
-- [Integraciones externas](#integraciones-externas)
+- [Migraciones de base de datos](#migraciones-de-base-de-datos)
 - [Scripts disponibles](#scripts-disponibles)
 - [Tests](#tests)
+- [Privacidad y seguridad](#privacidad-y-seguridad)
+- [Integraciones externas](#integraciones-externas)
+- [Roadmap](#roadmap)
 - [Autor](#autor)
 
 ---
 
 ## Sobre el proyecto
 
-MFI es una aplicacion web de finanzas personales disenada para el contexto economico argentino, donde conviven dos monedas (ARS y USD) y la cotizacion del dolar es informacion critica.
+MFI es una app web de finanzas personales diseñada para el contexto económico argentino, donde conviven dos monedas (ARS y USD) y la cotización del dólar es información crítica.
 
-El proyecto abarca el ciclo completo de gestion financiera personal:
+El proyecto cubre el ciclo completo de gestión financiera personal y suma capas sociales:
 
-- Registro y categorizacion de movimientos (ingresos, gastos, ahorros, inversiones)
-- Gastos recurrentes con generacion automatica mensual
-- Portfolios de inversion con tracking de rendimiento diario y heatmap mensual
-- Cotizacion del dolar MEP y Blue en tiempo real
-- Mercado argentino (MERVAL, acciones) y criptomonedas con sparklines intraday
-- Feriados argentinos integrados con deteccion de dias no operables
-- Analisis financiero con comparacion vs periodo anterior
+- Registro y categorización de movimientos (ingresos, gastos, ahorros, inversiones)
+- Gastos recurrentes con generación automática mensual
+- Portfolios de inversión con tracking de rendimiento (TWR) y heatmap mensual
+- Cotización del dólar MEP y Blue en tiempo real
+- Mercado argentino (MERVAL + acciones) y criptomonedas con sparklines
+- Feriados argentinos integrados con detección de días no operables
+- Análisis financiero con comparación vs período anterior
 - Reportes descargables en Excel y PDF
-- Cifrado AES-256-GCM para datos sensibles en la base de datos
-- Onboarding guiado para nuevos usuarios
-- Soporte completo para modo claro y oscuro
+- **Carga de movimientos desde imagen o PDF con IA** (escaneo de tickets, transferencias, resúmenes de tarjeta)
+- **Cifrado AES-256-GCM** at-rest para campos sensibles
+- **Comunidad** estilo Reddit con posts, comentarios, votos y embeds de movimientos / metas / wrapped
+- **Chat 1-a-1** entre amigos con presence y replies
+- **Resumen mensual** estilo Wrapped con personalidades, daily expense chart y share card exportable
+- Onboarding multi-paso para usuarios nuevos
+- Dos modos de UI (`classic` y `mfi`) sobre los mismos datos
+- Light / dark mode
 
-ARS y USD se tratan como monedas independientes en todo el sistema. No existe conversion automatica entre ellas.
-
----
-
-## Stack tecnologico
-
-| Capa | Tecnologia | Rol |
-|------|------------|-----|
-| Framework | Next.js 16 (App Router, Turbopack) | Server components, routing, API routes |
-| Runtime | React 19 | UI reactiva |
-| Lenguaje | TypeScript 5.7 | Tipado estatico |
-| Base de datos | Supabase (PostgreSQL + Auth + RLS) | Persistencia, autenticacion, row-level security |
-| Estilos | Tailwind CSS 4 | Utility-first CSS |
-| UI Primitives | Radix UI (shadcn/ui) | Componentes accesibles |
-| Charts | Recharts 2.15 | Graficos de area, donut, sparklines |
-| Forms | React Hook Form + Zod | Validacion de formularios |
-| Data fetching | SWR | Polling y cache en cliente |
-| Reportes | jsPDF + jspdf-autotable, xlsx | Generacion de PDF y Excel |
-| Iconos | Lucide React | Iconografia consistente |
-| Theming | next-themes | Modo claro/oscuro |
-| Notificaciones | Sonner | Toasts no intrusivos |
-| Analytics | Vercel Analytics | Metricas de uso |
-| Cifrado | Node.js crypto (AES-256-GCM) | Encriptacion de campos sensibles |
-| Testing | Vitest | Tests unitarios |
-| Fuentes | Sora, DM Sans, DM Mono | Tipografia (Google Fonts) |
+ARS y USD se tratan como monedas independientes en todo el sistema. **No existe conversión automática entre ellas**.
 
 ---
 
-## Features
+## Características principales
 
 ### Dashboard
 
 - 5 KPIs principales: balance total, ingresos, gastos, ahorros, inversiones
-- Grafico de area mensual (income vs expenses ARS vs expenses USD) con ejes independientes
-- Distribucion de gastos por categoria (donut chart)
+- Gráfico de área mensual (income vs expenses ARS vs expenses USD) con tres ejes Y
+- Distribución de gastos por categoría (donut chart)
 - Navegador de meses con date picker
-- Barra colapsable de gastos pendientes con confirmacion individual o masiva
-- Acciones rapidas: agregar movimiento, depositar ahorros, registrar inversion
+- Barra colapsable de gastos pendientes con confirmación individual o masiva
+- FAB scanner mobile con onboarding tour para escanear tickets / PDFs
 
 ### Movimientos
 
-- Lista paginada agrupada por fecha con busqueda y filtros multiples
-- Filtros por tipo, moneda, estado (confirmado/pendiente/cancelado) y metodo de pago
-- Calendario desplegable para saltar a una fecha especifica
-- Modal de creacion con combobox de categorias (busqueda + creacion inline)
-- Modal de edicion con soporte para eliminar
+- Lista paginada agrupada por fecha con búsqueda y filtros múltiples
+- Filtros por tipo, moneda, estado (confirmado / pendiente / cancelado), método de pago y fecha
+- Calendario desplegable para saltar a una fecha específica
+- Modal de creación con combobox de categorías (búsqueda + creación inline)
+- Modal de edición con soporte para eliminar
 - Checkbox "Agregar otro" para carga encadenada sin cerrar el modal
-- Gastos recurrentes mensuales (toggle en el formulario, generacion automatica on-demand)
-- Metodo de pago: efectivo, debito, credito (credito marca como pendiente)
+- Gastos recurrentes mensuales (toggle en el formulario, generación automática on-demand)
+- Método de pago: efectivo, débito, crédito (crédito marca como pendiente)
+
+### Carga desde imagen o PDF (IA)
+
+- Escaneo con **Gemini 2.5 Flash** (free tier de Google AI Studio)
+- Mobile: cámara directa o file picker (fotos, screenshots, PDFs)
+- Desktop: drag & drop, file picker, paste de clipboard
+- Soporta PNG, JPG, WebP (≤4 MB) y PDF (≤10 MB)
+- Multi-extracción: si subís un resumen de tarjeta con 20 movimientos, los procesa todos de una llamada
+- Bulk review con checkbox por fila para descartar lo que no quieras cargar
+- Rate limit: 20 análisis por usuario por día (1 PDF con 20 movimientos = 1 análisis)
+- La imagen / PDF nunca se almacenan — solo se procesan en memoria
 
 ### Inversiones
 
-- Pantalla dedicada con grafico de evolucion del portfolio
-- Selector de periodo: 1S, 1M, 3M, 6M, YTD, 1A, Max
-- KPIs de valor total y rendimiento del periodo con colores semanticos
+- Pantalla dedicada con gráfico de evolución del portfolio
+- Selector de período: 1S, 1M, 3M, 6M, YTD, 1A, Max
+- KPIs de valor total y rendimiento del período (TWR — Time-Weighted Return) con colores semánticos
 - Holdings por portfolio con filtrado individual
-- Donut de composicion por portfolio
+- Donut de composición por portfolio
 - Heatmap de rendimientos mensuales
-- Creacion de portfolios, carga de variacion diaria, rescate
-- Descarga de PDF del periodo seleccionado
-- Widget de racha de inversiones (dias habiles consecutivos logueados)
+- Creación de portfolios, carga de variación diaria, rescate
+- Descarga de PDF del período seleccionado
+- Widget de racha de inversiones
 
-### Analisis
+### Análisis
 
 - Period selector con chips (este mes, anterior, 3/6/12 meses, personalizado)
-- Toggle de moneda ARS/USD/Todas
-- KPI cards con sparklines y deltas vs periodo anterior
-- Chart de evolucion con gradientes y lineas de comparacion
-- Breakdown de categorias con donut interactivo
-- Top movimientos del periodo
+- Toggle de moneda ARS / USD / Todas
+- KPI cards con sparklines y deltas vs período anterior
+- Chart de evolución con gradientes y líneas de comparación
+- Breakdown de categorías con donut interactivo
+- Top movimientos del período
 - Tasa de ahorro mensual (ARS y USD independientes)
-- Descarga de PDF con KPIs, categorias y movimientos
+- Descarga de PDF
 
 ### Mercado en tiempo real
 
-- Cotizacion USD: dolar MEP y Blue con compra/venta y spread
+- USD: dólar MEP y Blue con compra / venta y spread
 - Mercado argentino: MERVAL + 9 acciones (GGAL, YPFD, MELI, BMA, PAMP, TXAR, SUPV, BBAR, LOMA) con sparklines
-- Crypto: BTC como hero + ETH, SOL, XRP, ADA, DOGE, DOT, LINK con sparklines de 7 dias
+- Crypto: BTC + ETH, SOL, XRP, ADA, DOGE, DOT, LINK con sparklines de 7 días
 - Auto-refresh cada 5 minutos con pausa en background
-- Indicador de mercado abierto/cerrado con proxima apertura
-- Flash de precios ante cambios (verde/rojo)
+- Indicador de mercado abierto / cerrado con próxima apertura
+- Flash de precios ante cambios
+
+### Resumen mensual (Wrapped)
+
+- Recorrido de 10 diapositivas estilo Spotify Wrapped
+- Personalidad del mes: ahorrista, inversor, social, equilibrado o austero
+- Gráfico de gastos diarios y top categorías
+- Vista mobile 9:16 con tap zones, hold-to-pause
+- Vista desktop 16:9 con auto-advance y rail de miniaturas
+- Compartir como post en /comunidad o exportar como PDF de 10 páginas
+
+### Comunidad
+
+- Feed estilo Reddit con 8 categorías (Inversiones, Ahorros, Dólar, Plazos fijos, Cripto, Gastos, Metas, Preguntas)
+- Posts con embeds vivos: movimientos, metas, wrapped del mes
+- Comentarios con threading, mentions con `@username`, votos
+- Editor rich text (TipTap) con upload de imágenes
+- Notificaciones de votos, comentarios, replies y mentions
+
+### Chat 1-a-1
+
+- Mensajes en tiempo real entre amigos con Supabase Realtime
+- Typing indicator y presence dot
+- Reply con quote, soft delete, read receipts
+- Inbox con previews de últimos mensajes y unread count
+
+### Amigos
+
+- Búsqueda por username, sugerencias, requests, blocks
+- Perfil público con privacy flags configurables (mostrar / ocultar streak, badges, bio)
+- Préstamos y deudas vinculados entre amigos con propagación de status
 
 ### Automatizaciones
 
-- Gastos recurrentes: generacion automatica al abrir el dashboard en un nuevo mes
-- Deteccion de feriados argentinos (fijos, trasladables, puente, calculados por Pascua)
-- Badge de dia no operable en el navbar con mensajes rotativos
-- Resumen mensual automatico con notificacion (dias 1-5 de cada mes)
+- Gastos recurrentes: generación automática al abrir el dashboard en un nuevo mes
+- Detección de feriados argentinos (fijos, trasladables, puente, calculados por Pascua)
+- Badge de día no operable en el navbar con mensajes rotativos
+- Resumen mensual automático con notificación (días 1-5 de cada mes)
 
 ### Metas
 
-- Creacion de metas con nombre, monto objetivo, moneda, deadline, color e icono
-- Barra de progreso (monto actual / objetivo)
-- Deposito de fondos, marcar como completada o pausada
+- Categorización (viaje, auto, casa, emergencia, inversión, otro)
+- Aporte mensual configurable, auto-débito declarativo
+- Barra de progreso con confetti al completar
+- Liquidación: transforma la meta cumplida en un movimiento de income
 
 ### Notificaciones
 
-- Centro de notificaciones con polling de 30 segundos
+- Centro con polling de 30 segundos
 - Tipos: info, warning, success, alert
-- Marcar como leida individualmente o todas a la vez
+- Payloads JSON para friend requests, community votes, comments, mentions
 
 ### Ajustes
 
 - Perfil: nombre, apodo, avatar con crop circular
-- Mood/estado con emoji (estilo Discord)
-- Moneda por defecto (ARS/USD)
-- Cambio de contrasena
+- Mood / estado con emoji
+- Privacy flags: discoverable, show streak / badges / bio
+- Moneda por defecto (ARS / USD)
+- Cambio de contraseña
 
 ### Otros
 
 - Onboarding multi-paso para nuevos usuarios
-- Prestamos y deudas con tracking de estado
-- Modo MFI (Monthly Financial Insights) alternativo
+- Préstamos y deudas con tracking de estado
+- Modo MFI alternativo (UI estilo planilla mensual)
 - Formulario de feedback integrado
 - Sistema de novedades (changelog en popup)
 
 ---
 
-## Arquitectura
+## Stack tecnológico
+
+| Capa | Tecnología | Rol |
+|---|---|---|
+| Framework | Next.js 16 (App Router, Turbopack) | Server components, routing, una API route |
+| Runtime | React 19 | UI reactiva |
+| Lenguaje | TypeScript 5.7 | Tipado estático |
+| Base de datos | Supabase (PostgreSQL + Auth + RLS) | Persistencia, autenticación, row-level security |
+| Estilos | Tailwind CSS 4 | Utility-first CSS |
+| UI Primitives | Radix UI (shadcn/ui) | Componentes accesibles |
+| Charts | Recharts 2.15 | Área, donut, sparklines, heatmap |
+| Forms | React Hook Form + Zod | Validación |
+| Data fetching | SWR | Polling y cache cliente |
+| Tours | driver.js 1.4 | Onboarding interactivo |
+| Rich text | TipTap 3 | Editor de community + chat |
+| IA | Google Gemini 2.5 Flash (REST) | Escaneo de tickets / PDFs |
+| Cifrado | Node.js `crypto` (AES-256-GCM) | Datos sensibles at-rest |
+| Reportes | jsPDF + jspdf-autotable, xlsx | PDF y Excel |
+| Iconos | Lucide React | Iconografía |
+| Theming | next-themes | Modo claro / oscuro |
+| Notificaciones | Sonner | Toasts |
+| Analytics | Vercel Analytics | Métricas de uso |
+| Testing | Vitest 4 | Tests unitarios |
+| Fuentes | Sora, DM Sans, DM Mono | Tipografía (Google Fonts) |
+| Gestor paquetes | pnpm | Lockfile usado por Netlify |
+
+---
+
+## Estructura del proyecto
 
 ```
 mas-facil-imposible/
 ├── app/
-│   ├── (app)/                      # Rutas protegidas (requieren auth)
-│   │   ├── dashboard/              # Dashboard principal
-│   │   ├── transactions/           # Lista de movimientos
-│   │   ├── investments/            # Pantalla de inversiones
-│   │   ├── analytics/              # Analisis financiero
-│   │   ├── goals/                  # Metas de ahorro
-│   │   ├── notifications/          # Centro de notificaciones
-│   │   ├── settings/               # Ajustes de perfil
-│   │   ├── admin/                  # Panel de administracion
-│   │   └── layout.tsx              # Shell: sidebar + topbar + toaster
-│   ├── auth/                       # Rutas publicas (login, registro, etc.)
-│   ├── mfi/                        # Modo MFI alternativo
-│   ├── onboarding/                 # Onboarding de nuevos usuarios
-│   ├── api/
-│   │   └── market-proxy/           # Proxy para Yahoo Finance (evita CORS)
-│   ├── layout.tsx                  # Root layout (fuentes, metadata)
-│   └── page.tsx                    # Redirect a /dashboard o /auth/login
+│   ├── (app)/                  # Rutas protegidas
+│   │   ├── dashboard/          # Inicio
+│   │   ├── transactions/       # Lista de movimientos
+│   │   ├── investments/        # Portfolios
+│   │   ├── analytics/          # Análisis financiero
+│   │   ├── goals/              # Metas
+│   │   ├── notifications/      # Centro de notificaciones
+│   │   ├── settings/           # Ajustes
+│   │   ├── friends/            # Amigos
+│   │   ├── chat/               # Chat 1-a-1
+│   │   ├── comunidad/          # Feed social
+│   │   └── admin/              # Panel admin (sugerencias)
+│   ├── auth/                   # Login, registro, recuperación
+│   ├── mfi/                    # Modo MFI alternativo
+│   ├── onboarding/             # Onboarding nuevos usuarios
+│   ├── legal/                  # Privacidad y TOS
+│   ├── add/[username]/         # Landing pública de invitación
+│   ├── api/market-proxy/       # Única API route (Yahoo Finance)
+│   ├── tour.css                # Theming driver.js
+│   └── page.tsx                # Redirect según auth + onboarding + modo
 ├── components/
-│   ├── ui/                         # ~100 primitivas Radix/shadcn
-│   ├── quick-add-transaction.tsx   # Modal de agregar movimiento
-│   ├── edit-transaction-modal.tsx  # Modal de editar movimiento
-│   ├── pending-transactions-bar.tsx # Barra colapsable de pendientes
-│   ├── market-card.tsx             # Card de mercado (acciones + crypto)
-│   ├── usd-cotizacion-widget.tsx   # Widget de cotizacion USD
-│   ├── monthly-summary-banner.tsx  # Banner de resumen mensual
-│   ├── nav.tsx                     # Sidebar desktop + bottom nav mobile
-│   ├── app-topbar.tsx              # Topbar (notificaciones, usuario, tema)
-│   └── ...
+│   ├── ui/                     # 57 primitivas Radix/shadcn
+│   ├── scan-transaction-dialog.tsx     # Escaneo Gemini
+│   ├── bulk-review-transactions.tsx    # Revisión multi-tx
+│   ├── feature-tour.tsx                # Onboarding tours (driver.js)
+│   ├── quick-add-transaction.tsx       # Carga manual
+│   ├── nav.tsx                         # Sidebar + bottom nav
+│   ├── market-card.tsx, usd-cotizacion-widget.tsx
+│   └── …                       # ~50 componentes feature
 ├── lib/
-│   ├── supabase/
-│   │   ├── server.ts               # Cliente SSR (cookies)
-│   │   ├── client.ts               # Cliente browser
-│   │   └── middleware.ts            # Refresh de sesion
-│   ├── types.ts                    # Interfaces y tipos TypeScript
-│   ├── crypto.ts                   # Cifrado AES-256-GCM
-│   ├── analytics-utils.ts          # Logica de analisis financiero
-│   ├── ar-holidays.ts              # Feriados argentinos
-│   ├── market-data.ts              # Datos de mercado (Yahoo Finance)
-│   ├── crypto-data.ts              # Datos de crypto (CoinGecko)
-│   ├── dolar-cotizacion.ts         # Cotizacion USD (DolarAPI)
-│   ├── investment-streak.ts        # Racha de inversiones
-│   ├── monthly-report.ts           # Generacion de Excel y PDF
-│   └── changelog.ts                # Historial de versiones
-├── hooks/
-│   ├── use-polling.ts              # Hook reutilizable de polling con SWR
-│   └── use-mobile.ts              # Deteccion de viewport mobile
+│   ├── supabase/               # Clientes (browser, SSR, middleware)
+│   ├── types.ts                # Interfaces y enums
+│   ├── crypto.ts               # AES-256-GCM
+│   ├── gemini.ts               # Wrapper REST Gemini
+│   ├── changelog.ts            # Historial de versiones
+│   ├── social/                 # Chat, friendships, presence
+│   ├── wrapped/                # Lógica del resumen mensual
+│   └── *.test.ts               # Specs Vitest
+├── hooks/                      # 9 hooks (mobile, polling, presence, etc.)
 ├── scripts/
-│   ├── 001_schema.sql              # Schema principal de Supabase
-│   ├── 002_seed_categories.sql     # Categorias iniciales
-│   ├── 003_recurring_transactions.sql # Columnas de recurrencia
-│   ├── add-changelog.mjs           # Script de versionado
-│   └── release.mjs                 # Script de release (commit + push)
-├── middleware.ts                    # Auth guard (redirige a /auth/login)
-└── public/
-    └── mfi-logo.png                # Logo del proyecto
+│   ├── 001…029_*.sql           # 36 migraciones (ver más abajo)
+│   ├── add-changelog.mjs       # Bump versión + changelog
+│   ├── release.mjs             # Commit + push interactivo
+│   └── migrate-encrypt.ts      # Migración legacy → enc_data
+├── middleware.ts                # Auth guard
+└── public/                     # Assets
 ```
-
-### Patron server / client
-
-- Los archivos `page.tsx` son siempre server components. Fetchean datos de Supabase y los pasan como props.
-- Los archivos `*-client.tsx` son siempre `'use client'`. Manejan interactividad, modals, formularios y estado local.
-- Los archivos `actions.ts` usan `'use server'` para mutaciones con cifrado server-side.
-- Las mutaciones directas del browser usan el cliente Supabase protegido por RLS.
-- No existen API routes salvo el proxy de Yahoo Finance.
 
 ---
 
-## Primeros pasos
+## Requisitos previos
 
-### Requisitos previos
-
-- Node.js 18 o superior
+- **Node.js 20** o superior (declarado en `package.json` `engines`)
+- **pnpm** (el lockfile usado por Netlify es `pnpm-lock.yaml`)
 - Cuenta de [Supabase](https://supabase.com) con un proyecto creado
-- Variables de entorno configuradas (ver seccion siguiente)
+- Cuenta de [Google AI Studio](https://aistudio.google.com/app/apikey) para obtener una API key gratis de Gemini (free tier sin billing requerido)
 
-### Instalacion
+---
+
+## Configuración local
 
 ```bash
 git clone https://github.com/joaquimcolacilli/mas-facil-imposible.git
 cd mas-facil-imposible
-npm install
-```
 
-### Configuracion de base de datos
+# Instalar dependencias
+pnpm install
 
-Ejecutar las migraciones SQL en orden en el SQL Editor de Supabase:
-
-```
-scripts/001_schema.sql              # Tablas principales
-scripts/002_seed_categories.sql     # Categorias por defecto
-scripts/003_recurring_transactions.sql  # Campos de recurrencia
-```
-
-### Variables de entorno
-
-```bash
+# Configurar variables de entorno
 cp .env.local.example .env.local
-# Completar con los valores de tu proyecto Supabase
+# Editar .env.local con los valores reales
+
+# Aplicar migraciones en Supabase (SQL Editor)
+# Ver sección "Migraciones de base de datos"
+
+# Generar la clave de cifrado
+openssl rand -hex 32   # copiar el output a ENCRYPTION_KEY en .env.local
+
+# Levantar el dev server
+pnpm dev
 ```
 
-### Ejecucion
-
-```bash
-npm run dev
-```
-
-La aplicacion estara disponible en `http://localhost:3000`.
+La app queda en `http://localhost:3000`.
 
 ---
 
 ## Variables de entorno
 
-Crear un archivo `.env.local` en la raiz del proyecto con las siguientes variables:
+Crear `.env.local` en la raíz:
 
-| Variable | Descripcion | Ejemplo |
-|----------|-------------|---------|
-| `NEXT_PUBLIC_SUPABASE_URL` | URL del proyecto Supabase | `https://xxxx.supabase.co` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clave anonima (publica) de Supabase | `eyJhbGciOiJI...` |
-| `SUPABASE_SERVICE_ROLE_KEY` | Clave de servicio (privada) de Supabase | `eyJhbGciOiJI...` |
-| `SUPABASE_JWT_SECRET` | JWT secret del proyecto | `super-secret-jwt...` |
-| `ENCRYPTION_KEY` | Clave de 64 caracteres hex para AES-256-GCM | Generar con `openssl rand -hex 32` |
+### Obligatorias
+
+| Variable | Descripción |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | URL del proyecto Supabase (`https://xxxx.supabase.co`) |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Clave anónima (pública) de Supabase |
+| `SUPABASE_SERVICE_ROLE_KEY` | Clave de servicio (privada) de Supabase |
+| `ENCRYPTION_KEY` | 64 caracteres hex para AES-256-GCM. Generar con `openssl rand -hex 32`. **Única env var sensible no-Supabase**. |
+| `GEMINI_API_KEY` | API key de Google AI Studio (Gemini 2.5 Flash, free tier sin billing) |
+
+### Opcionales
+
+| Variable | Descripción |
+|---|---|
+| `NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL` | Override del redirect URL en dev |
+| `NEXT_PUBLIC_SITE_URL` | Base URL para construir links de email |
+| `NEXT_PUBLIC_DEBUG_PANELS` | `'true'` muestra paneles de debug en goals |
+| `NEXT_PUBLIC_WRAPPED_ENABLED` | Activa el resumen mensual Wrapped |
+| `NEXT_PUBLIC_WRAPPED_DESKTOP` | Activa Wrapped en desktop (default: solo mobile) |
+| `NEXT_PUBLIC_WRAPPED_DEV` | Activa Wrapped en dev sin importar fecha |
 
 Ninguna de estas variables debe commitearse al repositorio.
 
 ---
 
-## Base de datos
+## Migraciones de base de datos
 
-Supabase PostgreSQL con Row Level Security habilitado en todas las tablas. Politica: `auth.uid() = user_id`.
+Aplicar **en orden** en el SQL Editor de Supabase. Todas son idempotentes (`IF NOT EXISTS` / `IF EXISTS`).
 
-| Tabla | Descripcion |
-|-------|-------------|
-| `profiles` | Perfil del usuario (nombre, avatar, moneda default, modo preferido, mood) |
-| `categories` | Categorias de movimientos (nombre, icono, color, tipo) |
-| `transactions` | Movimientos financieros (monto cifrado, tipo, moneda, estado, recurrencia) |
-| `goals` | Metas de ahorro (objetivo, progreso, deadline, estado) |
-| `loans` | Prestamos otorgados (persona, monto, estado de pago) |
-| `debts` | Deudas contraidas (acreedor, monto, estado de pago) |
-| `portfolios` | Portfolios de inversion (nombre, moneda, saldo) |
-| `portfolio_logs` | Registro diario de variacion de portfolios |
-| `notifications` | Notificaciones del sistema (titulo, mensaje, tipo, leida) |
-| `mfi_sheets` | Hojas personalizadas de movimientos (modo MFI) |
-| `feedback` | Sugerencias de usuarios |
+> **Numeración**: el repo tiene **duplicados históricos** de número (003×3, 004×3, 005×2, 006×2, 020×2) por paralelismo de features. Aplicar siempre todas, ordenando alfabéticamente las que comparten prefijo numérico. **De ahora en más, las migraciones nuevas empiezan en 030 y siguen secuenciales sin reusar números.**
 
-Los campos sensibles (`amount`, `note`) se almacenan cifrados en la columna `enc_data` usando AES-256-GCM. Las columnas originales contienen valores placeholder (0 y null).
-
-Las migraciones SQL se encuentran en `scripts/` y son idempotentes.
-
----
-
-## Integraciones externas
-
-| Servicio | Endpoint | Proposito | Autenticacion |
-|----------|----------|-----------|---------------|
-| DolarAPI | `dolarapi.com/v1/dolares` | Cotizacion USD MEP y Blue | Sin clave |
-| Yahoo Finance | `query1.finance.yahoo.com/v8/finance/chart` | Acciones argentinas (via proxy) | Sin clave |
-| CoinGecko | `api.coingecko.com/api/v3/coins/markets` | Precios de criptomonedas | Sin clave |
-
-El proxy de Yahoo Finance (`/api/market-proxy`) cachea respuestas por 60 segundos en el servidor y admite solo tickers de un whitelist predefinido.
+| Archivo | Qué hace |
+|---|---|
+| `001_schema.sql` | Tablas core: profiles, categories, transactions, goals, notifications + RLS |
+| `002_seed_categories.sql` | Seed de categorías por defecto |
+| `003_add_enc_columns.sql` | Columna `enc_data text` en transactions, goals, loans, debts |
+| `003_community.sql` | Tablas community_posts, community_comments, community_votes, community_saves |
+| `003_recurring_transactions.sql` | Columnas `is_recurring` y `recurring_source_id` en transactions |
+| `004_ai_usage.sql` | Tabla `ai_usage` para rate limit del escaneo IA |
+| `004_community_media.sql` | Imágenes en posts y comentarios |
+| `004_profiles_last_seen_version.sql` | `profiles.last_seen_version` para popup de novedades |
+| `005_ai_usage_n_extracted.sql` | `ai_usage.n_extracted` (analytics) |
+| `005_profiles_mood_nickname.sql` | `profiles.nickname / mood_emoji / mood_text` |
+| `006_fix_cocos_currency.sql` | Fix histórico de currency en transactions |
+| `006_profiles_tours_seen.sql` | `profiles.tours_seen JSONB` para onboarding tours |
+| `007_add_payment_method.sql` | `transactions.payment_method` (cash / debit / credit) |
+| `008_resolved_transaction_id.sql` | FK `loans.resolved_transaction_id`, `debts.resolved_transaction_id` |
+| `009_portfolio_log_type.sql` | Tipo de log de portfolio (yield / deposit / rescue) |
+| `010_fix_savings_withdraw_currency.sql` | Fix histórico |
+| `011_add_user_location.sql` | Geo en profiles |
+| `012_fix_location_lat_lng_type.sql` | Fix tipo numeric |
+| `013_add_compliance_fields.sql` | TOS / privacy timestamps + cascade FK |
+| `014_add_social_identity.sql` | Username, bio, is_discoverable |
+| `015_social_graph.sql` | friend_requests, friendships, blocks |
+| `016_profile_privacy.sql` | show_streak / show_badges / show_bio |
+| `017_chat.sql` | conversations, messages |
+| `018_chat_presence.sql` | Presence en messages + last_seen_at |
+| `019_loans_debts_friend.sql` | Tablas loans + debts con FK a friend |
+| `020_suggested_users.sql` | Sugerencias de amigos |
+| `020_wrapped_embed_kind.sql` | Embed `wrapped` en community_posts |
+| `021_chat_replica_identity.sql` | `messages REPLICA IDENTITY FULL` (realtime) |
+| `022_chat_reply.sql` | `messages.reply_to_message_id` |
+| `023_client_message_id.sql` | Idempotencia de mensajes |
+| `024_community_notifications.sql` | Tipos de notificación community |
+| `025_community_posts_edited_at.sql` | Edited timestamp |
+| `026_community_karma.sql` | `profiles.karma` |
+| `027_community_mentions.sql` | `@mentions` |
+| `028_goals_redesign.sql` | Categoría, monthly_target, auto-débito declarativo, encrypted data |
+| `029_goals_liquidation.sql` | Liquidación de metas |
 
 ---
 
 ## Scripts disponibles
 
-| Comando | Descripcion |
-|---------|-------------|
-| `npm run dev` | Servidor de desarrollo con Turbopack |
-| `npm run build` | Build de produccion |
-| `npm run start` | Servidor de produccion |
-| `npm run lint` | Ejecutar ESLint |
-| `npm run release` | Commit + push interactivo |
-| `node scripts/add-changelog.mjs <bump> "<msg>"` | Registrar cambio en changelog y bumear version |
+| Comando | Descripción |
+|---|---|
+| `pnpm dev` | Servidor de desarrollo con Turbopack |
+| `pnpm build` | Build de producción |
+| `pnpm start` | Servidor de producción |
+| `pnpm lint` | Ejecutar ESLint |
+| `pnpm release` | Commit + push interactivo (solo si querés publicar) |
+| `node scripts/add-changelog.mjs <patch\|minor\|major> "<msg>"` | Registrar cambio en changelog y bumpear versión |
 
 ---
 
 ## Tests
 
-El proyecto usa [Vitest](https://vitest.dev/) para tests unitarios. Los archivos de test se ubican junto a los modulos que testean en `lib/`:
-
-| Archivo | Cobertura |
-|---------|-----------|
-| `ar-holidays.test.ts` | Feriados, traslados, dias no operables |
-| `analytics-utils.test.ts` | Periodos, deltas, agrupaciones, savings rate |
-| `market-data.test.ts` | Parseo de respuestas Yahoo Finance, estado del mercado |
-| `crypto-data.test.ts` | Parseo de respuestas CoinGecko |
-| `usd-cotizacion.test.ts` | Parseo de cotizacion USD |
-| `investment-streak.test.ts` | Calculo de racha de inversiones |
-| `non-trading-messages.test.ts` | Seleccion deterministica de mensajes |
+Vitest 4. **No hay script `npm test`** declarado — se usa el binario directamente:
 
 ```bash
-npx vitest run
+npx vitest run                    # one-shot
+npx vitest                        # watch
+npx vitest run lib/foo.test.ts    # archivo específico
 ```
+
+Specs ubicadas junto a sus módulos en `lib/`:
+
+| Archivo | Cobertura |
+|---|---|
+| `analytics-utils.test.ts` | Períodos, deltas, agrupaciones, savings rate |
+| `ar-holidays.test.ts` | Feriados, traslados, días no operables |
+| `crypto-data.test.ts` | Parseo de respuestas CoinGecko |
+| `goals.test.ts` | Lógica de metas |
+| `investment-streak.test.ts` | Cálculo de racha de inversiones |
+| `market-data.test.ts` | Parseo de Yahoo Finance, estado del mercado |
+| `non-trading-messages.test.ts` | Selección determinística de mensajes |
+| `usd-cotizacion.test.ts` | Parseo de cotización USD |
+| `wrapped/compute.test.ts` | Cálculos del resumen mensual |
+
+---
+
+## Privacidad y seguridad
+
+- **Row Level Security** habilitado en todas las tablas de Supabase. Política base: `auth.uid() = user_id`. Tablas de relaciones (friendships, blocks) usan policies más complejas.
+- **Cifrado at-rest** con AES-256-GCM en campos sensibles (`amount`, `note` de transactions; `monthly_target`, `auto_amount`, `current_amount`, `note` de goals; análogos en loans / debts). Las columnas plaintext quedan en placeholder (0 / null); los valores reales viven cifrados en `enc_data text`.
+- **Imágenes de escaneo IA**: las fotos / PDFs subidos para escaneo con Gemini se procesan en memoria. **No se almacenan** en MFI ni en Supabase Storage. Solo el resultado JSON viaja al cliente.
+- **Free tier de Gemini sin billing**: no compartimos tarjeta con Google AI Studio. Si Google nos rate-limita, devolvemos un error genérico al usuario sin afectar su cuota interna.
+- **Rate limit propio**: 20 análisis IA por usuario por día (rolling 24 h). Un PDF con 20 movimientos cuenta como 1 análisis.
+
+---
+
+## Integraciones externas
+
+| Servicio | Propósito | Autenticación |
+|---|---|---|
+| Google Gemini 2.5 Flash | Escaneo de tickets / PDFs (server-side) | `GEMINI_API_KEY` |
+| Yahoo Finance | Acciones argentinas (vía proxy con whitelist) | sin clave |
+| DolarAPI | Cotización USD MEP / Blue | sin clave |
+| CoinGecko | Precios de criptomonedas | sin clave |
+| datos.gob.ar | Datos públicos AR | sin clave |
+| Open-Meteo | Clima | sin clave |
+
+El proxy de Yahoo Finance (`/api/market-proxy`) cachea respuestas por 60 segundos y solo admite tickers de un whitelist predefinido.
+
+---
+
+## Roadmap
+
+- Transferencias entre cuentas
+- Reportes financieros descargables más completos (PDF / CSV con más cortes)
+- Notificaciones server-side (triggers o cron en Supabase)
+- Tour de bienvenida para `/comunidad` y `/chat`
+- Soporte para múltiples portfolios con divisas mixtas
+- App mobile nativa (PWA-first hoy, native eventualmente)
 
 ---
 
