@@ -250,6 +250,35 @@ export type CommunityPostEmbed =
       months?: number
       total_months?: number
     }
+  | {
+      kind: 'wrapped'
+      /** Spanish month label (e.g. "Abril"). */
+      month_label: string
+      /** Month key YYYY-MM. */
+      month_key: string
+      year: number
+      personality: WrappedPersonalityId
+      /** ARS balance for the month (signed: negative allowed). */
+      balance_ars: number
+      /** Savings + investment combined in ARS. */
+      savings_total_ars: number
+      top_category_name: string
+      top_category_amount_ars: number
+      top_category_pct: number
+      /** Daily expense points (ARS) — one value per day of the month. */
+      daily: number[]
+      /** Display name used in the share card footer. */
+      user_name: string
+      /** 1-2 char initials used in the avatar. */
+      user_initials: string
+    }
+
+export type WrappedPersonalityId =
+  | 'ahorrista'
+  | 'inversor'
+  | 'social'
+  | 'equilibrado'
+  | 'austero'
 
 export interface CommunityPost {
   id: string

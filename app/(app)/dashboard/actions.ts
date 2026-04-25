@@ -578,3 +578,109 @@ export async function fetchMonthlyReportData(monthKey: string) {
 
   return { transactions, goals, loans, debts, error: null }
 }
+
+// ─── Monthly Wrapped Data ────────────────────────────────────────────────────
+
+export async function fetchMonthlyWrappedData(monthKey: string) {
+  if (!/^\d{4}-\d{2}$/.test(monthKey)) {
+    return { error: 'Formato de mes inválido. Usar YYYY-MM.' as const, data: null }
+  }
+
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' as const, data: null }
+
+  const [y, m] = monthKey.split('-').map(Number)
+  const month0 = m - 1
+
+  const startOfMonth = new Date(y, month0, 1).toISOString().split('T')[0]
+  const endOfMonth = new Date(y, month0 + 1, 0).toISOString().split('T')[0]
+
+  const prevM0 = month0 === 0 ? 11 : month0 - 1
+  const prevY = month0 === 0 ? y - 1 : y
+  const startOfPrev = new Date(prevY, prevM0, 1).toISOString().split('T')[0]
+  const endOfPrev = new Date(prevY, prevM0 + 1, 0).toISOString().split('T')[0]
+
+  const [
+    txRes,
+    prevTxRes,
+    goalsRes,
+    profileRes,
+    portfolioLogsRes,
+    portfoliosRes,
+    allSavingsRes,
+  ] = await Promise.all([
+    supabase
+      .from('transactions')
+      .select('*, category:categories(*)')
+      .eq('user_id', user.id)
+      .gte('date', startOfMonth)
+      .lte('date', endOfMonth)
+      .order('date', { ascending: false }),
+    supabase
+      .from('transactions')
+      .select('*, category:categories(*)')
+      .eq('user_id', user.id)
+      .gte('date', startOfPrev)
+      .lte('date', endOfPrev),
+    supabase.from('goals').select('*').eq('user_id', user.id),
+    supabase
+      .from('profiles')
+      .select('full_name, nickname, mood_emoji')
+      .eq('id', user.id)
+      .single(),
+    supabase
+      .from('portfolio_logs')
+      .select('*, portfolios!inner(user_id)')
+      .eq('portfolios.user_id', user.id)
+      .gte('date', startOfMonth)
+      .lte('date', endOfMonth),
+    // Portfolios list — necesario para saber la currency de cada log y así
+    // sumar aportes/rescates al lado de USD vs ARS sin mezclar monedas.
+    supabase
+      .from('portfolios')
+      .select('id, name, currency, balance')
+      .eq('user_id', user.id),
+    // All-time `savings` transactions up to end of month — needed to show
+    // the user's current savings BALANCE (not just what they added this
+    // month). Cheap query (type='savings' is narrow).
+    supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', user.id)
+      .eq('type', 'savings')
+      .lte('date', endOfMonth),
+  ])
+
+  const transactions = (txRes.data ?? []).map((r) => decryptRow(r) as import('@/lib/types').Transaction)
+  const prevTransactions = (prevTxRes.data ?? []).map(
+    (r) => decryptRow(r) as import('@/lib/types').Transaction,
+  )
+  const goals = (goalsRes.data ?? []).map((r) => decryptRow(r) as import('@/lib/types').Goal)
+  const portfolioLogs = (portfolioLogsRes.data ?? []) as import('@/lib/types').PortfolioLog[]
+  const portfolios = (portfoliosRes.data ?? []) as Pick<
+    import('@/lib/types').Portfolio,
+    'id' | 'name' | 'currency' | 'balance'
+  >[]
+  const allSavingsTxs = (allSavingsRes.data ?? []).map(
+    (r) => decryptRow(r) as import('@/lib/types').Transaction,
+  )
+  const profile = profileRes.data as { full_name: string | null; nickname: string | null; mood_emoji: string | null } | null
+
+  const { computeWrapped } = await import('@/lib/wrapped/compute')
+  const data = computeWrapped({
+    year: y,
+    month0,
+    transactions,
+    previousTransactions: prevTransactions,
+    goals,
+    portfolioLogs,
+    portfolios,
+    allSavingsTxs,
+    profile,
+  })
+
+  return { data, error: null as string | null }
+}
