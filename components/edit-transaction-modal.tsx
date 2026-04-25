@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import type { Transaction, Category, Currency, TransactionType, PaymentMethod } from '@/lib/types'
-import { TRANSACTION_TYPE_LABELS } from '@/lib/types'
+import { TRANSACTION_TYPE_LABELS, formatCurrency } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { MoneyInput, parseMoneyInput, formatMoneyInput } from '@/components/money-input'
@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { X, ChevronDown, Search, Check, Plus, Banknote, CreditCard, Smartphone, Repeat } from 'lucide-react'
+import { X, ChevronDown, Search, Check, Plus, Banknote, CreditCard, Smartphone, Repeat, ArrowLeftRight, Loader2 } from 'lucide-react'
 import useSWR from 'swr'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -140,7 +140,17 @@ function MiniCombobox({
   )
 }
 
-export function EditTransactionModal({ transaction, onClose, onSaved, onDeleted }: EditTransactionModalProps) {
+export function EditTransactionModal(props: EditTransactionModalProps) {
+  // Las transferencias usan otro modal porque solo permiten editar
+  // date/note y porque borrar afecta las dos puntas. Evita meter
+  // condicionales sobre `transfer_id` adentro del modal normal.
+  if (props.transaction.transfer_id) {
+    return <TransferEditModal {...props} />
+  }
+  return <NormalEditModal {...props} />
+}
+
+function NormalEditModal({ transaction, onClose, onSaved, onDeleted }: EditTransactionModalProps) {
   const supabase = createClient()
 
   const [type, setType] = useState<TransactionType>(transaction.type)
@@ -344,6 +354,184 @@ export function EditTransactionModal({ transaction, onClose, onSaved, onDeleted 
             </Button>
             <Button type="submit" className="flex-1 h-10 rounded-xl font-semibold transition-all duration-150 hover:scale-[1.01]" disabled={loading}>
               {loading ? 'Guardando...' : 'Guardar cambios'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ─── TransferEditModal ──────────────────────────────────────────────────────
+//
+// Edit limitado para una punta de transferencia: solo `date` y `note` libre
+// son editables (los cambios se aplican a las DOS puntas). Type/amount/
+// currency son inmutables — para cambiarlos hay que borrar y re-crear la
+// transferencia.
+//
+// El delete dispara la confirmación del par y borra ambas puntas + reverte
+// el balance del bucket origen/destino.
+
+function TransferEditModal({ transaction, onClose, onSaved, onDeleted }: EditTransactionModalProps) {
+  const transferId = transaction.transfer_id ?? ''
+  const [date, setDate] = useState(transaction.date)
+  const [note, setNote] = useState('')
+  const [noteLoaded, setNoteLoaded] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+
+  // Lazy-load la nota libre del par. La nota plaintext de la tx es
+  // "Transferencia: A → B" — la nota libre del usuario vive cifrada en
+  // `transfers.note_enc`.
+  useEffect(() => {
+    let cancelled = false
+    if (!transferId) { setNoteLoaded(true); return }
+    ;(async () => {
+      const { fetchTransferNote } = await import('@/app/(app)/transactions/actions')
+      const { note: loaded } = await fetchTransferNote(transferId)
+      if (cancelled) return
+      setNote(loaded ?? '')
+      setNoteLoaded(true)
+    })()
+    return () => { cancelled = true }
+  }, [transferId])
+
+  async function handleSave(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    const { updateTransfer } = await import('@/app/(app)/transactions/actions')
+    const { error } = await updateTransfer({
+      transferId,
+      date,
+      note: note.trim() || null,
+    })
+    setLoading(false)
+    if (error) {
+      toast.error('No se pudo actualizar. Intentá de nuevo.', { duration: 5000 })
+      return
+    }
+    toast.success('Transferencia actualizada')
+    onSaved({ ...transaction, date, note: transaction.note })
+    onClose()
+  }
+
+  async function handleDelete() {
+    if (!confirmDelete) { setConfirmDelete(true); return }
+    setDeleting(true)
+    const { deleteTransaction } = await import('@/app/(app)/transactions/actions')
+    const { error } = await deleteTransaction(transaction.id)
+    if (error) {
+      toast.error('No se pudo borrar. Intentá de nuevo.', { duration: 5000 })
+      setDeleting(false)
+      return
+    }
+    toast.success('Transferencia borrada')
+    onDeleted(transaction.id)
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div className="absolute inset-0 bg-foreground/30 backdrop-blur-sm" onClick={() => !loading && !deleting && onClose()} />
+      <div className="relative w-full sm:max-w-md bg-card rounded-t-2xl sm:rounded-2xl border border-border shadow-xl p-6 z-10 animate-in fade-in-0 slide-in-from-bottom-4 sm:zoom-in-95 duration-150">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-card-foreground flex items-center gap-2">
+            <ArrowLeftRight className="w-4 h-4 text-blue-500" />
+            Editar transferencia
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading || deleting}
+            className="text-muted-foreground hover:text-foreground transition-colors rounded-lg p-1 hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Cerrar"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <p className="text-[12px] text-muted-foreground bg-muted/40 border border-border/60 rounded-xl px-3 py-2 mb-4">
+          Los cambios se aplican a las dos puntas de la transferencia.
+        </p>
+
+        <form onSubmit={handleSave} className="flex flex-col gap-4">
+          {/* Read-only summary del par */}
+          <div>
+            <Label className="text-[11px] font-semibold text-muted-foreground mb-2 block tracking-wide uppercase">
+              Detalle
+            </Label>
+            <div className="rounded-xl border border-border bg-muted/30 px-3 py-2.5 text-[13px] text-foreground">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground text-[12px]">{transaction.note ?? 'Transferencia'}</span>
+                <span className="font-mono tabular-nums font-semibold">
+                  {transaction.transfer_role === 'in' ? '+' : '−'}{formatCurrency(transaction.amount, transaction.currency)}
+                </span>
+              </div>
+              <p className="text-[10.5px] text-muted-foreground mt-1">
+                Tipo, monto y moneda no se pueden cambiar — para modificarlos, borrá y creá una nueva transferencia.
+              </p>
+            </div>
+          </div>
+
+          {/* Fecha */}
+          <div>
+            <Label htmlFor="transfer-edit-date" className="text-[11px] font-semibold text-muted-foreground mb-2 block tracking-wide uppercase">
+              Fecha
+            </Label>
+            <Input
+              id="transfer-edit-date"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              required
+              disabled={loading || deleting}
+              className="h-10 rounded-xl"
+            />
+          </div>
+
+          {/* Nota libre */}
+          <div>
+            <Label htmlFor="transfer-edit-note" className="text-[11px] font-semibold text-muted-foreground mb-2 block tracking-wide uppercase">
+              Nota (opcional)
+            </Label>
+            <Input
+              id="transfer-edit-note"
+              placeholder={noteLoaded ? 'Ej: Plata para el viaje, mes 4' : 'Cargando nota…'}
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              disabled={loading || deleting || !noteLoaded}
+              className="h-10 rounded-xl"
+            />
+          </div>
+
+          <div className="flex gap-2 mt-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleDelete}
+              disabled={loading || deleting}
+              className={cn(
+                'rounded-xl h-10 transition-all duration-150',
+                confirmDelete && 'border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground',
+              )}
+              title={confirmDelete ? 'Confirmá: se borran las dos puntas y se reverte el balance' : undefined}
+            >
+              {deleting ? 'Borrando...' : confirmDelete ? '¿Borrar las dos puntas?' : 'Borrar'}
+            </Button>
+            <Button
+              type="submit"
+              disabled={loading || deleting}
+              className="flex-1 h-10 rounded-xl font-semibold transition-all duration-150 hover:scale-[1.01]"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                'Guardar cambios'
+              )}
             </Button>
           </div>
         </form>

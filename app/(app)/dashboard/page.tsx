@@ -48,7 +48,7 @@ export default async function DashboardPage({
     await generateRecurringTransactions(currentMonthParam)
   }
 
-  const [profileRes, txRes, goalsRes, loansRes, debtsRes, portfolioRes, savingsTxRes, allPendingRes] = await Promise.all([
+  const [profileRes, txRes, goalsRes, transferableGoalsRes, loansRes, debtsRes, portfolioRes, savingsTxRes, allPendingRes] = await Promise.all([
     supabase.from('profiles').select('*').eq('id', user.id).single(),
     supabase
       .from('transactions')
@@ -64,6 +64,16 @@ export default async function DashboardPage({
       .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(3),
+    // Goals que pueden participar en una transferencia: active + completed
+    // (no liquidated). Lista completa, sin limit, para alimentar el modal
+    // "Transferir fondos" — el usuario puede mover plata entre cualquier meta
+    // suya, no solo entre las 3 más recientes.
+    supabase
+      .from('goals')
+      .select('*')
+      .eq('user_id', user.id)
+      .in('status', ['active', 'completed'])
+      .order('created_at', { ascending: false }),
     supabase
       .from('loans')
       .select('*')
@@ -95,14 +105,17 @@ export default async function DashboardPage({
       .order('date', { ascending: false }),
   ])
 
-  const transactions  = (txRes.data ?? []).map((r) => decryptRow(r) as Transaction)
-  const goals         = (goalsRes.data ?? []).map((r) => decryptRow(r) as Goal)
-  const loans         = (loansRes.data ?? []).map((r) => decryptRow(r) as Loan)
-  const debts         = (debtsRes.data ?? []).map((r) => decryptRow(r) as Debt)
-  const portfolios    = (portfolioRes.data ?? []) as Portfolio[]
-  const allPending    = (allPendingRes.data ?? []).map((r) => decryptRow(r) as Transaction)
+  const transactions       = (txRes.data ?? []).map((r) => decryptRow(r) as Transaction)
+  const goals              = (goalsRes.data ?? []).map((r) => decryptRow(r) as Goal)
+  const transferableGoals  = (transferableGoalsRes.data ?? []).map((r) => decryptRow(r) as Goal)
+  const loans              = (loansRes.data ?? []).map((r) => decryptRow(r) as Loan)
+  const debts              = (debtsRes.data ?? []).map((r) => decryptRow(r) as Debt)
+  const portfolios         = (portfolioRes.data ?? []) as Portfolio[]
+  const allPending         = (allPendingRes.data ?? []).map((r) => decryptRow(r) as Transaction)
 
-  // Cumulative savings balance (sum of all savings transactions up to end of month)
+  // Cumulative savings balance (sum of all savings transactions up to end of month).
+  // Incluye las puntas savings de transferencias — esas SÍ cambian el balance
+  // del bucket de ahorros, así que tienen que contar acá.
   const allSavingsTx = (savingsTxRes.data ?? []).map((r) => decryptRow(r) as Transaction)
   const cumulativeSavings = { ARS: 0, USD: 0 }
   for (const tx of allSavingsTx) {
@@ -117,6 +130,7 @@ export default async function DashboardPage({
       profile={profile}
       transactions={transactions}
       goals={goals}
+      transferableGoals={transferableGoals}
       loans={loans}
       debts={debts}
       portfolios={portfolios}

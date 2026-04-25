@@ -167,7 +167,15 @@ export function TransactionsClient({ transactions: initial, portfolios, cumulati
   // Filter
   const filtered = useMemo(() => {
     return transactions.filter((tx) => {
-      if (filterType !== 'all' && tx.type !== filterType) return false
+      // 'transfer' es un filterType especial: matchea por transfer_id, no por
+      // tx.type. La punta out de una transferencia tiene type='expense' (si
+      // sale de general) o 'savings'/'investment' según el bucket — el
+      // discriminador real es transfer_id.
+      if (filterType === 'transfer') {
+        if (!tx.transfer_id) return false
+      } else if (filterType !== 'all' && tx.type !== filterType) {
+        return false
+      }
       if (filterCurrency !== 'all' && tx.currency !== filterCurrency) return false
       if (filterStatus !== 'all' && tx.status !== filterStatus) return false
       if (filterPaymentMethod !== 'all' && (tx.payment_method ?? 'none') !== filterPaymentMethod) return false
@@ -184,11 +192,14 @@ export function TransactionsClient({ transactions: initial, portfolios, cumulati
     })
   }, [transactions, filterType, filterCurrency, filterStatus, filterPaymentMethod, filterDate, search])
 
-  // Summary stats
+  // Summary stats. Las puntas de transferencia (transfer_id != null) NO
+  // cuentan como income/expense del mes — la regla del feature A1. Sí
+  // cuentan en savings/investment porque ahí los buckets sí cambian.
   const stats = useMemo(() => {
     const s = { income: { ARS: 0, USD: 0 }, expense: { ARS: 0, USD: 0 }, savings: { ARS: 0, USD: 0 }, investment: { ARS: 0, USD: 0 } }
     for (const tx of transactions) {
       if (tx.status === 'cancelled') continue
+      if (tx.transfer_id && (tx.type === 'income' || tx.type === 'expense')) continue
       s[tx.type][tx.currency] += tx.amount
     }
     // Ahorros: usar saldo acumulado (no depende del mes)
@@ -556,6 +567,28 @@ export function TransactionsClient({ transactions: initial, portfolios, cumulati
             </button>
           ))}
 
+          <span className="w-px h-4 bg-border mx-1" />
+
+          {/* Transferencias toggle. Activarlo override `filterType` a 'transfer'
+              y deshabilita los 4 tiles de tipo (que setean filterType al type
+              normal). Toggleable. */}
+          <button
+            key="transfer-filter"
+            onClick={() => {
+              setFilterType(filterType === 'transfer' ? 'all' : 'transfer')
+              setPage(1)
+            }}
+            className={cn(
+              'px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all duration-100 flex items-center gap-1',
+              filterType === 'transfer'
+                ? 'bg-foreground text-background shadow-sm'
+                : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground',
+            )}
+          >
+            <ArrowLeftRight className="w-3 h-3" />
+            Transferencias
+          </button>
+
           {activeFilters > 0 && (
             <>
               <span className="w-px h-4 bg-border mx-1" />
@@ -655,10 +688,15 @@ export function TransactionsClient({ transactions: initial, portfolios, cumulati
           </p>
           <div className="bg-card border border-border rounded-2xl overflow-hidden divide-y divide-border">
             {grouped[date].map((tx) => {
+              const isTransfer = !!tx.transfer_id
               const cfg = TYPE_CFG[tx.type]
-              const Icon = cfg.icon
+              // Para transferencias, override el icono a ArrowLeftRight con
+              // visual neutral. La punta out/in se distingue por el sign del
+              // monto (transfer_role).
+              const Icon = isTransfer ? ArrowLeftRight : cfg.icon
               const statusCfg = STATUS_LABELS[tx.status] ?? STATUS_LABELS.confirmed
               const displayName = tx.note ?? tx.category?.name ?? TRANSACTION_TYPE_LABELS[tx.type]
+              const transferSign = tx.transfer_role === 'in' ? '+' : '−'
 
               return (
                 <div
@@ -671,9 +709,9 @@ export function TransactionsClient({ transactions: initial, portfolios, cumulati
                   {/* Type icon */}
                   <div className={cn(
                     'w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-150 group-hover:scale-110',
-                    cfg.bg,
+                    isTransfer ? 'bg-muted/60 ring-1 ring-border' : cfg.bg,
                   )}>
-                    <Icon className={cn('w-4 h-4', cfg.color)} />
+                    <Icon className={cn('w-4 h-4', isTransfer ? 'text-muted-foreground' : cfg.color)} />
                   </div>
 
                   {/* Main info */}
@@ -682,9 +720,15 @@ export function TransactionsClient({ transactions: initial, portfolios, cumulati
                       <p className="text-[13.5px] font-semibold text-foreground truncate leading-snug">
                         {displayName}
                       </p>
-                      <Badge className={cn('text-[10px] h-4 px-1.5 font-semibold', cfg.badge)}>
-                        {TRANSACTION_TYPE_LABELS[tx.type]}
-                      </Badge>
+                      {isTransfer ? (
+                        <Badge className="text-[10px] h-4 px-1.5 font-semibold bg-muted text-muted-foreground border border-border">
+                          ↔ Transferencia
+                        </Badge>
+                      ) : (
+                        <Badge className={cn('text-[10px] h-4 px-1.5 font-semibold', cfg.badge)}>
+                          {TRANSACTION_TYPE_LABELS[tx.type]}
+                        </Badge>
+                      )}
                       {tx.status !== 'confirmed' && (
                         <Badge className={cn('text-[10px] h-4 px-1.5 font-semibold', statusCfg.class)}>
                           {statusCfg.label}
@@ -720,11 +764,13 @@ export function TransactionsClient({ transactions: initial, portfolios, cumulati
                   <div className="flex items-center gap-2 shrink-0">
                     <span className={cn(
                       'text-[14px] font-bold tabular-nums font-mono',
-                      tx.type === 'income'  ? 'text-emerald-500 dark:text-emerald-400' :
-                      tx.type === 'expense' ? 'text-rose-500 dark:text-rose-400' :
-                      'text-foreground',
+                      isTransfer
+                        ? 'text-muted-foreground'
+                        : tx.type === 'income'  ? 'text-emerald-500 dark:text-emerald-400'
+                        : tx.type === 'expense' ? 'text-rose-500 dark:text-rose-400'
+                        : 'text-foreground',
                     )}>
-                      {cfg.sign}{formatCurrency(tx.amount, tx.currency)}
+                      {isTransfer ? transferSign : cfg.sign}{formatCurrency(tx.amount, tx.currency)}
                     </span>
                     {tx.status === 'pending' && (
                       <button

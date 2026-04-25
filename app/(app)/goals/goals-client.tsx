@@ -355,7 +355,6 @@ function PageHeader({ onNew, count }: { onNew: () => void; count: number }) {
   return (
     <div className="flex items-center gap-3">
       <div className="flex-1">
-        <div className="text-[11px] uppercase tracking-wider text-muted-foreground font-mono">/metas</div>
         <h1 className="font-bold text-foreground" style={{ fontSize: 28 }}>
           Metas
           {count > 0 && <span className="ml-2 font-mono text-muted-foreground font-semibold text-[15px]">{count}</span>}

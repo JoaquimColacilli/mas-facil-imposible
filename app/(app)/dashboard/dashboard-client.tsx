@@ -50,6 +50,8 @@ import { Tooltip as UiTooltip, TooltipContent, TooltipProvider, TooltipTrigger }
 import { TransactionTypeModal } from '@/components/transaction-type-modal'
 import { MonthlySummaryBanner } from '@/components/monthly-summary-banner'
 import { MonthAlertsBanner } from '@/components/month-alerts-banner'
+import { GenerateReportDialog } from '@/components/generate-report-dialog'
+import { TransferFundsDialog } from '@/components/transfer-funds-dialog'
 import type { Loan } from '@/lib/types'
 
 type ModalType = 'income' | 'savings'
@@ -58,6 +60,8 @@ interface DashboardClientProps {
   profile: Profile | null
   transactions: Transaction[]
   goals: Goal[]
+  /** Goals usables como origen/destino de transferencias (active+completed). */
+  transferableGoals: Goal[]
   loans: Loan[]
   debts: Debt[]
   portfolios: Portfolio[]
@@ -389,6 +393,7 @@ export function DashboardClient({
   profile,
   transactions: initialTransactions,
   goals,
+  transferableGoals,
   loans,
   debts,
   portfolios,
@@ -419,6 +424,8 @@ export function DashboardClient({
   const [quickAddPrefill, setQuickAddPrefill] = useState<ExtractedTransaction | null>(null)
   const [showScan, setShowScan] = useState(false)
   const [bulkItems, setBulkItems] = useState<ExtractedTransaction[] | null>(null)
+  const [showGenerateReport, setShowGenerateReport] = useState(false)
+  const [showTransferFunds, setShowTransferFunds] = useState(false)
   const [greeting, setGreeting] = useState('')
   const [transactions, setTransactions] = useState<Transaction[]>(initialTransactions)
   const [cumSavings, setCumSavings] = useState(cumulativeSavings)
@@ -473,23 +480,32 @@ export function DashboardClient({
   const firstName = profile?.full_name?.split(' ')[0] ?? userEmail.split('@')[0]
   const currency  = profile?.default_currency ?? 'ARS'
 
-  const sumBy = (type: string, cur: 'ARS' | 'USD') =>
-    transactions.filter((t) => t.type === type && t.currency === cur && t.status !== 'cancelled').reduce((s, t) => s + t.amount, 0)
+  // Migration 030: las transferencias entre buckets generan dos transactions
+  // con `transfer_id != null`. Esas puntas NO son ingresos ni gastos reales —
+  // mover plata de Ahorros a Cocos no es "gasto del mes". Por eso las KPIs
+  // de Ingresos/Gastos las excluyen, mientras que los saldos cumulativos de
+  // Ahorros e Inversiones SÍ las cuentan (porque ahí los buckets sí cambian).
+  const sumBy = (type: string, cur: 'ARS' | 'USD', excludeTransfers = false) =>
+    transactions
+      .filter((t) => t.type === type && t.currency === cur && t.status !== 'cancelled')
+      .filter((t) => (excludeTransfers ? !t.transfer_id : true))
+      .reduce((s, t) => s + t.amount, 0)
 
   // Pending expenses from PREVIOUS months (strictly older than the viewed month).
   // These are obligations still outstanding that don't show up in `transactions`
   // (scoped to current month). Filter by `t.date.slice(0,7) < currentMonth` —
   // the YYYY-MM lexical comparison works because both sides share that format.
+  // Las puntas de transferencias también se excluyen acá (mismo razonamiento).
   const olderPendingExpensesARS = allPending
-    .filter((t) => t.type === 'expense' && t.currency === 'ARS' && t.date.slice(0, 7) < currentMonth)
+    .filter((t) => t.type === 'expense' && t.currency === 'ARS' && t.date.slice(0, 7) < currentMonth && !t.transfer_id)
     .reduce((s, t) => s + t.amount, 0)
   const olderPendingExpensesUSD = allPending
-    .filter((t) => t.type === 'expense' && t.currency === 'USD' && t.date.slice(0, 7) < currentMonth)
+    .filter((t) => t.type === 'expense' && t.currency === 'USD' && t.date.slice(0, 7) < currentMonth && !t.transfer_id)
     .reduce((s, t) => s + t.amount, 0)
 
-  const incomeARS      = sumBy('income', 'ARS'),     incomeUSD      = sumBy('income', 'USD')
-  const expensesARS    = sumBy('expense', 'ARS') + olderPendingExpensesARS
-  const expensesUSD    = sumBy('expense', 'USD') + olderPendingExpensesUSD
+  const incomeARS      = sumBy('income', 'ARS', true),     incomeUSD      = sumBy('income', 'USD', true)
+  const expensesARS    = sumBy('expense', 'ARS', true) + olderPendingExpensesARS
+  const expensesUSD    = sumBy('expense', 'USD', true) + olderPendingExpensesUSD
   const savingsTxARS   = sumBy('savings', 'ARS'),    savingsTxUSD   = sumBy('savings', 'USD')
   const investTxARS    = sumBy('investment', 'ARS'), investTxUSD    = sumBy('investment', 'USD')
 
@@ -507,11 +523,15 @@ export function DashboardClient({
   const balanceARS     = incomeARS - expensesARS - savingsTxARS - investTxARS
   const balanceUSD     = incomeUSD - expensesUSD - savingsTxUSD - investTxUSD
 
-  // Balance confirmado: solo movimientos con status 'confirmed'
-  const sumByConfirmed = (type: string, cur: 'ARS' | 'USD') =>
-    transactions.filter((t) => t.type === type && t.currency === cur && t.status === 'confirmed').reduce((s, t) => s + t.amount, 0)
-  const confirmedBalanceARS = sumByConfirmed('income', 'ARS') - sumByConfirmed('expense', 'ARS') - sumByConfirmed('savings', 'ARS') - sumByConfirmed('investment', 'ARS')
-  const confirmedBalanceUSD = sumByConfirmed('income', 'USD') - sumByConfirmed('expense', 'USD') - sumByConfirmed('savings', 'USD') - sumByConfirmed('investment', 'USD')
+  // Balance confirmado: solo movimientos con status 'confirmed', excluyendo
+  // transferencias internas (que no son income/expense reales).
+  const sumByConfirmed = (type: string, cur: 'ARS' | 'USD', excludeTransfers = false) =>
+    transactions
+      .filter((t) => t.type === type && t.currency === cur && t.status === 'confirmed')
+      .filter((t) => (excludeTransfers ? !t.transfer_id : true))
+      .reduce((s, t) => s + t.amount, 0)
+  const confirmedBalanceARS = sumByConfirmed('income', 'ARS', true) - sumByConfirmed('expense', 'ARS', true) - sumByConfirmed('savings', 'ARS') - sumByConfirmed('investment', 'ARS')
+  const confirmedBalanceUSD = sumByConfirmed('income', 'USD', true) - sumByConfirmed('expense', 'USD', true) - sumByConfirmed('savings', 'USD') - sumByConfirmed('investment', 'USD')
 
   // Gastos pendientes (para el tooltip). Incluye los del mes actual + meses anteriores,
   // así el "Sin pendientes" refleja correctamente la diferencia con el balance.
@@ -1197,16 +1217,16 @@ export function DashboardClient({
                 {
                   label: 'Transferir fondos',
                   icon: ArrowLeftRight,
-                  color: 'text-muted-foreground',
-                  bg: '',
-                  disabled: true,
+                  color: 'text-blue-500',
+                  bg: 'hover:bg-blue-500/8 hover:border-blue-500/30',
+                  action: () => setShowTransferFunds(true),
                 },
                 {
                   label: 'Generar reporte',
                   icon: FileText,
-                  color: 'text-muted-foreground',
-                  bg: '',
-                  disabled: true,
+                  color: 'text-amber-500',
+                  bg: 'hover:bg-amber-500/8 hover:border-amber-500/30',
+                  action: () => setShowGenerateReport(true),
                 },
               ] as const).map(({ label, icon: Icon, color, bg, action, disabled }: {
                 label: string
@@ -1330,6 +1350,26 @@ export function DashboardClient({
           onDeleted={(id) => {
             setTransactions((prev) => prev.filter((t) => t.id !== id))
             setEditingTx(null)
+          }}
+        />
+      )}
+
+      {showGenerateReport && (
+        <GenerateReportDialog
+          defaultMonth={currentMonth}
+          onClose={() => setShowGenerateReport(false)}
+        />
+      )}
+
+      {showTransferFunds && (
+        <TransferFundsDialog
+          cumulativeSavings={cumSavings}
+          portfolios={portfolios}
+          transferableGoals={transferableGoals}
+          onClose={() => setShowTransferFunds(false)}
+          onSuccess={() => {
+            setShowTransferFunds(false)
+            window.location.reload()
           }}
         />
       )}

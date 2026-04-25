@@ -6,6 +6,19 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.1.0',
+    date: '2026-04-25',
+    changes: [
+      'Nuevo modal "Generar reporte" en Acciones rápidas: elegís mes y formato (PDF o Excel) y descargás',
+      'Nuevo modal "Transferir fondos" en Acciones rápidas: movés plata entre Cuenta general, Ahorros, Portfolios y Metas (misma moneda)',
+      'Las transferencias aparecen como un par de movimientos linkeados con badge ↔ Transferencia y visual neutral en /transactions',
+      'Nuevo filtro "Transferencias" en /transactions para auditar todos los movimientos internos',
+      'Editar una transferencia ahora solo cambia fecha y nota; los cambios se aplican a las dos puntas',
+      'Borrar una transferencia elimina las dos puntas y revierte el saldo del portfolio o meta afectado',
+      'Ingresos y Gastos del mes ya no cuentan transferencias internas; los saldos de Ahorros e Inversiones sí'
+    ]
+  },
+  {
     version: '1.0.1',
     date: '2026-04-25',
     changes: [

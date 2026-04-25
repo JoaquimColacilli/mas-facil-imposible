@@ -11,8 +11,11 @@ export type GoalCategory = 'viaje' | 'auto' | 'casa' | 'emergencia' | 'inversion
  *  Note: an aporte-a-meta is `type='savings'` + non-null `goal_id` —
  *  no separate transaction type is needed (would split aggregates like
  *  "Ahorros del mes" silently). The `source` field distinguishes how it
- *  was created. */
-export type TransactionSource = 'manual' | 'auto_goal' | 'goal_deposit' | 'goal_liquidation'
+ *  was created.
+ *  Migration 030 adds 'transfer_out' / 'transfer_in' for the two punta-rows
+ *  of a transferencia entre buckets. The discriminator at runtime is
+ *  `transfer_id IS NOT NULL`; `source` is informational. */
+export type TransactionSource = 'manual' | 'auto_goal' | 'goal_deposit' | 'goal_liquidation' | 'transfer_out' | 'transfer_in'
 export type NotificationType = 'info' | 'warning' | 'success' | 'alert'
 
 export type AppMode = 'classic' | 'mfi'
@@ -380,10 +383,38 @@ export interface Transaction {
   /** PR 1 (migration 028): origin tag. NOT NULL on the DB (default 'manual'),
    *  optional on the type only because legacy queries may not project it. */
   source?: TransactionSource
+  /** Migration 030: link a la fila de `transfers` que agrupa el par
+   *  origen+destino. NULL para movimientos comunes. */
+  transfer_id?: string | null
+  /** Migration 030: 'out' = punta saliente, 'in' = punta entrante. */
+  transfer_role?: 'out' | 'in' | null
   created_at: string
   updated_at: string
   // joined
   category?: Category | null
+}
+
+// ─── Transfers (Migration 030) ──────────────────────────────────────────────
+
+export type BucketKind = 'general' | 'savings' | 'portfolio' | 'goal'
+
+/** Origen o destino de una transferencia. `id` solo aplica cuando
+ *  `kind` es 'portfolio' o 'goal'. */
+export interface BucketRef {
+  kind: BucketKind
+  id?: string | null
+}
+
+export interface Transfer {
+  id: string
+  user_id: string
+  /** Tasa de cambio cuando la transferencia involucra dos currencies
+   *  (A3, MEP). En A1 (mismo-currency) siempre es null. */
+  fx_rate: number | null
+  /** Nota del par. Vive cifrada en note_enc. Tras decryptRow queda
+   *  en `note`. */
+  note?: string | null
+  created_at: string
 }
 
 export interface Goal {

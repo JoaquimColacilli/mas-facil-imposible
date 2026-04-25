@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { encryptFields, decryptRow } from '@/lib/crypto'
+import { encrypt, decrypt, encryptFields, decryptRow } from '@/lib/crypto'
 import { callGeminiJson } from '@/lib/gemini'
 import type {
   Transaction,
@@ -11,6 +11,8 @@ import type {
   PaymentMethod,
   ExtractedTransaction,
   ExtractedTransactionsResponse,
+  BucketRef,
+  BucketKind,
 } from '@/lib/types'
 
 export async function createTransaction(input: {
@@ -99,8 +101,507 @@ export async function updateTransaction(input: {
 
 export async function deleteTransaction(id: string): Promise<{ error: string | null }> {
   const supabase = await createClient()
+
+  // Si la tx forma parte de un par de transferencia, hay que borrar también
+  // la contraparte y revertir el balance del bucket que toque (portfolio o
+  // goal). El delete de la fila `transfers` se hace después de revertir
+  // los buckets para mantener la metadata disponible mientras leemos.
+  const { data: tx } = await supabase
+    .from('transactions')
+    .select('transfer_id')
+    .eq('id', id)
+    .single()
+
+  if (tx?.transfer_id) {
+    const result = await deleteTransferPair(tx.transfer_id)
+    return { error: result.error }
+  }
+
   const { error } = await supabase.from('transactions').delete().eq('id', id)
   return { error: error?.message ?? null }
+}
+
+// ─── Transfers (Migration 030) ──────────────────────────────────────────────
+
+/**
+ * Helper interno para revertir el balance de un bucket cuando se borra
+ * una transferencia. `signedAmount` es el monto que la transferencia
+ * había APLICADO al bucket (positivo si el bucket recibió plata,
+ * negativo si la perdió). Para revertir, restamos `signedAmount` del
+ * estado materializado.
+ *
+ * No exportar — vive bajo 'use server' y queda callable desde el cliente
+ * si se exporta, lo cual sería una vía para que un atacante revierta
+ * balances ajenos.
+ */
+async function revertBucket(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  kind: BucketKind,
+  bucketId: string | null,
+  signedAmount: number,
+): Promise<void> {
+  if (kind === 'general' || kind === 'savings') return // Sin balance materializado.
+
+  if (kind === 'portfolio' && bucketId) {
+    const { data: port } = await supabase
+      .from('portfolios')
+      .select('balance')
+      .eq('id', bucketId)
+      .eq('user_id', userId)
+      .single()
+    if (!port) return
+    const newBalance = Number(port.balance) - signedAmount
+    await supabase.from('portfolios').update({ balance: newBalance }).eq('id', bucketId)
+    return
+  }
+
+  if (kind === 'goal' && bucketId) {
+    const { data: rawGoal } = await supabase
+      .from('goals')
+      .select('*')
+      .eq('id', bucketId)
+      .eq('user_id', userId)
+      .single()
+    if (!rawGoal) return
+    const goal = decryptRow(rawGoal) as {
+      name: string
+      target_amount: number
+      current_amount: number
+      monthly_target?: number | null
+      auto_amount?: number | null
+      note?: string | null
+    }
+    const newCurrent = Math.max(0, goal.current_amount - signedAmount)
+    const enc_data = encryptFields({
+      name: goal.name,
+      target_amount: goal.target_amount,
+      current_amount: newCurrent,
+      monthly_target: goal.monthly_target ?? null,
+      auto_amount: goal.auto_amount ?? null,
+      note: goal.note ?? null,
+    })
+    await supabase
+      .from('goals')
+      .update({ enc_data, updated_at: new Date().toISOString() })
+      .eq('id', bucketId)
+  }
+}
+
+/** Borra el par completo de una transferencia (ambas puntas + fila de
+ *  `transfers`) y revierte el balance de portfolios/goals afectados.
+ *  Idempotente — si alguna pieza ya no existe, se ignora el error. */
+async function deleteTransferPair(transferId: string): Promise<{ error: string | null }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+
+  const { data: transferRow } = await supabase
+    .from('transfers')
+    .select('from_kind, from_id, to_kind, to_id')
+    .eq('id', transferId)
+    .eq('user_id', user.id)
+    .single()
+
+  // Las dos puntas. Necesitamos los amounts descifrados para revertir
+  // (el plaintext column siempre es 0).
+  const { data: rawPair } = await supabase
+    .from('transactions')
+    .select('*')
+    .eq('transfer_id', transferId)
+    .eq('user_id', user.id)
+  const pair = (rawPair ?? []).map((r) => decryptRow(r) as Transaction)
+  const out = pair.find((t) => t.transfer_role === 'out')
+  const inn = pair.find((t) => t.transfer_role === 'in')
+
+  if (transferRow) {
+    if (out) {
+      // La punta out aplicó `-amount` al bucket origen. Revert: sumar `+amount`.
+      await revertBucket(supabase, user.id, transferRow.from_kind as BucketKind, transferRow.from_id, -out.amount)
+    }
+    if (inn) {
+      // La punta in aplicó `+amount` al bucket destino. Revert: restar `+amount`.
+      await revertBucket(supabase, user.id, transferRow.to_kind as BucketKind, transferRow.to_id, inn.amount)
+    }
+  }
+
+  const { error: txDelErr } = await supabase
+    .from('transactions')
+    .delete()
+    .eq('transfer_id', transferId)
+    .eq('user_id', user.id)
+  if (txDelErr) return { error: txDelErr.message }
+
+  await supabase.from('transfers').delete().eq('id', transferId).eq('user_id', user.id)
+  return { error: null }
+}
+
+export interface CreateTransferInput {
+  from: BucketRef
+  to: BucketRef
+  amount: number
+  currency: Currency
+  date: string
+  note?: string | null
+}
+
+export type TransferErrorCode =
+  | 'unauthenticated'
+  | 'invalid_amount'
+  | 'same_bucket'
+  | 'currency_mismatch'
+  | 'invalid_bucket'
+  | 'goal_liquidated'
+  | 'unknown'
+
+export interface CreateTransferResult {
+  ok: boolean
+  error: TransferErrorCode | null
+  errorMessage?: string
+}
+
+/**
+ * Crea una transferencia entre dos buckets. En A1, ambas puntas comparten
+ * currency — si difieren, devuelve `currency_mismatch` (A3 levanta esa
+ * restricción introduciendo `fx_rate`).
+ *
+ * Mecánica:
+ *   1. Valida ownership de portfolio/goal cuando aplican.
+ *   2. Inserta fila en `transfers` con metadata (kinds, ids, note cifrada).
+ *   3. Inserta dos transactions con `transfer_id` apuntando a esa fila,
+ *      `transfer_role='out'`/`'in'`, y `type` derivado del bucket que toca:
+ *        general    → income / expense
+ *        savings    → savings (signo del amount)
+ *        portfolio  → investment (signo del amount)
+ *        goal       → savings con goal_id (signo del amount)
+ *   4. Si origen/destino es portfolio, ajusta `portfolios.balance`.
+ *      Si origen/destino es goal, ajusta `goals.current_amount`.
+ *
+ * El `note` plaintext de cada punta se auto-genera ("Transferencia: A → B")
+ * para que el listado de tx no requiera JOIN. La nota libre del usuario
+ * vive cifrada en `transfers.note_enc` y se usa en el modal de edit.
+ */
+export async function createTransfer(
+  input: CreateTransferInput,
+): Promise<CreateTransferResult> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { ok: false, error: 'unauthenticated' }
+
+  if (!input.amount || input.amount <= 0) {
+    return { ok: false, error: 'invalid_amount' }
+  }
+  if (sameBucket(input.from, input.to)) {
+    return { ok: false, error: 'same_bucket' }
+  }
+
+  // Validar buckets nombrados (portfolio/goal).
+  const fromCheck = await validateBucket(supabase, user.id, input.from, input.currency)
+  if (fromCheck.error) return { ok: false, error: fromCheck.error }
+  const toCheck = await validateBucket(supabase, user.id, input.to, input.currency)
+  if (toCheck.error) return { ok: false, error: toCheck.error }
+
+  const note = input.note?.trim() || null
+  const note_enc = note ? encrypt(JSON.stringify({ note })) : null
+
+  // 1. Insert transfers row
+  const { data: transferRow, error: transferErr } = await supabase
+    .from('transfers')
+    .insert({
+      user_id: user.id,
+      fx_rate: null, // A1: mismo-currency
+      note_enc,
+      from_kind: input.from.kind,
+      from_id: input.from.id ?? null,
+      to_kind: input.to.kind,
+      to_id: input.to.id ?? null,
+    })
+    .select('id')
+    .single()
+  if (transferErr || !transferRow) {
+    return { ok: false, error: 'unknown', errorMessage: transferErr?.message }
+  }
+
+  // 2. Insert dos transactions
+  const fromLabel = bucketLabel(input.from, fromCheck.name)
+  const toLabel = bucketLabel(input.to, toCheck.name)
+  const sharedNote = `Transferencia: ${fromLabel} → ${toLabel}`
+
+  const outRow = buildTransferTransactionRow({
+    userId: user.id,
+    bucket: input.from,
+    role: 'out',
+    amount: input.amount,
+    currency: input.currency,
+    date: input.date,
+    note: sharedNote,
+    transferId: transferRow.id,
+  })
+  const inRow = buildTransferTransactionRow({
+    userId: user.id,
+    bucket: input.to,
+    role: 'in',
+    amount: input.amount,
+    currency: input.currency,
+    date: input.date,
+    note: sharedNote,
+    transferId: transferRow.id,
+  })
+
+  const { error: insertErr } = await supabase.from('transactions').insert([outRow, inRow])
+  if (insertErr) {
+    // Rollback parcial: eliminar la fila de transfers para no dejarla huérfana.
+    await supabase.from('transfers').delete().eq('id', transferRow.id)
+    return { ok: false, error: 'unknown', errorMessage: insertErr.message }
+  }
+
+  // 3. Aplicar balance a portfolios/goals según corresponda
+  await applyBucketDelta(supabase, user.id, input.from, -input.amount)
+  await applyBucketDelta(supabase, user.id, input.to, input.amount)
+
+  return { ok: true, error: null }
+}
+
+function sameBucket(a: BucketRef, b: BucketRef): boolean {
+  if (a.kind !== b.kind) return false
+  if (a.kind === 'general' || a.kind === 'savings') return true
+  return (a.id ?? null) === (b.id ?? null)
+}
+
+interface ValidateResult {
+  error: TransferErrorCode | null
+  /** Nombre del bucket cuando aplica (portfolio/goal). Para el note del par. */
+  name?: string | null
+}
+
+async function validateBucket(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  bucket: BucketRef,
+  currency: Currency,
+): Promise<ValidateResult> {
+  if (bucket.kind === 'general' || bucket.kind === 'savings') {
+    return { error: null }
+  }
+  if (!bucket.id) return { error: 'invalid_bucket' }
+
+  if (bucket.kind === 'portfolio') {
+    const { data } = await supabase
+      .from('portfolios')
+      .select('id, name, currency')
+      .eq('id', bucket.id)
+      .eq('user_id', userId)
+      .single()
+    if (!data) return { error: 'invalid_bucket' }
+    if (data.currency !== currency) return { error: 'currency_mismatch' }
+    return { error: null, name: data.name }
+  }
+
+  if (bucket.kind === 'goal') {
+    const { data: raw } = await supabase
+      .from('goals')
+      .select('*')
+      .eq('id', bucket.id)
+      .eq('user_id', userId)
+      .single()
+    if (!raw) return { error: 'invalid_bucket' }
+    if (raw.currency !== currency) return { error: 'currency_mismatch' }
+    if (raw.status === 'liquidated') return { error: 'goal_liquidated' }
+    const goal = decryptRow(raw) as { name: string }
+    return { error: null, name: goal.name }
+  }
+
+  return { error: 'invalid_bucket' }
+}
+
+function bucketLabel(bucket: BucketRef, name?: string | null): string {
+  switch (bucket.kind) {
+    case 'general': return 'Cuenta general'
+    case 'savings': return 'Ahorros'
+    case 'portfolio': return name ?? 'Inversión'
+    case 'goal': return name ? `Meta: ${name}` : 'Meta'
+  }
+}
+
+function buildTransferTransactionRow(args: {
+  userId: string
+  bucket: BucketRef
+  role: 'out' | 'in'
+  amount: number
+  currency: Currency
+  date: string
+  note: string
+  transferId: string
+}): Record<string, unknown> {
+  const signedAmount = args.role === 'out' ? -args.amount : args.amount
+
+  let type: TransactionType
+  let goalId: string | null = null
+  switch (args.bucket.kind) {
+    case 'general':
+      type = args.role === 'in' ? 'income' : 'expense'
+      break
+    case 'savings':
+      type = 'savings'
+      break
+    case 'portfolio':
+      type = 'investment'
+      break
+    case 'goal':
+      type = 'savings'
+      goalId = args.bucket.id ?? null
+      break
+  }
+
+  const enc_data = encryptFields({ amount: signedAmount, note: args.note })
+
+  return {
+    user_id: args.userId,
+    type,
+    amount: 0,
+    currency: args.currency,
+    note: null,
+    category_id: null,
+    date: args.date,
+    status: 'confirmed' as const,
+    is_recurring: false,
+    enc_data,
+    goal_id: goalId,
+    source: args.role === 'out' ? 'transfer_out' : 'transfer_in',
+    transfer_id: args.transferId,
+    transfer_role: args.role,
+  }
+}
+
+/** Aplica `delta` (positivo o negativo) al bucket. No-op para
+ *  general/savings (no tienen balance materializado). */
+async function applyBucketDelta(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  userId: string,
+  bucket: BucketRef,
+  delta: number,
+): Promise<void> {
+  if (bucket.kind === 'general' || bucket.kind === 'savings') return
+
+  if (bucket.kind === 'portfolio' && bucket.id) {
+    const { data: port } = await supabase
+      .from('portfolios')
+      .select('balance')
+      .eq('id', bucket.id)
+      .eq('user_id', userId)
+      .single()
+    if (!port) return
+    const newBalance = Number(port.balance) + delta
+    await supabase.from('portfolios').update({ balance: newBalance }).eq('id', bucket.id)
+    // No insertamos portfolio_logs — el flujo "Traspaso" actual sí lo
+    // hace, pero las transferencias del feature A1 no se interpretan
+    // como yield/deposit/rescue del portfolio en el sentido de la
+    // pantalla /investments. Si después se decide loguearlas, se suma
+    // un type='transfer' a portfolio_logs y se inserta acá.
+    return
+  }
+
+  if (bucket.kind === 'goal' && bucket.id) {
+    const { data: rawGoal } = await supabase
+      .from('goals')
+      .select('*')
+      .eq('id', bucket.id)
+      .eq('user_id', userId)
+      .single()
+    if (!rawGoal) return
+    const goal = decryptRow(rawGoal) as {
+      name: string
+      target_amount: number
+      current_amount: number
+      monthly_target?: number | null
+      auto_amount?: number | null
+      note?: string | null
+    }
+    const newCurrent = Math.max(0, goal.current_amount + delta)
+    const enc_data = encryptFields({
+      name: goal.name,
+      target_amount: goal.target_amount,
+      current_amount: newCurrent,
+      monthly_target: goal.monthly_target ?? null,
+      auto_amount: goal.auto_amount ?? null,
+      note: goal.note ?? null,
+    })
+    await supabase
+      .from('goals')
+      .update({ enc_data, updated_at: new Date().toISOString() })
+      .eq('id', bucket.id)
+  }
+}
+
+/** Edit limitado: solo `date` y `note` libre. Type/amount/currency son
+ *  inmutables — para cambiarlos hay que borrar y crear de nuevo. */
+export interface UpdateTransferInput {
+  transferId: string
+  date?: string
+  note?: string | null
+}
+
+export async function updateTransfer(
+  input: UpdateTransferInput,
+): Promise<{ error: string | null }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { error: 'No autenticado' }
+
+  // Update note (cifrada) en transfers
+  if (input.note !== undefined) {
+    const note = input.note?.trim() || null
+    const note_enc = note ? encrypt(JSON.stringify({ note })) : null
+    const { error } = await supabase
+      .from('transfers')
+      .update({ note_enc })
+      .eq('id', input.transferId)
+      .eq('user_id', user.id)
+    if (error) return { error: error.message }
+  }
+
+  // Update date en ambas puntas. El note plaintext no cambia (sigue
+  // siendo "Transferencia: A → B").
+  if (input.date) {
+    const { error } = await supabase
+      .from('transactions')
+      .update({ date: input.date, updated_at: new Date().toISOString() })
+      .eq('transfer_id', input.transferId)
+      .eq('user_id', user.id)
+    if (error) return { error: error.message }
+  }
+
+  return { error: null }
+}
+
+/** Lee la nota libre cifrada de una transferencia. Devuelve null si
+ *  la fila no existe, no tiene nota o no se puede descifrar. */
+export async function fetchTransferNote(transferId: string): Promise<{ note: string | null }> {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return { note: null }
+
+  const { data } = await supabase
+    .from('transfers')
+    .select('note_enc')
+    .eq('id', transferId)
+    .eq('user_id', user.id)
+    .single()
+  if (!data?.note_enc) return { note: null }
+  try {
+    const obj = JSON.parse(decrypt(data.note_enc)) as { note?: string }
+    return { note: obj.note ?? null }
+  } catch {
+    return { note: null }
+  }
 }
 
 /**
