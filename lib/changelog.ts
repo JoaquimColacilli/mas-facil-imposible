@@ -6,6 +6,15 @@ export interface ChangelogEntry {
 
 export const changelog: ChangelogEntry[] = [
   {
+    version: '1.0.1',
+    date: '2026-04-25',
+    changes: [
+      'Removido Vercel Analytics que rompía en Netlify y dejaba un 404 visible en consola',
+      'Singleton del cliente Supabase browser para evitar competencia de locks de auth-token',
+      'Agregado favicon.ico para evitar el 404 cosmético en cada page load'
+    ]
+  },
+  {
     version: '1.0.0',
     date: '2026-04-25',
     changes: [

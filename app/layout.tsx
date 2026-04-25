@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next'
 import { Sora, DM_Sans, DM_Mono } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 import './tour.css'
 
@@ -33,7 +32,6 @@ export default function RootLayout({
     <html lang="es" suppressHydrationWarning>
       <body className={`${dmSans.variable} ${sora.variable} ${dmMono.variable} font-sans antialiased`}>
         {children}
-        <Analytics />
       </body>
     </html>
   )
